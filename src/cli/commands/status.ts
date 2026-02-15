@@ -1,8 +1,25 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
 import { pkg, isDev } from '../../utils/version.js';
+import { Config } from '../../config/config.js';
+import { SessionManager } from '../../supervisor/session-manager.js';
 
 export async function status() {
+    // Load config to find session file
+    const config = Config.getInstance();
+    const sessionManager = new SessionManager(config.sessionFilePath);
+    const stats = sessionManager.load(); // Just loads ID, but populates internal state if exists
+    // Actually we need to call load() then check internal state or re-read
+    // SessionManager.load() returns ID but populates this.sessionData.
+    // However, status.ts is a separate process from supervisor.
+    // So we just need to read the file directly or use SessionManager.
+
+    // Let's use SessionManager since we have it.
+    // Issue: load() returns string | null. We need getStats().
+    // We must call load() first to populate internal state from disk.
+    sessionManager.load();
+    const sessionStats = sessionManager.getStats();
+
     pm2.connect((err) => {
         if (err) {
             console.error(chalk.red('❌ Failed to connect to PM2'), err);
@@ -34,7 +51,18 @@ export async function status() {
                 `Uptime:  ${Math.floor((Date.now() - (proc.pm2_env?.pm_uptime || 0)) / 1000 / 60)} minutes`
             );
             console.log(`PID:     ${proc.pid}`);
-            console.log(`Logs:    tars logs\n`);
+
+            if (sessionStats) {
+                console.log(chalk.cyan('──────────────'));
+                console.log(chalk.bold('🧠 Session Stats'));
+                console.log(`Session ID:   ${sessionStats.sessionId}`);
+                console.log(`Interactions: ${sessionStats.interactionCount}`);
+                console.log(`Input Tokens: ${(sessionStats.totalInputTokens / 1000).toFixed(1)}k`);
+                console.log(`Output Tokens: ${(sessionStats.totalOutputTokens / 1000).toFixed(1)}k`);
+                console.log(`Cached Tokens: ${(sessionStats.totalCachedTokens / 1000).toFixed(1)}k`);
+            }
+
+            console.log(`\nLogs:    tars logs\n`);
         });
     });
 }

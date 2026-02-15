@@ -13,7 +13,7 @@ describe('GeminiCli', () => {
         vi.clearAllMocks();
     });
 
-    it('should spawn the gemini process with correct arguments', async () => {
+    it('should parse stream-json output correctly', async () => {
         const mockChild: any = new EventEmitter();
         mockChild.stdout = new EventEmitter();
         mockChild.stderr = new EventEmitter();
@@ -23,21 +23,30 @@ describe('GeminiCli', () => {
         const onEvent = vi.fn();
         const runPromise = cli.run('test prompt', onEvent, 'test-session');
 
-        // Simulate stdout data
-        mockChild.stdout.emit('data', Buffer.from('hello world'));
+        // Simulate stream-json output
+        const event1 = JSON.stringify({ type: 'message', role: 'assistant', content: 'hello ' });
+        const event2 = JSON.stringify({ type: 'message', role: 'assistant', content: 'world' });
+        const result = JSON.stringify({
+            type: 'result',
+            stats: { input_tokens: 10, output_tokens: 20, cached: 5 }
+        });
 
-        // Simulate close
+        mockChild.stdout.emit('data', Buffer.from(`${event1}\n${event2}\n${result}\n`));
         mockChild.emit('close', 0);
 
         await runPromise;
 
         expect(spawn).toHaveBeenCalledWith(
-            'gemini',
-            ['chat', '--model', 'test-model', '--session', 'test-session', '--yolo', 'test prompt'],
+            expect.any(String),
+            expect.arrayContaining(['--output-format', 'stream-json']),
             expect.any(Object)
         );
-        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'hello world' });
-        expect(onEvent).toHaveBeenCalledWith({ type: 'done' });
+        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'hello ' });
+        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'world' });
+        expect(onEvent).toHaveBeenCalledWith({
+            type: 'done',
+            usageStats: { inputTokens: 10, outputTokens: 20, cachedTokens: 5 }
+        });
     });
 
     it('should handle process errors', async () => {

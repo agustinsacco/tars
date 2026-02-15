@@ -43,9 +43,11 @@ export class Supervisor {
             await this.gemini.run(
                 content,
                 (event) => {
-                    // Extract data for session tracking if possible
+                    // Extract data for session tracking
                     if (event.type === 'done') {
-                        // usage is usually passed in structured output, here we just increment
+                        if (event.usageStats) {
+                            this.sessionManager.updateUsage(event.usageStats);
+                        }
                         this.sessionManager.save(sessionIdToUse!);
                     }
                     onEvent(event);

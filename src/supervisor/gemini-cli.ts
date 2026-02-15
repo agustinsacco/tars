@@ -24,7 +24,7 @@ export class GeminiCli {
         sessionId?: string,
         extensions: string[] = []
     ): Promise<void> {
-        const args = ['chat', '--model', this.model];
+        const args = ['chat', '--model', this.model, '--output-format', 'stream-json'];
 
         if (sessionId) {
             args.push('--session', sessionId);
@@ -39,10 +39,6 @@ export class GeminiCli {
 
         logger.debug(`Executing Gemini CLI: gemini ${args.join(' ')}`);
 
-        // Use GEMINI_CLI_HOME for full isolation
-        // Gemini CLI uses homedir()/.gemini/ for everything.
-        // By setting GEMINI_CLI_HOME=~/.tars, it will use ~/.tars/.gemini/
-        // GEMINI_SYSTEM_MD overrides the default system prompt with Tars' custom persona
         const env = {
             ...process.env,
             GEMINI_CLI_HOME: this.config.homeDir,
@@ -54,14 +50,39 @@ export class GeminiCli {
             const child = spawn('gemini', args, { env });
 
             let buffer = '';
+            let usageStats: any = {};
 
             child.stdout.on('data', (data) => {
                 const chunk = data.toString();
                 buffer += chunk;
 
-                // For now, we stream raw text events.
-                // Future improvement: Parse structured output if Gemini CLI supports it.
-                onEvent({ type: 'text', content: chunk });
+                // Process line-by-line
+                let newlineIndex: number;
+                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+                    const line = buffer.slice(0, newlineIndex).trim();
+                    buffer = buffer.slice(newlineIndex + 1);
+
+                    if (!line) continue;
+
+                    try {
+                        const event = JSON.parse(line);
+
+                        if (event.type === 'message' && event.role === 'assistant' && event.content) {
+                            onEvent({ type: 'text', content: event.content });
+                        } else if (event.type === 'result' && event.stats) {
+                            usageStats = {
+                                inputTokens: event.stats.input_tokens || 0,
+                                outputTokens: event.stats.output_tokens || 0,
+                                cachedTokens: event.stats.cached || 0
+                            };
+                        } else if (event.type === 'error') {
+                            onEvent({ type: 'error', error: event.message || JSON.stringify(event) });
+                        }
+                    } catch (e) {
+                        // Not JSON, likely a log message
+                        // logger.debug(`[Gemini CLI Log] ${line}`);
+                    }
+                }
             });
 
             child.stderr.on('data', (data) => {
@@ -73,7 +94,7 @@ export class GeminiCli {
 
             child.on('close', (code) => {
                 if (code === 0) {
-                    onEvent({ type: 'done' });
+                    onEvent({ type: 'done', usageStats });
                     resolve();
                 } else {
                     reject(new Error(`${childDescription} exited with code ${code}`));

@@ -60,4 +60,16 @@ describe('Supervisor', () => {
         await supervisor.run('hello', onEvent);
         expect(onEvent).toHaveBeenCalledWith({ type: 'error', error: 'CLI Error' });
     });
+
+    it('should update usage stats from gemini done event', async () => {
+        const usageStats = { inputTokens: 10, outputTokens: 20 };
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({ type: 'done', usageStats });
+        });
+
+        await supervisor.run('hello', vi.fn());
+
+        expect(mockSessionManager.updateUsage).toHaveBeenCalledWith(usageStats);
+        expect(mockSessionManager.save).toHaveBeenCalled();
+    });
 });
