@@ -33,26 +33,29 @@ export class Supervisor {
         try {
             // Get or create session
             let sessionIdToUse = sessionId || this.sessionManager.load();
-            if (!sessionIdToUse) {
-                // For new sessions, we'll let Gemini CLI handle ID generation or just use a placeholder
-                sessionIdToUse = `tars-${Date.now()}`;
-                this.sessionManager.save(sessionIdToUse);
-            }
 
             // Run Gemini CLI
             await this.gemini.run(
                 content,
                 (event) => {
+                    // Learn session ID from Gemini CLI if it was newly generated
+                    if (event.sessionId) {
+                        sessionIdToUse = event.sessionId;
+                        this.sessionManager.save(sessionIdToUse);
+                    }
+
                     // Extract data for session tracking
                     if (event.type === 'done') {
                         if (event.usageStats) {
                             this.sessionManager.updateUsage(event.usageStats);
                         }
-                        this.sessionManager.save(sessionIdToUse!);
+                        if (sessionIdToUse) {
+                            this.sessionManager.save(sessionIdToUse);
+                        }
                     }
                     onEvent(event);
                 },
-                sessionIdToUse
+                sessionIdToUse || undefined
             );
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);

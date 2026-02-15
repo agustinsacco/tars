@@ -27,7 +27,7 @@ export class GeminiCli {
         const args = ['chat', '--model', this.model, '--output-format', 'stream-json'];
 
         if (sessionId) {
-            args.push('--session', sessionId);
+            args.push('--resume', sessionId);
         }
 
         // Add extensions
@@ -67,7 +67,9 @@ export class GeminiCli {
                     try {
                         const event = JSON.parse(line);
 
-                        if (event.type === 'message' && event.role === 'assistant' && event.content) {
+                        if (event.type === 'init' && event.session_id) {
+                            onEvent({ type: 'text', content: '', sessionId: event.session_id });
+                        } else if (event.type === 'message' && event.role === 'assistant' && event.content) {
                             onEvent({ type: 'text', content: event.content });
                         } else if (event.type === 'result' && event.stats) {
                             usageStats = {
@@ -87,9 +89,9 @@ export class GeminiCli {
 
             child.stderr.on('data', (data) => {
                 const error = data.toString();
-                if (error.toLowerCase().includes('error')) {
-                    onEvent({ type: 'error', error });
-                }
+                logger.warn(`[Gemini CLI Stderr] ${error.trim()}`);
+                // Don't emit errors to user from stderr as it often contains non-fatal warnings (like MCP discovery issues)
+                // Real errors will come via the stream-json output or non-zero exit code.
             });
 
             child.on('close', (code) => {

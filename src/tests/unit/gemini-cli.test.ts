@@ -38,7 +38,7 @@ describe('GeminiCli', () => {
 
         expect(spawn).toHaveBeenCalledWith(
             expect.any(String),
-            expect.arrayContaining(['--output-format', 'stream-json']),
+            expect.arrayContaining(['--resume', 'test-session']),
             expect.any(Object)
         );
         expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'hello ' });
@@ -47,6 +47,26 @@ describe('GeminiCli', () => {
             type: 'done',
             usageStats: { inputTokens: 10, outputTokens: 20, cachedTokens: 5 }
         });
+    });
+
+    it('should capture sessionId from init event', async () => {
+        const mockChild: any = new EventEmitter();
+        mockChild.stdout = new EventEmitter();
+        mockChild.stderr = new EventEmitter();
+
+        vi.mocked(spawn).mockReturnValue(mockChild);
+
+        const onEvent = vi.fn();
+        const runPromise = cli.run('test prompt', onEvent);
+
+        const initEvent = JSON.stringify({ type: 'init', session_id: 'new-uuid' });
+
+        mockChild.stdout.emit('data', Buffer.from(`${initEvent}\n`));
+        mockChild.emit('close', 0);
+
+        await runPromise;
+
+        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: '', sessionId: 'new-uuid' });
     });
 
     it('should handle process errors', async () => {

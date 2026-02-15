@@ -33,6 +33,7 @@ export interface GeminiEvent {
     imagePath?: string;
     error?: string;
     usageStats?: UsageStats;
+    sessionId?: string;
 }
 
 export interface UsageStats {

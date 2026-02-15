@@ -39,11 +39,12 @@ describe('Supervisor', () => {
         const onEvent = vi.fn();
         await supervisor.run('hello', onEvent);
 
-        expect(mockSessionManager.save).toHaveBeenCalledWith(expect.stringContaining('tars-'));
+        // Should NOT save a generated tars- ID anymore
+        expect(mockSessionManager.save).not.toHaveBeenCalledWith(expect.stringContaining('tars-'));
         expect(mockGemini.run).toHaveBeenCalledWith(
             'hello',
             expect.any(Function),
-            expect.stringContaining('tars-')
+            undefined
         );
     });
 
@@ -51,6 +52,18 @@ describe('Supervisor', () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
         expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt');
+    });
+
+    it('should learn session ID from gemini events', async () => {
+        mockSessionManager.load.mockReturnValue(null);
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({ type: 'text', content: '', sessionId: 'new-uuid' });
+            onEvent({ type: 'done' });
+        });
+
+        await supervisor.run('hello', vi.fn());
+
+        expect(mockSessionManager.save).toHaveBeenCalledWith('new-uuid');
     });
 
     it('should handle errors from gemini cli', async () => {

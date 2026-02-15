@@ -24,8 +24,13 @@ function installSystemPrompt(config: Config): void {
     // Try to find the prompt relative to the package root
     for (let i = 0; i < 5; i++) {
         const candidate = path.join(searchDir, 'prompts', 'system.md');
+        const srcCandidate = path.join(searchDir, 'src', 'prompts', 'system.md');
+
         if (fs.existsSync(candidate)) {
             srcPrompt = candidate;
+            break;
+        } else if (fs.existsSync(srcCandidate)) {
+            srcPrompt = srcCandidate;
             break;
         }
         searchDir = path.dirname(searchDir);
