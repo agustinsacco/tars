@@ -1,5 +1,6 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
+import { pkg, isDev } from '../../utils/Version.js';
 
 export async function status() {
     pm2.connect((err) => {
@@ -20,6 +21,7 @@ export async function status() {
 
             console.log(chalk.cyan.bold('\n📊 Tars Status'));
             console.log(chalk.cyan('──────────────'));
+            console.log(`Version: ${pkg.version}${isDev ? chalk.yellow(' (dev)') : ''}`);
             console.log(`Status:  ${status}`);
             console.log(`CPU:     ${proc.monit?.cpu}%`);
             console.log(`Memory:  ${(proc.monit?.memory ? proc.monit.memory / 1024 / 1024 : 0).toFixed(1)} MB`);

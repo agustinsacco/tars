@@ -123,11 +123,9 @@ export async function setup() {
     console.log(chalk.yellow('  1. Go to: https://discord.com/developers/applications'));
     console.log(chalk.yellow('  2. Create/Select App → Click "Bot" in left sidebar.'));
     console.log(chalk.yellow('  3. Click "Reset Token" to reveal your token.'));
-    console.log(chalk.red.bold('  4. REQUIRED: Scroll down to "Privileged Gateway Intents"'));
-    console.log(chalk.red.bold('     and enable "MESSAGE CONTENT INTENT".'));
-    console.log(chalk.yellow('  5. Under "Bot Permissions", check:'));
-    console.log(chalk.yellow('     [x] Send Messages'));
-    console.log(chalk.yellow('     [x] Read Message History\n'));
+    console.log(chalk.red.bold('  4. REQUIRED: Enable "MESSAGE CONTENT INTENT" in Bot settings.'));
+    console.log(chalk.yellow('  5. Generate Invite: OAuth2 -> URL Generator -> Scope: bot -> Perms: Send Messages, Read History.'));
+    console.log(chalk.white('     (If you don\'t have a server, create one in Discord first via the [+] button)\n'));
 
     const { discordToken } = await inquirer.prompt([
         {
@@ -311,7 +309,8 @@ export async function setup() {
 
     // ── Done ──────────────────────────────────────────────
     console.log(chalk.green.bold('\n✅ Tars is ready!'));
-    console.log(`\n  Start Tars:    ${chalk.cyan('tars start')}`);
-    console.log(`  Check status:  ${chalk.cyan('tars status')}`);
-    console.log(`  View logs:     ${chalk.cyan('tars logs')}\n`);
+    console.log(`\n  Start Tars:     ${chalk.cyan('tars start')}`);
+    console.log(`  Check status:   ${chalk.cyan('tars status')}`);
+    console.log(`  View logs:      ${chalk.cyan('tars logs')}`);
+    console.log(`  Invite Bot:     ${chalk.cyan('tars discord')}\n`);
 }

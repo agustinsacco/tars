@@ -7,13 +7,16 @@ import { status } from './commands/status.js';
 import { exportBrain } from './commands/export.js';
 import { importBrain } from './commands/import.js';
 import { logs } from './commands/logs.js';
+import { discord } from './commands/discord.js';
+
+import { versionString } from '../utils/Version.js';
 
 const program = new Command();
 
 program
     .name('tars')
     .description('Tars — Personal AI Assistant')
-    .version('1.0.0');
+    .version(versionString);
 
 program
     .command('setup')
@@ -51,5 +54,10 @@ program
     .command('logs')
     .description('View real-time logs from the Tars supervisor')
     .action(logs);
+
+program
+    .command('discord')
+    .description('View instructions for Discord bot setup and invitation')
+    .action(discord);
 
 program.parse();
