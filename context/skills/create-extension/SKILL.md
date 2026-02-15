@@ -14,39 +14,51 @@ When you need to build a new tool or integration:
     - **CRITICAL**: Use plain JavaScript for runtime-created extensions to avoid a build step.
     - Use the `@modelcontextprotocol/sdk` to define tools and handle stdio.
 6.  **Create Manifest**: Create `gemini-extension.json`.
-    - Set `command` to `node`.
-    - Set `args` to `["${extensionPath}/server.js"]`.
 7.  **Register**: Run `gemini extensions install .` from the directory.
 
-## Template (server.js)
+## Manifest Template (gemini-extension.json)
+
+```json
+{
+  "name": "my-extension",
+  "version": "1.0.0",
+  "mcpServers": {
+    "main": {
+      "command": "node",
+      "args": ["${extensionPath}/server.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
+```
+
+## Server Template (server.js)
 
 ```javascript
 #!/usr/bin/env node
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 
-const server = new Server(
-    { name: 'my-extension', version: '1.0.0' },
-    { capabilities: { tools: {} } }
-);
-
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [
-        {
-            name: 'my_tool',
-            description: 'Describe tool here',
-            inputSchema: { type: 'object', properties: {} }
-        }
-    ]
-}));
-
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (request.params.name === 'my_tool') {
-        return { content: [{ type: 'text', text: 'Hello from Tars extension!' }] };
-    }
-    throw new Error('Tool not found');
+const server = new McpServer({
+    name: 'my-extension',
+    version: '1.0.0'
 });
+
+server.registerTool(
+    'my_tool',
+    {
+        description: 'Describe tool here',
+        inputSchema: z.object({}).shape
+    },
+    async (args) => {
+        return {
+            content: [{ type: 'text', text: 'Hello from Tars extension!' }]
+        };
+    }
+);
 
 const transport = new StdioServerTransport();
 await server.connect(transport);
