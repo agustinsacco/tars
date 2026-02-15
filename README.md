@@ -12,8 +12,21 @@
 
 </div>
 
-**Tars** is an autonomous, bare-metal personal assistant that lives on your machine. It is designed to be a permanent, evolving companion that helps you manage your digital life through Discord.
+Tars is an autonomous personal AI assistant designed to manage your tasks, remember your preferences, and extend its own capabilities. It lives in your terminal and communicates via Discord.
 
+## Quick Start
+
+### Installation
+
+```bash
+npm install -g @saccolabs/tars
+```
+
+### Setup
+
+```bash
+tars setup
+```
 Unlike traditional chatbots, Tars has a persistent "Brain" (memories, tasks, skills) that is stored locally as simple files, making it completely private, portable, and transparent.
 
 ---
