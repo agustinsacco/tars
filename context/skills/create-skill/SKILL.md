@@ -1,3 +1,8 @@
+---
+name: skill-creator
+description: Guide for creating new SKILL.md files for automated workflows.
+---
+
 # create-skill Guide Skill
 
 This skill allows Tars to create new `SKILL.md` files for specific workflows.

@@ -45,9 +45,60 @@ function installSystemPrompt(config: Config): void {
     const targetDir = path.dirname(config.systemPromptPath);
     fs.mkdirSync(targetDir, { recursive: true });
 
-    // Always overwrite to ensure latest prompt is deployed
+// Always overwrite to ensure latest prompt is deployed
     fs.copyFileSync(srcPrompt, config.systemPromptPath);
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
+}
+
+/**
+ * Install built-in skills into the Tars runtime directory.
+ */
+function installSkills(config: Config): void {
+    // 1. Locate context/skills/ in the repo
+    let searchDir = __dirname;
+    let skillsSrc = '';
+
+    for (let i = 0; i < 5; i++) {
+        const candidate = path.join(searchDir, 'context', 'skills');
+        const srcCandidate = path.join(searchDir, '..', 'context', 'skills'); // If in dist/supervisor/
+
+        if (fs.existsSync(candidate)) {
+            skillsSrc = candidate;
+            break;
+        } else if (fs.existsSync(srcCandidate)) {
+            skillsSrc = srcCandidate;
+            break;
+        }
+         // Try finding context in root if running from src
+        const rootCandidate = path.join(searchDir, '..', '..', 'context', 'skills');
+        if (fs.existsSync(rootCandidate)) {
+             skillsSrc = rootCandidate;
+             break;
+        }
+
+        searchDir = path.dirname(searchDir);
+    }
+
+    if (!skillsSrc) {
+        logger.warn('⚠️ Could not locate built-in skills directory');
+        return;
+    }
+
+    // 2. Define target directory (~/.tars/.gemini/skills)
+    // config.homeDir is ~/.tars. We assume .gemini structure.
+    const skillsDest = path.join(config.homeDir, '.gemini', 'skills');
+
+    try {
+        if (!fs.existsSync(skillsDest)) {
+            fs.mkdirSync(skillsDest, { recursive: true });
+        }
+
+        // 3. Recursive Copy (Node 16.7+)
+        fs.cpSync(skillsSrc, skillsDest, { recursive: true, force: true });
+        logger.info(`📚 Skills installed: ${skillsDest}`);
+    } catch (error) {
+        logger.error(`❌ Failed to install skills: ${error}`);
+    }
 }
 
 /**
@@ -60,8 +111,9 @@ async function main() {
         // 1. Load Configuration
         const config = Config.getInstance();
 
-        // 2. Install system prompt
+        // 2. Install system prompt and skills
         installSystemPrompt(config);
+        installSkills(config);
 
         // 3. Initialize Core Services
         const gemini = new GeminiCli(config.geminiModel);

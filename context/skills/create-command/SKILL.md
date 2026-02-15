@@ -1,3 +1,8 @@
+---
+name: command-generator
+description: Guide for creating custom slash commands for Gemini CLI.
+---
+
 # create-command Guide Skill
 
 This skill allows Tars to create custom slash commands for Gemini CLI extensions.

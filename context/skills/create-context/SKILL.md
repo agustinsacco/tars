@@ -1,3 +1,8 @@
+---
+name: context-manager
+description: Guide for adding persistent context to extensions via GEMINI.md.
+---
+
 # create-context Guide Skill
 
 This skill allows Tars to add persistent context and memory to Gemini CLI extensions using a `GEMINI.md` file.

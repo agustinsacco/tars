@@ -1,3 +1,8 @@
+---
+name: extension-builder
+description: Guide for creating new Gemini CLI extensions with MCP tools.
+---
+
 # create-extension Guide Skill
 
 This skill allows Tars to create new Gemini CLI extensions with MCP servers.
