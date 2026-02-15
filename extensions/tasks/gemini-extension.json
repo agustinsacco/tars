@@ -1,0 +1,16 @@
+{
+    "name": "tars-tasks",
+    "version": "1.0.0",
+    "description": "Task scheduling for Tars",
+    "mcpServers": {
+        "tasks": {
+            "command": "node",
+            "args": [
+                "${extensionPath}/dist/server.js"
+            ],
+            "env": {
+                "TARS_HOME": "~/.tars"
+            }
+        }
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "tars-tasks",
+    "version": "1.0.0",
+    "description": "Task management MCP server for Tars",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.1",
+        "cron-parser": "^5.4.0",
+        "uuid": "^13.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "typescript": "^5.7.2"
+    }
+}

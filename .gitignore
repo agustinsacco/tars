@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.npm
+package-lock.json
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tars specific local data (if any was made in project dir)
+.tars/
+data/
+logs/
+
+# Testing
+coverage/
+
+# Misc
+.antigravityignore
+.gemini/
