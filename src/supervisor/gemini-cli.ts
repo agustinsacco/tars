@@ -42,9 +42,11 @@ export class GeminiCli {
         // Use GEMINI_CLI_HOME for full isolation
         // Gemini CLI uses homedir()/.gemini/ for everything.
         // By setting GEMINI_CLI_HOME=~/.tars, it will use ~/.tars/.gemini/
+        // GEMINI_SYSTEM_MD overrides the default system prompt with Tars' custom persona
         const env = {
             ...process.env,
-            GEMINI_CLI_HOME: this.config.homeDir
+            GEMINI_CLI_HOME: this.config.homeDir,
+            GEMINI_SYSTEM_MD: this.config.systemPromptPath
         };
 
         return new Promise((resolve, reject) => {

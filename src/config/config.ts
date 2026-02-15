@@ -22,6 +22,9 @@ export class Config {
     public readonly geminiModel: string;
     public readonly heartbeatIntervalMs: number;
 
+    // System Prompt
+    public readonly systemPromptPath: string;
+
     private constructor() {
         // 1. Establish Home Directory (~/.tars)
         this.homeDir = process.env.TARS_HOME || path.join(os.homedir(), '.tars');
@@ -47,6 +50,7 @@ export class Config {
         // 4. Derived Paths
         this.taskFilePath = path.join(this.homeDir, 'data', 'tasks.json');
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
+        this.systemPromptPath = path.join(this.homeDir, '.gemini', 'system.md');
 
         // Note: validation happens in specific services if needed, but we can do a basic check
         if (!this.discordToken) {

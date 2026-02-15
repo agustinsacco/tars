@@ -23,6 +23,7 @@
     },
     "files": [
         "dist/",
+        "src/prompts/",
         "extensions/",
         "context/",
         "README.md"
