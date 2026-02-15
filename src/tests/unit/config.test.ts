@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Config } from '../../config/config';
+import { Config } from '../../config/config.js';
 import path from 'path';
 import os from 'os';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MessageFormatter } from '../../discord/message-formatter';
+import { MessageFormatter } from '../../discord/message-formatter.js';
 
 describe('MessageFormatter', () => {
     describe('format', () => {
