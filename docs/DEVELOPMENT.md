@@ -11,27 +11,34 @@ This guide covers how to set up the Tars project for local development.
 ## Setup
 
 1.  **Clone the repository**:
+
     ```bash
     git clone https://github.com/agustinsacco/tars.git
     cd tars
     ```
 
 2.  **Install dependencies**:
+
     ```bash
     npm install
     ```
-    *Note: This also installs dependencies for the built-in `extensions/tasks`.*
+
+    _Note: This also installs dependencies for the built-in `extensions/tasks`._
 
 3.  **Build the project**:
+
     ```bash
     npm run build
     ```
+
     This compiles the TypeScript source from `src/` to `dist/` and builds the internal extensions.
 
 4.  **Link globally**:
+
     ```bash
     npm link
     ```
+
     This makes the `tars` command available globally on your system, pointing to your local `dist/cli/index.js`.
 
 5.  **Run Setup**:

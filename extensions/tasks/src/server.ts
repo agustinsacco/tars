@@ -1,9 +1,6 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-    CallToolRequestSchema,
-    ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { TaskStore, Task } from './store.js';
 import { v4 as uuidv4 } from 'uuid';
 import cronParser from 'cron-parser';
@@ -12,12 +9,12 @@ const store = new TaskStore();
 const server = new Server(
     {
         name: 'tars-tasks',
-        version: '1.0.0',
+        version: '1.0.0'
     },
     {
         capabilities: {
-            tools: {},
-        },
+            tools: {}
+        }
     }
 );
 
@@ -34,7 +31,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     type: 'object',
                     properties: {
                         title: { type: 'string', description: 'Task title' },
-                        prompt: { type: 'string', description: 'The prompt for Gemini CLI to execute' },
+                        prompt: {
+                            type: 'string',
+                            description: 'The prompt for Gemini CLI to execute'
+                        },
                         schedule: { type: 'string', description: 'Cron expression or ISO date' },
                         mode: { type: 'string', enum: ['notify', 'silent'], default: 'silent' }
                     },
@@ -62,7 +62,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ['id']
                 }
             }
-        ],
+        ]
     };
 });
 
@@ -102,22 +102,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
                 await store.addTask(task);
                 return {
-                    content: [{ type: 'text', text: `✅ Task created: ${task.title} (ID: ${task.id})\nNext run: ${task.nextRun}` }]
+                    content: [
+                        {
+                            type: 'text',
+                            text: `✅ Task created: ${task.title} (ID: ${task.id})\nNext run: ${task.nextRun}`
+                        }
+                    ]
                 };
             }
 
             case 'list_tasks': {
                 const { enabledOnly } = args as any;
                 const tasks = await store.loadTasks();
-                const filtered = enabledOnly ? tasks.filter(t => t.enabled) : tasks;
+                const filtered = enabledOnly ? tasks.filter((t) => t.enabled) : tasks;
 
                 if (filtered.length === 0) {
                     return { content: [{ type: 'text', text: 'No tasks found.' }] };
                 }
 
-                const text = filtered.map(t =>
-                    `- [${t.enabled ? 'ON' : 'OFF'}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}`
-                ).join('\n\n');
+                const text = filtered
+                    .map(
+                        (t) =>
+                            `- [${t.enabled ? 'ON' : 'OFF'}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}`
+                    )
+                    .join('\n\n');
 
                 return { content: [{ type: 'text', text }] };
             }
@@ -126,7 +134,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const { id } = args as any;
                 const success = await store.deleteTask(id);
                 return {
-                    content: [{ type: 'text', text: success ? `✅ Task ${id} deleted.` : `❌ Task ${id} not found.` }]
+                    content: [
+                        {
+                            type: 'text',
+                            text: success ? `✅ Task ${id} deleted.` : `❌ Task ${id} not found.`
+                        }
+                    ]
                 };
             }
 

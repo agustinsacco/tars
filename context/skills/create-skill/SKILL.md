@@ -3,6 +3,7 @@
 This skill allows Tars to create new `SKILL.md` files for specific workflows.
 
 ## Instructions
+
 1.  **Define the Scope**: What specific repeatable task does this skill cover?
 2.  **Create Directory**: Create a directory in `~/.gemini/skills/<name>`.
 3.  **Write SKILL.md**:
@@ -11,14 +12,17 @@ This skill allows Tars to create new `SKILL.md` files for specific workflows.
     - Include code snippets or command examples where relevant.
 
 ## Template
+
 ```markdown
 ---
 name: name-of-skill
 description: what this skill does
 ---
+
 # name-of-skill
 
 ## Steps
+
 1. ...
 2. ...
 ```

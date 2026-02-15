@@ -27,6 +27,7 @@ npm install -g @saccolabs/tars
 ```bash
 tars setup
 ```
+
 Unlike traditional chatbots, Tars has a persistent "Brain" (memories, tasks, skills) that is stored locally as simple files, making it completely private, portable, and transparent.
 
 ---
@@ -45,6 +46,7 @@ Unlike traditional chatbots, Tars has a persistent "Brain" (memories, tasks, ski
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js ≥ 22.0.0
 - Gemini CLI (`npm i -g @google/gemini-cli-beta`)
 
@@ -62,21 +64,25 @@ Run the interactive wizard to connect your accounts:
 ```bash
 tars setup
 ```
-*This will guide you through Google OAuth and Discord Bot configuration.*
+
+_This will guide you through Google OAuth and Discord Bot configuration._
 
 ### Usage
 
 Start Tars in the background:
+
 ```bash
 tars start
 ```
 
 Check status:
+
 ```bash
 tars status
 ```
 
 Chat with Tars in Discord:
+
 > **!tars** Create a new task to remind me to drink water every 2 hours.
 
 ---
@@ -85,16 +91,16 @@ Chat with Tars in Discord:
 
 Tars is inspired by the vision of **OpenClaw** but takes a fundamentally different architectural approach to prioritize simplicity and native integration.
 
-| Feature | OpenClaw | Tars |
-|:---|:---|:---|
-| **Runtime** | Docker Containers | **Bare Metal (Node.js)** |
-| **Philosophy** | Isolation & Service Mesh | **Native Integration & OS Access** |
-| **Complexity** | High (Kubernetes/Docker Compose) | **Low (Single npm package)** |
-| **Extension Lang** | Python / Multi-polyglot | **JavaScript / TypeScript** |
-| **Identity** | Config files | **Evolving Markdown (`GEMINI.md`)** |
+| Feature            | OpenClaw                         | Tars                                |
+| :----------------- | :------------------------------- | :---------------------------------- |
+| **Runtime**        | Docker Containers                | **Bare Metal (Node.js)**            |
+| **Philosophy**     | Isolation & Service Mesh         | **Native Integration & OS Access**  |
+| **Complexity**     | High (Kubernetes/Docker Compose) | **Low (Single npm package)**        |
+| **Extension Lang** | Python / Multi-polyglot          | **JavaScript / TypeScript**         |
+| **Identity**       | Config files                     | **Evolving Markdown (`GEMINI.md`)** |
 
 **Why Tars?**
-We believe that a personal assistant should feel like a part of your operating system, not a foreign service running in a container. Tars is designed for developers who want an agent that lives *with* them on their machine, using the tools they already use (npm, git, fs), without the friction of containerization.
+We believe that a personal assistant should feel like a part of your operating system, not a foreign service running in a container. Tars is designed for developers who want an agent that lives _with_ them on their machine, using the tools they already use (npm, git, fs), without the friction of containerization.
 
 ---
 

@@ -52,7 +52,7 @@ export class TaskStore {
 
     public async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
         const tasks = await this.loadTasks();
-        const index = tasks.findIndex(t => t.id === id);
+        const index = tasks.findIndex((t) => t.id === id);
         if (index === -1) return null;
 
         tasks[index] = { ...tasks[index], ...updates, updatedAt: new Date().toISOString() };
@@ -63,7 +63,7 @@ export class TaskStore {
     public async deleteTask(id: string): Promise<boolean> {
         const tasks = await this.loadTasks();
         const initialLength = tasks.length;
-        const filteredTasks = tasks.filter(t => t.id !== id);
+        const filteredTasks = tasks.filter((t) => t.id !== id);
 
         if (filteredTasks.length === initialLength) return false;
 

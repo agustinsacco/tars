@@ -1,8 +1,8 @@
-import { GeminiCli } from './GeminiCli.js';
-import { SessionManager } from './SessionManager.js';
+import { GeminiCli } from './gemini-cli.js';
+import { SessionManager } from './session-manager.js';
 import { GeminiEvent, GeminiOutputHandler } from '../types/index.js';
-import logger from '../utils/Logger.js';
-import { Config } from '../config/Config.js';
+import logger from '../utils/logger.js';
+import { Config } from '../config/config.js';
 
 /**
  * Tars Supervisor - Core Orchestrator
@@ -26,7 +26,9 @@ export class Supervisor {
         onEvent: GeminiOutputHandler,
         sessionId?: string
     ): Promise<void> {
-        logger.info(`🤖 Supervisor processing request: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`);
+        logger.info(
+            `🤖 Supervisor processing request: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
+        );
 
         try {
             // Get or create session
@@ -50,7 +52,6 @@ export class Supervisor {
                 },
                 sessionIdToUse
             );
-
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
@@ -60,7 +61,10 @@ export class Supervisor {
     /**
      * Specialized execution for background tasks
      */
-    public async executeTask(prompt: string, mode: 'notify' | 'silent' = 'silent'): Promise<string> {
+    public async executeTask(
+        prompt: string,
+        mode: 'notify' | 'silent' = 'silent'
+    ): Promise<string> {
         logger.info(`⚙️ Executing background task...`);
 
         try {

@@ -6,10 +6,10 @@ import {
     Partials,
     EmbedBuilder
 } from 'discord.js';
-import { Config } from '../config/Config.js';
-import logger from '../utils/Logger.js';
-import { Supervisor } from '../supervisor/Supervisor.js';
-import { MessageFormatter } from './MessageFormatter.js';
+import { Config } from '../config/config.js';
+import logger from '../utils/logger.js';
+import { Supervisor } from '../supervisor/supervisor.js';
+import { MessageFormatter } from './message-formatter.js';
 import { GeminiEvent } from '../types/index.js';
 
 /**
@@ -97,7 +97,6 @@ export class DiscordBot {
                     }
                 }
             });
-
         } catch (error: any) {
             logger.error(`Discord handling error: ${error.message}`);
             await message.reply(`❌ **Supervisor Error:** ${error.message}`);

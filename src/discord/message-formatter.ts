@@ -121,11 +121,14 @@ export class MessageFormatter {
         });
 
         // Fix: Close unclosed bold tags at start of line (**Text -> **Text**)
-        result = result.replace(/^(\*\*[^*]+?)(?<!\*\*)(\s*[:.,!?-]?)$/gm, (match, content, punct) => {
-            // If already closed, don't touch
-            if (content.trim().endsWith('**')) return match;
-            return `${content.trim()}${punct}**`;
-        });
+        result = result.replace(
+            /^(\*\*[^*]+?)(?<!\*\*)(\s*[:.,!?-]?)$/gm,
+            (match, content, punct) => {
+                // If already closed, don't touch
+                if (content.trim().endsWith('**')) return match;
+                return `${content.trim()}${punct}**`;
+            }
+        );
 
         // Also handle cases specifically ending with punctuation on the line
         result = result.replace(/^(\*\*[^*]+)(?=\s*([:.,!?-]))/gm, (match, content, punct) => {

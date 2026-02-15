@@ -2,7 +2,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import logger from '../utils/Logger.js';
+import logger from '../utils/logger.js';
 
 dotenv.config();
 

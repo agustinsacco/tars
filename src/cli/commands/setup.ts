@@ -24,7 +24,10 @@ function checkGeminiAuth(): { installed: boolean; loggedIn: boolean } {
         }
 
         // Fallback to CLI command if file check fails
-        const result = execSync('gemini auth print-access-token 2>&1', { encoding: 'utf-8', timeout: 3000 });
+        const result = execSync('gemini auth print-access-token 2>&1', {
+            encoding: 'utf-8',
+            timeout: 3000
+        });
         if (result && !result.includes('error') && !result.includes('not logged in')) {
             return { installed: true, loggedIn: true };
         }
@@ -69,12 +72,14 @@ export async function setup() {
 
     if (geminiStatus.loggedIn) {
         console.log(chalk.green('  ✓ Already authenticated with Google.'));
-        const { reAuth } = await inquirer.prompt([{
-            type: 'confirm',
-            name: 'reAuth',
-            message: 'Do you want to re-authenticate with a different account?',
-            default: false
-        }]);
+        const { reAuth } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'reAuth',
+                message: 'Do you want to re-authenticate with a different account?',
+                default: false
+            }
+        ]);
         performAuth = reAuth;
     } else {
         const { authNow } = await inquirer.prompt([
@@ -108,13 +113,17 @@ export async function setup() {
                 console.log(chalk.green('  ✓ Authentication successful!'));
             } else {
                 console.log(chalk.yellow('  ⚠ Warning: Could not verify authentication.'));
-                console.log(chalk.yellow('  You may need to run `gemini auth login` manually after setup.'));
+                console.log(
+                    chalk.yellow('  You may need to run `gemini auth login` manually after setup.')
+                );
             }
         } catch (err) {
             console.error(chalk.red('  Failed to run auth command.'));
         }
     } else if (!geminiStatus.loggedIn) {
-        console.log(chalk.yellow('  Skipped. Run `gemini auth login` manually before starting Tars.'));
+        console.log(
+            chalk.yellow('  Skipped. Run `gemini auth login` manually before starting Tars.')
+        );
     }
 
     // ── Step 2: Discord Bot ───────────────────────────────
@@ -124,15 +133,25 @@ export async function setup() {
     console.log(chalk.yellow('  2. Create/Select App → Click "Bot" in left sidebar.'));
     console.log(chalk.yellow('  3. Click "Reset Token" to reveal your token.'));
     console.log(chalk.red.bold('  4. REQUIRED: Enable "MESSAGE CONTENT INTENT" in Bot settings.'));
-    console.log(chalk.yellow('  5. Generate Invite: OAuth2 -> URL Generator -> Scope: bot -> Perms: Send Messages, Read History.'));
-    console.log(chalk.white('     (If you don\'t have a server, create one in Discord first via the [+] button)\n'));
+    console.log(
+        chalk.yellow(
+            '  5. Generate Invite: OAuth2 -> URL Generator -> Scope: bot -> Perms: Send Messages, Read History.'
+        )
+    );
+    console.log(
+        chalk.white(
+            "     (If you don't have a server, create one in Discord first via the [+] button)\n"
+        )
+    );
 
     const { discordToken } = await inquirer.prompt([
         {
             type: 'password',
             name: 'discordToken',
             message: 'Enter Discord Bot Token:',
-            validate: (input) => input.length > 50 || 'Token too short — paste the full token from the Developer Portal'
+            validate: (input) =>
+                input.length > 50 ||
+                'Token too short — paste the full token from the Developer Portal'
         }
     ]);
 
@@ -153,7 +172,11 @@ export async function setup() {
     } catch (err: any) {
         if (err.message.includes('disallowed intents')) {
             validateSpinner.fail(chalk.red.bold('DISALLOWED INTENTS ERROR'));
-            console.log(chalk.red('\n  The token is valid, but your bot lacks the "Message Content Intent".'));
+            console.log(
+                chalk.red(
+                    '\n  The token is valid, but your bot lacks the "Message Content Intent".'
+                )
+            );
             console.log(chalk.red('  Please go to the Discord Developer Portal and enable it:'));
             console.log(chalk.red('  1. Select your Bot -> "Bot" section.'));
             console.log(chalk.red('  2. Scroll to "Privileged Gateway Intents".'));
@@ -174,7 +197,9 @@ export async function setup() {
     try {
         const data = await fs.readFile(path.join(tarsHome, 'config.json'), 'utf-8');
         existingConfig = JSON.parse(data);
-    } catch { /* ignore */ }
+    } catch {
+        /* ignore */
+    }
 
     const config = await inquirer.prompt([
         {
@@ -187,7 +212,9 @@ export async function setup() {
             type: 'input',
             name: 'heartbeatInterval',
             message: 'Heartbeat interval (seconds):',
-            default: existingConfig.heartbeatIntervalSec ? String(existingConfig.heartbeatIntervalSec) : '60'
+            default: existingConfig.heartbeatIntervalSec
+                ? String(existingConfig.heartbeatIntervalSec)
+                : '60'
         }
     ]);
 
@@ -226,7 +253,9 @@ export async function setup() {
                 const dest = path.join(geminiDir, file);
                 const data = await fs.readFile(src);
                 await fs.writeFile(dest, data);
-            } catch (err) { /* ignore missing files */ }
+            } catch (err) {
+                /* ignore missing files */
+            }
         }
         authSpinner.succeed('Auth credentials mirrored to Tars.');
     } catch (err) {
@@ -262,7 +291,10 @@ export async function setup() {
     // ── Initialize GEMINI.md (Brain) ───────────────────────
     const brainSpinner = ora('Initializing Brain (GEMINI.md)...').start();
     try {
-        const contextSrc = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../context/GEMINI.md');
+        const contextSrc = path.resolve(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../context/GEMINI.md'
+        );
         const brainDest = path.join(geminiDir, 'GEMINI.md');
 
         // Only copy if not exists (preserve user memory)
@@ -285,21 +317,23 @@ export async function setup() {
         heartbeatIntervalSec: parseInt(config.heartbeatInterval, 10)
     };
 
-    await fs.writeFile(
-        path.join(tarsHome, 'config.json'),
-        JSON.stringify(configData, null, 2)
-    );
+    await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
 
     // Symlink built-in tasks extension (to ISOLATED env)
     const extSpinner = ora('Installing tasks extension...').start();
     try {
         const linkTarget = path.join(geminiDir, 'extensions', 'tars-tasks');
-        const extensionSrc = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../extensions/tasks');
+        const extensionSrc = path.resolve(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../extensions/tasks'
+        );
 
         try {
             await fs.unlink(linkTarget);
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
 
         await fs.symlink(extensionSrc, linkTarget, 'dir');
         extSpinner.succeed('Tasks extension installed.');

@@ -3,6 +3,7 @@
 This skill allows Tars to create new Gemini CLI extensions with MCP servers.
 
 ## Instructions
+
 When you need to build a new tool or integration:
 
 1.  **Plan the Extension**: Define the name and the MCP tools it will expose.
@@ -18,23 +19,33 @@ When you need to build a new tool or integration:
 7.  **Register**: Run `gemini extensions install .` from the directory.
 
 ## Template (server.js)
+
 ```javascript
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-const server = new Server({ name: 'my-extension', version: '1.0.0' }, { capabilities: { tools: {} } });
+const server = new Server(
+    { name: 'my-extension', version: '1.0.0' },
+    { capabilities: { tools: {} } }
+);
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [{ name: 'my_tool', description: 'Describe tool here', inputSchema: { type: 'object', properties: {} } }]
+    tools: [
+        {
+            name: 'my_tool',
+            description: 'Describe tool here',
+            inputSchema: { type: 'object', properties: {} }
+        }
+    ]
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name === 'my_tool') {
-    return { content: [{ type: 'text', text: 'Hello from Tars extension!' }] };
-  }
-  throw new Error('Tool not found');
+    if (request.params.name === 'my_tool') {
+        return { content: [{ type: 'text', text: 'Hello from Tars extension!' }] };
+    }
+    throw new Error('Tool not found');
 });
 
 const transport = new StdioServerTransport();

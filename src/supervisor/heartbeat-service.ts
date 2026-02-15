@@ -1,8 +1,8 @@
 import fs from 'fs/promises';
 import { Task } from '../types/index.js';
-import { Supervisor } from './Supervisor.js';
-import logger from '../utils/Logger.js';
-import { Config } from '../config/Config.js';
+import { Supervisor } from './supervisor.js';
+import logger from '../utils/logger.js';
+import { Config } from '../config/config.js';
 import cronParser from 'cron-parser';
 
 /**
@@ -15,7 +15,7 @@ export class HeartbeatService {
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config
-    ) { }
+    ) {}
 
     public async start(): Promise<void> {
         const intervalMs = this.config.heartbeatIntervalMs;
@@ -42,7 +42,7 @@ export class HeartbeatService {
         try {
             const tasks = await this.loadTasks();
             const now = new Date();
-            const dueTasks = tasks.filter(t => t.enabled && new Date(t.nextRun) <= now);
+            const dueTasks = tasks.filter((t) => t.enabled && new Date(t.nextRun) <= now);
 
             if (dueTasks.length > 0) {
                 logger.info(`💓 Found ${dueTasks.length} due tasks`);

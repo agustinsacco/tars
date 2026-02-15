@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import logger from '../utils/Logger.js';
+import logger from '../utils/logger.js';
 import { UsageStats } from '../types/index.js';
 
 /**

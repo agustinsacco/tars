@@ -43,28 +43,36 @@ graph TB
 ## Core Components
 
 ### 1. Supervisor (`src/supervisor/Supervisor.ts`)
+
 The central nervous system of Tars. It is a lightweight orchestrator that:
+
 - Manages the lifecycle of Gemini CLI sessions.
 - Handles concurrent requests from Discord.
 - executes background tasks triggered by the Heartbeat service.
 - Tracks session usage and token counts.
 
 ### 2. Gemini CLI Wrapper (`src/supervisor/GeminiCli.ts`)
+
 A dedicated wrapper around the `gemini` command-line tool. It handles:
+
 - Spawning the `gemini` child process.
 - Streaming `stdout`/`stderr` events in real-time.
 - managing session persistence via the `--session` flag.
 - Injecting extensions via the `--extension` flag.
 
 ### 3. Heartbeat Service (`src/supervisor/HeartbeatService.ts`)
+
 The autonomic nervous system. It runs in the background and:
+
 - Polls `~/.tars/data/tasks.json` every minute (configurable).
 - Evaluates cron schedules using `cron-parser`.
 - Triggers task execution via the Supervisor when a task is due.
 - Updates task status (last run, next run, failure count) atomically.
 
 ### 4. Discord Bot (`src/discord/DiscordBot.ts`)
+
 The primary interface for user interaction. It:
+
 - Listens for messages mentioning `@Tars` or starting with `!tars`.
 - Routes user prompts to the Supervisor.
 - Streams responses back to Discord in chunks to handle long-form content.
@@ -75,13 +83,17 @@ The primary interface for user interaction. It:
 Tars uses two distinct home directories to maintain separation of concerns:
 
 ### `~/.tars/`
+
 Stores Tars-specific operational data:
+
 - **`config.json`**: Core settings (Discord token, Model ID, Heartbeat interval).
 - **`data/tasks.json`**: The persistent store for scheduled tasks.
 - **`data/session.json`**: Session metadata and token usage stats.
 
 ### `~/.gemini/`
+
 Stores the "Brain" (managed natively by Gemini CLI):
+
 - **`GEMINI.md`**: The core personality and long-term memories.
 - **`extensions/`**: Installed MCP extensions (including the built-in `tars-tasks`).
 - **`history/`**: Raw conversation logs handled by Gemini.

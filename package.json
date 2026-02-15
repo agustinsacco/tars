@@ -18,7 +18,8 @@
         "start": "node dist/supervisor/main.js",
         "test": "vitest run",
         "test:watch": "vitest",
-        "lint": "prettier --check \"src/**/*.ts\""
+        "lint": "prettier --check .",
+        "format": "prettier --write ."
     },
     "files": [
         "dist/",

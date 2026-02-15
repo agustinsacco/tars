@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { GeminiEvent, GeminiOutputHandler } from '../types/index.js';
-import logger from '../utils/Logger.js';
-import { Config } from '../config/Config.js';
+import logger from '../utils/logger.js';
+import { Config } from '../config/config.js';
 import path from 'path';
 import os from 'os';
 
@@ -57,7 +57,7 @@ export class GeminiCli {
                 const chunk = data.toString();
                 buffer += chunk;
 
-                // For now, we stream raw text events. 
+                // For now, we stream raw text events.
                 // Future improvement: Parse structured output if Gemini CLI supports it.
                 onEvent({ type: 'text', content: chunk });
             });
@@ -88,7 +88,11 @@ export class GeminiCli {
     /**
      * Synchronous execution (collects all output)
      */
-    public async runSync(prompt: string, sessionId?: string, extensions: string[] = []): Promise<string> {
+    public async runSync(
+        prompt: string,
+        sessionId?: string,
+        extensions: string[] = []
+    ): Promise<string> {
         let fullContent = '';
         await this.run(
             prompt,

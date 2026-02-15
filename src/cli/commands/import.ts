@@ -7,13 +7,10 @@ export async function importBrain(archivePath: string) {
     const fullPath = path.resolve(archivePath);
     console.log(chalk.cyan(`📥 Importing Tars brain from ${fullPath}...`));
 
-    // Confirm overwrite if directories exist? 
+    // Confirm overwrite if directories exist?
     // For now, simplicity: just extract.
 
-    const tar = spawn('tar', [
-        '-xzf', fullPath,
-        '-C', os.homedir()
-    ]);
+    const tar = spawn('tar', ['-xzf', fullPath, '-C', os.homedir()]);
 
     tar.stderr.on('data', (data) => console.warn(chalk.yellow(data.toString())));
 

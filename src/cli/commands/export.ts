@@ -6,7 +6,9 @@ import os from 'os';
 export async function exportBrain(options: { output?: string }) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const defaultName = `tars-brain-${timestamp}.tar.gz`;
-    const outputPath = options.output ? path.resolve(options.output) : path.join(process.cwd(), defaultName);
+    const outputPath = options.output
+        ? path.resolve(options.output)
+        : path.join(process.cwd(), defaultName);
 
     console.log(chalk.cyan(`📦 Exporting Tars brain to ${outputPath}...`));
 
@@ -15,11 +17,7 @@ export async function exportBrain(options: { output?: string }) {
 
     // Create a temporary manifest/metadata if needed?
 
-    const tar = spawn('tar', [
-        '-czf', outputPath,
-        '-C', os.homedir(),
-        '.tars'
-    ]);
+    const tar = spawn('tar', ['-czf', outputPath, '-C', os.homedir(), '.tars']);
 
     tar.stderr.on('data', (data) => console.warn(chalk.yellow(data.toString())));
 

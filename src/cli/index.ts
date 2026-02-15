@@ -9,34 +9,22 @@ import { importBrain } from './commands/import.js';
 import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
 
-import { versionString } from '../utils/Version.js';
+import { versionString } from '../utils/version.js';
 
 const program = new Command();
 
-program
-    .name('tars')
-    .description('Tars — Personal AI Assistant')
-    .version(versionString);
+program.name('tars').description('Tars — Personal AI Assistant').version(versionString);
 
 program
     .command('setup')
     .description('Interactive onboarding wizard to configure Tars')
     .action(setup);
 
-program
-    .command('start')
-    .description('Start Tars supervisor in the background')
-    .action(start);
+program.command('start').description('Start Tars supervisor in the background').action(start);
 
-program
-    .command('stop')
-    .description('Stop the Tars supervisor')
-    .action(stop);
+program.command('stop').description('Stop the Tars supervisor').action(stop);
 
-program
-    .command('status')
-    .description('Check the status of Tars supervisor')
-    .action(status);
+program.command('status').description('Check the status of Tars supervisor').action(status);
 
 program
     .command('export')
@@ -50,10 +38,7 @@ program
     .argument('<path>', 'Path to the brain archive (.tar.gz)')
     .action(importBrain);
 
-program
-    .command('logs')
-    .description('View real-time logs from the Tars supervisor')
-    .action(logs);
+program.command('logs').description('View real-time logs from the Tars supervisor').action(logs);
 
 program
     .command('discord')

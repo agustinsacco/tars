@@ -17,21 +17,26 @@ export async function start() {
             process.exit(2);
         }
 
-        pm2.start({
-            script: mainPath,
-            name: 'tars-supervisor',
-            interpreter: 'node',
-            env: {
-                NODE_ENV: 'production'
+        pm2.start(
+            {
+                script: mainPath,
+                name: 'tars-supervisor',
+                interpreter: 'node',
+                env: {
+                    NODE_ENV: 'production'
+                }
+            },
+            (err, apps) => {
+                pm2.disconnect();
+                if (err) {
+                    console.error(chalk.red('❌ Error starting Tars:'), err);
+                } else {
+                    console.log(
+                        chalk.green('✅ Tars supervisor is now running in the background.')
+                    );
+                    console.log(`  Use ${chalk.cyan('tars status')} to check status and logs.`);
+                }
             }
-        }, (err, apps) => {
-            pm2.disconnect();
-            if (err) {
-                console.error(chalk.red('❌ Error starting Tars:'), err);
-            } else {
-                console.log(chalk.green('✅ Tars supervisor is now running in the background.'));
-                console.log(`  Use ${chalk.cyan('tars status')} to check status and logs.`);
-            }
-        });
+        );
     });
 }

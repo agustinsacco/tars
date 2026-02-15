@@ -1,10 +1,10 @@
-import { Config } from '../config/Config.js';
-import { GeminiCli } from './GeminiCli.js';
-import { SessionManager } from './SessionManager.js';
-import { Supervisor } from './Supervisor.js';
-import { HeartbeatService } from './HeartbeatService.js';
-import { DiscordBot } from '../discord/DiscordBot.js';
-import logger from '../utils/Logger.js';
+import { Config } from '../config/config.js';
+import { GeminiCli } from './gemini-cli.js';
+import { SessionManager } from './session-manager.js';
+import { Supervisor } from './supervisor.js';
+import { HeartbeatService } from './heartbeat-service.js';
+import { DiscordBot } from '../discord/discord-bot.js';
+import logger from '../utils/logger.js';
 
 /**
  * Tars Main Entry Point
@@ -39,7 +39,6 @@ async function main() {
             heartbeat.stop();
             process.exit(0);
         });
-
     } catch (error: any) {
         logger.error(`💥 Fatal error during startup: ${error.message}`);
         process.exit(1);
