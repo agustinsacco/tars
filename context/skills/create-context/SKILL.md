@@ -27,13 +27,13 @@ This file provides context for the `my-extension` extension.
 
 - You are now equipped with the `my-extension` tools.
 - When the user asks about X, follow these guidelines:
-  1. ...
-  2. ...
+    1. ...
+    2. ...
 
 ## Tools Overview
 
 - `my_tool`: Use this to investigate X.
-  - Caution: This tool may modify files. Always verify with the user first.
+    - Caution: This tool may modify files. Always verify with the user first.
 
 ## Notes
 

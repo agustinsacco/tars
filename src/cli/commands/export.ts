@@ -15,9 +15,21 @@ export async function exportBrain(options: { output?: string }) {
     const tarsHome = path.join(os.homedir(), '.tars');
     const geminiHome = path.join(os.homedir(), '.gemini');
 
-    // Create a temporary manifest/metadata if needed?
+    // Exclude heavy directories to keep the brain lean
+    const excludes = [
+        '--exclude=node_modules',
+        '--exclude=.next',
+        '--exclude=dist',
+        '--exclude=build',
+        '--exclude=.cache',
+        '--exclude=venv',
+        '--exclude=.venv',
+        '--exclude=target', // Rust
+        '--exclude=vendor', // PHP/Go
+        '--exclude=.sass-cache'
+    ];
 
-    const tar = spawn('tar', ['-czf', outputPath, '-C', os.homedir(), '.tars']);
+    const tar = spawn('tar', ['-czf', outputPath, ...excludes, '-C', os.homedir(), '.tars']);
 
     tar.stderr.on('data', (data) => console.warn(chalk.yellow(data.toString())));
 

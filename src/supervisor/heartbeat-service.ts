@@ -4,6 +4,7 @@ import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import cronParser from 'cron-parser';
+import { AttachmentProcessor } from '../utils/attachment-processor.js';
 
 /**
  * HeartbeatService - Manages background task execution via file polling
@@ -11,11 +12,14 @@ import cronParser from 'cron-parser';
 export class HeartbeatService {
     private interval: NodeJS.Timeout | null = null;
     private isExecuting: boolean = false;
+    private processor: AttachmentProcessor;
 
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config
-    ) {}
+    ) {
+        this.processor = new AttachmentProcessor(config);
+    }
 
     public async start(): Promise<void> {
         const intervalMs = this.config.heartbeatIntervalMs;
@@ -40,6 +44,9 @@ export class HeartbeatService {
         this.isExecuting = true;
 
         try {
+            // Run maintenance
+            this.processor.cleanup();
+
             const tasks = await this.loadTasks();
             const now = new Date();
             const dueTasks = tasks.filter((t) => t.enabled && new Date(t.nextRun) <= now);

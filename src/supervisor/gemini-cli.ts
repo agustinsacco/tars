@@ -42,12 +42,13 @@ export class GeminiCli {
         const env = {
             ...process.env,
             GEMINI_CLI_HOME: this.config.homeDir,
-            GEMINI_SYSTEM_MD: this.config.systemPromptPath
+            GEMINI_SYSTEM_MD: this.config.systemPromptPath,
+            PWD: this.config.homeDir
         };
 
         return new Promise((resolve, reject) => {
             const childDescription = `gemini chat [session: ${sessionId || 'new'}]`;
-            const child = spawn('gemini', args, { env });
+            const child = spawn('gemini', args, { env, cwd: this.config.homeDir });
 
             let buffer = '';
             let usageStats: any = {};
@@ -69,8 +70,25 @@ export class GeminiCli {
 
                         if (event.type === 'init' && event.session_id) {
                             onEvent({ type: 'text', content: '', sessionId: event.session_id });
-                        } else if (event.type === 'message' && event.role === 'assistant' && event.content) {
+                        } else if (
+                            event.type === 'message' &&
+                            event.role === 'assistant' &&
+                            event.content
+                        ) {
                             onEvent({ type: 'text', content: event.content });
+                        } else if (event.type === 'tool_use') {
+                            onEvent({
+                                type: 'tool_call',
+                                toolName: event.tool_name,
+                                toolId: event.tool_id,
+                                toolArgs: event.parameters
+                            });
+                        } else if (event.type === 'tool_result') {
+                            onEvent({
+                                type: 'tool_response',
+                                toolId: event.tool_id,
+                                content: event.output || event.error?.message || 'Success'
+                            });
                         } else if (event.type === 'result' && event.stats) {
                             usageStats = {
                                 inputTokens: event.stats.input_tokens || 0,
@@ -78,7 +96,10 @@ export class GeminiCli {
                                 cachedTokens: event.stats.cached || 0
                             };
                         } else if (event.type === 'error') {
-                            onEvent({ type: 'error', error: event.message || JSON.stringify(event) });
+                            onEvent({
+                                type: 'error',
+                                error: event.message || JSON.stringify(event)
+                            });
                         }
                     } catch (e) {
                         // Not JSON, likely a log message

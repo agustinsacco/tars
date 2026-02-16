@@ -45,7 +45,7 @@ function installSystemPrompt(config: Config): void {
     const targetDir = path.dirname(config.systemPromptPath);
     fs.mkdirSync(targetDir, { recursive: true });
 
-// Always overwrite to ensure latest prompt is deployed
+    // Always overwrite to ensure latest prompt is deployed
     fs.copyFileSync(srcPrompt, config.systemPromptPath);
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
 }
@@ -69,11 +69,11 @@ function installSkills(config: Config): void {
             skillsSrc = srcCandidate;
             break;
         }
-         // Try finding context in root if running from src
+        // Try finding context in root if running from src
         const rootCandidate = path.join(searchDir, '..', '..', 'context', 'skills');
         if (fs.existsSync(rootCandidate)) {
-             skillsSrc = rootCandidate;
-             break;
+            skillsSrc = rootCandidate;
+            break;
         }
 
         searchDir = path.dirname(searchDir);

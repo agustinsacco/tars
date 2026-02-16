@@ -15,6 +15,7 @@ export interface SessionData {
     interactionCount: number;
     lastInteractionAt: string;
     lastInputTokens: number;
+    totalNetTokens: number;
 }
 
 /**
@@ -46,6 +47,9 @@ export class SessionManager {
             }
 
             this.sessionData = parsed as SessionData;
+            if (this.sessionData.totalNetTokens === undefined) {
+                this.sessionData.totalNetTokens = this.sessionData.totalInputTokens || 0;
+            }
 
             return this.sessionData.sessionId;
         } catch (e) {
@@ -69,7 +73,8 @@ export class SessionManager {
                     totalCachedTokens: 0,
                     interactionCount: 0,
                     lastInteractionAt: new Date().toISOString(),
-                    lastInputTokens: 0
+                    lastInputTokens: 0,
+                    totalNetTokens: 0
                 };
             }
 
@@ -91,9 +96,11 @@ export class SessionManager {
             return;
         }
 
-        this.sessionData.totalInputTokens += usage.inputTokens;
+        const netInput = Math.max(0, usage.inputTokens - (usage.cachedTokens || 0));
+        this.sessionData.totalNetTokens += netInput;
+        this.sessionData.totalInputTokens = usage.inputTokens; // Current context size
         this.sessionData.totalOutputTokens += usage.outputTokens;
-        this.sessionData.totalCachedTokens += usage.cachedTokens || 0;
+        this.sessionData.totalCachedTokens = usage.cachedTokens || 0; // Current cached state
         this.sessionData.interactionCount++;
         this.sessionData.lastInteractionAt = new Date().toISOString();
         this.sessionData.lastInputTokens = usage.inputTokens;

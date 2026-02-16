@@ -41,11 +41,7 @@ describe('Supervisor', () => {
 
         // Should NOT save a generated tars- ID anymore
         expect(mockSessionManager.save).not.toHaveBeenCalledWith(expect.stringContaining('tars-'));
-        expect(mockGemini.run).toHaveBeenCalledWith(
-            'hello',
-            expect.any(Function),
-            undefined
-        );
+        expect(mockGemini.run).toHaveBeenCalledWith('hello', expect.any(Function), undefined);
     });
 
     it('should execute tasks synchronously', async () => {

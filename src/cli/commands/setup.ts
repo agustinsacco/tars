@@ -127,71 +127,6 @@ export async function setup() {
     }
 
     // ── Step 2: Discord Bot ───────────────────────────────
-    console.log(chalk.bold('\nStep 2/4: Discord Bot'));
-    console.log(chalk.dim('──────────────────────'));
-    console.log(chalk.yellow('  1. Go to: https://discord.com/developers/applications'));
-    console.log(chalk.yellow('  2. Create/Select App → Click "Bot" in left sidebar.'));
-    console.log(chalk.yellow('  3. Click "Reset Token" to reveal your token.'));
-    console.log(chalk.red.bold('  4. REQUIRED: Enable "MESSAGE CONTENT INTENT" in Bot settings.'));
-    console.log(
-        chalk.yellow(
-            '  5. Generate Invite: OAuth2 -> URL Generator -> Scope: bot -> Perms: Send Messages, Read History.'
-        )
-    );
-    console.log(
-        chalk.white(
-            "     (If you don't have a server, create one in Discord first via the [+] button)\n"
-        )
-    );
-
-    const { discordToken } = await inquirer.prompt([
-        {
-            type: 'password',
-            name: 'discordToken',
-            message: 'Enter Discord Bot Token:',
-            validate: (input) =>
-                input.length > 50 ||
-                'Token too short — paste the full token from the Developer Portal'
-        }
-    ]);
-
-    const validateSpinner = ora('Validating token & intents...').start();
-    try {
-        const client = new Client({
-            intents: [
-                GatewayIntentBits.Guilds,
-                GatewayIntentBits.GuildMessages,
-                GatewayIntentBits.MessageContent,
-                GatewayIntentBits.DirectMessages
-            ]
-        });
-        await client.login(discordToken);
-        const botName = client.user?.tag;
-        client.destroy();
-        validateSpinner.succeed(`Token & Intents valid! Bot: ${chalk.bold(botName)}`);
-    } catch (err: any) {
-        if (err.message.includes('disallowed intents')) {
-            validateSpinner.fail(chalk.red.bold('DISALLOWED INTENTS ERROR'));
-            console.log(
-                chalk.red(
-                    '\n  The token is valid, but your bot lacks the "Message Content Intent".'
-                )
-            );
-            console.log(chalk.red('  Please go to the Discord Developer Portal and enable it:'));
-            console.log(chalk.red('  1. Select your Bot -> "Bot" section.'));
-            console.log(chalk.red('  2. Scroll to "Privileged Gateway Intents".'));
-            console.log(chalk.red('  3. Enable "Message Content Intent" and SAVE CHANGES.\n'));
-        } else {
-            validateSpinner.fail('Invalid Discord token. Check your token and try again.');
-        }
-        process.exit(1);
-    }
-
-    // ── Step 3: Configuration ─────────────────────────────
-    console.log(chalk.bold('\nStep 3/4: Configuration'));
-    console.log(chalk.dim('────────────────────────'));
-
-    // Try to load existing config
     const tarsHome = path.join(os.homedir(), '.tars');
     let existingConfig: any = {};
     try {
@@ -201,12 +136,97 @@ export async function setup() {
         /* ignore */
     }
 
+    let discordToken = existingConfig.discordToken || '';
+    let skipDiscord = false;
+
+    if (discordToken) {
+        console.log(chalk.green('  ✓ Discord token already configured.'));
+        const { reAuthDiscord } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'reAuthDiscord',
+                message: 'Do you want to update the Discord Bot Token?',
+                default: false
+            }
+        ]);
+        if (!reAuthDiscord) {
+            skipDiscord = true;
+        }
+    }
+
+    if (!skipDiscord) {
+        const answers = await inquirer.prompt([
+            {
+                type: 'password',
+                name: 'discordToken',
+                message: 'Enter Discord Bot Token:',
+                validate: (input) =>
+                    input.length > 50 ||
+                    'Token too short — paste the full token from the Developer Portal'
+            }
+        ]);
+        discordToken = answers.discordToken;
+
+        const validateSpinner = ora('Validating token & intents...').start();
+        try {
+            const client = new Client({
+                intents: [
+                    GatewayIntentBits.Guilds,
+                    GatewayIntentBits.GuildMessages,
+                    GatewayIntentBits.MessageContent,
+                    GatewayIntentBits.DirectMessages
+                ]
+            });
+            await client.login(discordToken);
+            const botName = client.user?.tag;
+            client.destroy();
+            validateSpinner.succeed(`Token & Intents valid! Bot: ${chalk.bold(botName)}`);
+        } catch (err: any) {
+            if (err.message.includes('disallowed intents')) {
+                validateSpinner.fail(chalk.red.bold('DISALLOWED INTENTS ERROR'));
+                console.log(
+                    chalk.red(
+                        '\n  The token is valid, but your bot lacks the "Message Content Intent".'
+                    )
+                );
+                console.log(
+                    chalk.red('  Please go to the Discord Developer Portal and enable it:')
+                );
+                console.log(chalk.red('  1. Select your Bot -> "Bot" section.'));
+                console.log(chalk.red('  2. Scroll to "Privileged Gateway Intents".'));
+                console.log(chalk.red('  3. Enable "Message Content Intent" and SAVE CHANGES.\n'));
+            } else {
+                validateSpinner.fail('Invalid Discord token. Check your token and try again.');
+            }
+            process.exit(1);
+        }
+    }
+
+    // ── Step 3: Configuration ─────────────────────────────
+    console.log(chalk.bold('\nStep 3/4: Configuration'));
+    console.log(chalk.dim('────────────────────────'));
+
     const config = await inquirer.prompt([
         {
-            type: 'input',
+            type: 'list',
             name: 'geminiModel',
-            message: 'Gemini model:',
+            message: 'Select Gemini Model:',
+            choices: [
+                { name: 'Auto (Highly Recommended)', value: 'auto' },
+                { name: 'Gemini 3 Flash (Fastest, Preview)', value: 'gemini-3-flash-preview' },
+                { name: 'Gemini 3 Pro (Most Powerful, Preview)', value: 'gemini-3-pro-preview' },
+                { name: 'Gemini 2.5 Flash (Balanced)', value: 'gemini-2.5-flash' },
+                { name: 'Gemini 2.5 Pro (Deep Context)', value: 'gemini-2.5-pro' },
+                { name: 'Gemini 2.5 Flash Lite (Ultra-fast)', value: 'gemini-2.5-flash-lite' },
+                { name: 'Custom (Advanced)', value: 'custom' }
+            ],
             default: existingConfig.geminiModel || 'auto'
+        },
+        {
+            type: 'input',
+            name: 'customModel',
+            message: 'Enter custom model name:',
+            when: (answers) => answers.geminiModel === 'custom'
         },
         {
             type: 'input',
@@ -311,9 +331,10 @@ export async function setup() {
 
     // Save Tars configuration
     const saveSpinner = ora('Saving configuration...').start();
+    const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
     const configData = {
         discordToken,
-        geminiModel: config.geminiModel,
+        geminiModel: finalModel,
         heartbeatIntervalSec: parseInt(config.heartbeatInterval, 10)
     };
 

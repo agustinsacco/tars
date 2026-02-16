@@ -89,7 +89,7 @@ describe('GeminiCli', () => {
         mockChild.stderr = new EventEmitter();
         vi.mocked(spawn).mockReturnValue(mockChild);
 
-        const runPromise = cli.run('test prompt', () => { });
+        const runPromise = cli.run('test prompt', () => {});
         mockChild.emit('close', 1);
 
         await expect(runPromise).rejects.toThrow(/exited with code 1/);

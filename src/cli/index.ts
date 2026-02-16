@@ -8,6 +8,7 @@ import { exportBrain } from './commands/export.js';
 import { importBrain } from './commands/import.js';
 import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
+import { secret } from './commands/secret.js';
 
 import { versionString } from '../utils/version.js';
 
@@ -44,5 +45,13 @@ program
     .command('discord')
     .description('View instructions for Discord bot setup and invitation')
     .action(discord);
+
+program
+    .command('secret')
+    .description('Manage secure environment variables for extensions')
+    .argument('<action>', 'Action to perform (set, list, remove)')
+    .argument('[key]', 'Secret key')
+    .argument('[value]', 'Secret value (required for set)')
+    .action(secret);
 
 program.parse();

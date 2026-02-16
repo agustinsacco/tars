@@ -3,6 +3,7 @@ import os from 'os';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
+import { SecretsManager } from '../utils/secrets-manager.js';
 
 dotenv.config();
 
@@ -29,6 +30,14 @@ export class Config {
         // 1. Establish Home Directory (~/.tars)
         this.homeDir = process.env.TARS_HOME || path.join(os.homedir(), '.tars');
         this.configFilePath = path.join(this.homeDir, 'config.json');
+
+        // 1.5 Load Secrets into environment
+        const secretsManager = new SecretsManager(this.homeDir);
+        const secrets = secretsManager.load();
+        for (const [key, value] of Object.entries(secrets)) {
+            // Load into process.env so they are available globally
+            process.env[key] = value;
+        }
 
         // 2. Load JSON Config if exists
         let jsonConfig: any = {};

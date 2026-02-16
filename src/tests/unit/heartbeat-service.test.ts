@@ -17,6 +17,7 @@ describe('HeartbeatService', () => {
             executeTask: vi.fn().mockResolvedValue('success')
         };
         mockConfig = {
+            homeDir: '/tmp/.tars',
             heartbeatIntervalMs: 1000,
             taskFilePath: '/tmp/tasks.json'
         };

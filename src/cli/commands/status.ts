@@ -57,9 +57,11 @@ export async function status() {
                 console.log(chalk.bold('🧠 Session Stats'));
                 console.log(`Session ID:   ${sessionStats.sessionId}`);
                 console.log(`Interactions: ${sessionStats.interactionCount}`);
-                console.log(`Input Tokens: ${(sessionStats.totalInputTokens / 1000).toFixed(1)}k`);
-                console.log(`Output Tokens: ${(sessionStats.totalOutputTokens / 1000).toFixed(1)}k`);
-                console.log(`Cached Tokens: ${(sessionStats.totalCachedTokens / 1000).toFixed(1)}k`);
+                console.log(`Context Size: ${(sessionStats.totalInputTokens / 1000).toFixed(1)}k`);
+                console.log(`Cached:       ${(sessionStats.totalCachedTokens / 1000).toFixed(1)}k`);
+                console.log(
+                    `Total Usage:  ${((sessionStats.totalNetTokens + sessionStats.totalOutputTokens) / 1000).toFixed(1)}k`
+                );
             }
 
             console.log(`\nLogs:    tars logs\n`);

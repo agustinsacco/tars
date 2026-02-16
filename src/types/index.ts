@@ -26,14 +26,24 @@ export interface SessionMetadata {
 }
 
 export interface GeminiEvent {
-    type: 'tool_call' | 'tool_response' | 'text' | 'image' | 'error' | 'done';
+    type:
+        | 'tool_call'
+        | 'tool_response'
+        | 'text'
+        | 'image'
+        | 'error'
+        | 'done'
+        | 'thought'
+        | 'status';
     content?: string;
     toolName?: string;
     toolArgs?: any;
+    toolId?: string;
     imagePath?: string;
     error?: string;
     usageStats?: UsageStats;
     sessionId?: string;
+    status?: string;
 }
 
 export interface UsageStats {

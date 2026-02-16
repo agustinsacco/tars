@@ -60,9 +60,16 @@ describe('SessionManager', () => {
         });
 
         const stats = manager.getStats();
-        expect(stats?.totalInputTokens).toBe(150);
+        // totalInputTokens represents "Context Size", not cumulative sum.
+        expect(stats?.totalInputTokens).toBe(50);
         expect(stats?.totalOutputTokens).toBe(75);
-        expect(stats?.totalCachedTokens).toBe(15);
+        // totalCachedTokens represents "Current Cache", not cumulative sum.
+        expect(stats?.totalCachedTokens).toBe(5);
+        // totalNetTokens tracks the actual non-cached tokens consumed.
+        // Initial: 100 (from mockData totalInputTokens)
+        // New: 50 input - 5 cached = 45 net
+        // Expected: 100 + 45 = 145
+        expect(stats?.totalNetTokens).toBe(145);
         expect(stats?.interactionCount).toBe(2);
     });
 

@@ -25,17 +25,17 @@ When you need to build a new tool or integration:
 
 ```json
 {
-  "name": "my-extension",
-  "version": "1.0.0",
-  "mcpServers": {
-    "main": {
-      "command": "node",
-      "args": ["${extensionPath}/server.js"],
-      "env": {
-        "NODE_ENV": "production"
-      }
+    "name": "my-extension",
+    "version": "1.0.0",
+    "mcpServers": {
+        "main": {
+            "command": "node",
+            "args": ["${extensionPath}/server.js"],
+            "env": {
+                "NODE_ENV": "production"
+            }
+        }
     }
-  }
 }
 ```
 
@@ -68,3 +68,14 @@ server.registerTool(
 const transport = new StdioServerTransport();
 await server.connect(transport);
 ```
+
+## 🔒 Handling Secrets & Authentication
+
+Do **NOT** pass API keys or credentials as tool arguments. This exposes them in the conversation history and logs.
+
+**Standard Workflow:**
+
+1. **Access**: Use `process.env.MY_SECRET_KEY` in your extension.
+2. **Missing Key Handling**: If missing, return an error message:
+   `"❌ API Key missing. Please run 'tars secret set MY_SECRET_KEY YOUR_KEY' and restart Tars."`
+3. **Storage**: Tars manages these via `~/.tars/.env` with private permissions.
