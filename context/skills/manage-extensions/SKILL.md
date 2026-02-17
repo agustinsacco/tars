@@ -5,7 +5,7 @@ description: Enable, disable, list, and install Gemini CLI extensions at runtime
 
 # manage-extensions Guide Skill
 
-This skill allows Tars to manage Gemini CLI extensions — listing, enabling, disabling, and installing them.
+This skill allows Tars to manage Gemini CLI extensions - listing, enabling, disabling, and installing them.
 
 ## How It Works
 
@@ -34,8 +34,8 @@ gemini extensions disable <name>
 
 Disables the extension for the current user scope. It will no longer load on the next interaction.
 
-- `--scope user` — Disable for the user (default).
-- `--scope workspace` — Disable only for the current project.
+- `--scope user` - Disable for the user (default).
+- `--scope workspace` - Disable only for the current project.
 
 ### Enable an Extension
 

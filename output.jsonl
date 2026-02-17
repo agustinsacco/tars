@@ -1,0 +1,1 @@
+{"type":"result","timestamp":"2026-02-16T02:56:20.342Z","status":"error","error":{"type":"Error","message":"[API Error: setRawMode EIO]"},"stats":{"total_tokens":0,"input_tokens":0,"output_tokens":0,"cached":0,"input":0,"duration_ms":0,"tool_calls":0}}
