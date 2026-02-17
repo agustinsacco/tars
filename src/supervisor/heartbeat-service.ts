@@ -44,14 +44,20 @@ export class HeartbeatService {
         this.isExecuting = true;
 
         try {
-            // Run maintenance
+            // 1. Maintenance & Sync
             this.processor.cleanup();
+            await this.supervisor.memory.fullSync();
 
+            // 2. Load Tasks
             const tasks = await this.loadTasks();
             const now = new Date();
             const dueTasks = tasks.filter((t) => t.enabled && new Date(t.nextRun) <= now);
 
-            if (dueTasks.length > 0) {
+            // 3. Autonomous Check (The OpenClaw style)
+            // If no hard-scheduled tasks, we do a semantic "health check"
+            if (dueTasks.length === 0) {
+                await this.autonomousCheck();
+            } else {
                 logger.info(`💓 Found ${dueTasks.length} due tasks`);
                 for (const task of dueTasks) {
                     await this.runTask(task);
@@ -65,11 +71,33 @@ export class HeartbeatService {
         }
     }
 
+    private async autonomousCheck(): Promise<void> {
+        // This is a "quiet" heartbeat. We ask the AI if anything needs attention
+        // based on the context it has in memory.
+        const prompt = `Self-Correction and Autonomous Heartbeat:\nReview your current objectives in GEMINI.md and any pending tasks.\nIf everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'.\nIf you detect an issue, a missed deadline, or a high-priority task that needs starting, provide a short internal reasoning and then describe the action you are taking.`;
+
+        try {
+            const response = await this.supervisor.executeTask(prompt);
+
+            if (response.includes('SILENT_ACK')) {
+                // Heartbeat OK, prune to prevent context bloat
+                await this.supervisor.pruneLastTurn();
+                return;
+            }
+
+            // If the AI didn't say SILENT_ACK, it wants to do something!
+            logger.info(`🤖 Tars Heartbeat initiated action: ${response.substring(0, 100)}...`);
+            // Here we could route this to Discord or a Log.
+        } catch (error: any) {
+            logger.error(`❌ Autonomous check failed: ${error.message}`);
+        }
+    }
+
     private async runTask(task: Task): Promise<void> {
         logger.info(`🚀 Running task: ${task.title} (${task.id})`);
 
         try {
-            const result = await this.supervisor.executeTask(task.prompt, task.mode);
+            const result = await this.supervisor.executeTask(task.prompt);
             logger.info(`✅ Task ${task.id} completed. Result length: ${result.length}`);
 
             task.lastRun = new Date().toISOString();

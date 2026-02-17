@@ -1,109 +1,97 @@
-import { spawn } from 'child_process';
-import { GeminiEvent, GeminiOutputHandler } from '../types/index.js';
+import { ChildProcess, spawn } from 'node:child_process';
+import EventEmitter from 'node:events';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import path from 'path';
 import os from 'os';
+import fs from 'fs';
+import crypto from 'crypto';
 
 /**
  * Wrapper for the Gemini CLI process
  */
-export class GeminiCli {
-    private readonly config: Config;
+export class GeminiCli extends EventEmitter {
+    private config: Config;
 
-    constructor(private readonly model: string) {
-        this.config = Config.getInstance();
+    constructor(config: Config) {
+        super();
+        this.config = config;
     }
 
     /**
-     * Executes a prompt via Gemini CLI and streams events
+     * Executes a prompt via Gemini CLI with streaming events.
      */
-    public async run(
+    public run(
         prompt: string,
-        onEvent: GeminiOutputHandler,
+        onEvent: (event: any) => void,
         sessionId?: string,
         extensions: string[] = []
     ): Promise<void> {
-        const args = ['chat', '--model', this.model, '--output-format', 'stream-json'];
-
-        if (sessionId) {
-            args.push('--resume', sessionId);
-        }
-
-        // Add extensions
-        for (const ext of extensions) {
-            args.push('--extension', ext);
-        }
-
-        args.push('--yolo', prompt);
-
-        logger.debug(`Executing Gemini CLI: gemini ${args.join(' ')}`);
-
-        const env = {
-            ...process.env,
-            GEMINI_CLI_HOME: this.config.homeDir,
-            GEMINI_SYSTEM_MD: this.config.systemPromptPath,
-            PWD: this.config.homeDir
-        };
-
         return new Promise((resolve, reject) => {
-            const childDescription = `gemini chat [session: ${sessionId || 'new'}]`;
-            const child = spawn('gemini', args, { env, cwd: this.config.homeDir });
+            const args = [
+                '--output-format', 'stream-json',
+                '--experimental-acp',
+                '--yolo',
+                '--include-directories', this.config.homeDir
+            ];
 
-            let buffer = '';
-            let usageStats: any = {};
+            if (sessionId) {
+                args.push('--session-id', sessionId);
+            }
+
+            // Add extensions (MCP servers) if any
+            for (const ext of extensions) {
+                args.push('--extensions', ext);
+            }
+
+            args.push('--prompt', prompt);
+
+            const childDescription = `Gemini CLI (Session: ${sessionId || 'new'})`;
+            const cmdStr = `HOME=${this.config.homeDir} gemini ${args.join(' ')}`;
+            logger.info(`🚀 Spawning: ${cmdStr}`);
+
+            const child = spawn('gemini', args, {
+                env: {
+                    ...process.env,
+                    HOME: this.config.homeDir
+                },
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+
+            let stdoutBuffer = '';
+            let usageStats = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
+
+            const timeout = setTimeout(() => {
+                logger.warn(`🕒 ${childDescription} timed out after 60s. Killing...`);
+                child.kill('SIGKILL');
+                reject(new Error(`${childDescription} timed out`));
+            }, 60000);
 
             child.stdout.on('data', (data) => {
-                const chunk = data.toString();
-                buffer += chunk;
+                stdoutBuffer += data.toString();
 
-                // Process line-by-line
-                let newlineIndex: number;
-                while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-                    const line = buffer.slice(0, newlineIndex).trim();
-                    buffer = buffer.slice(newlineIndex + 1);
+                // Try to parse full JSON objects from the stream
+                const lines = stdoutBuffer.split('\n');
+                stdoutBuffer = lines.pop() || '';
 
-                    if (!line) continue;
-
+                for (const line of lines) {
+                    if (!line.trim()) continue;
                     try {
                         const event = JSON.parse(line);
-
-                        if (event.type === 'init' && event.session_id) {
-                            onEvent({ type: 'text', content: '', sessionId: event.session_id });
-                        } else if (
-                            event.type === 'message' &&
-                            event.role === 'assistant' &&
-                            event.content
-                        ) {
-                            onEvent({ type: 'text', content: event.content });
-                        } else if (event.type === 'tool_use') {
-                            onEvent({
-                                type: 'tool_call',
-                                toolName: event.tool_name,
-                                toolId: event.tool_id,
-                                toolArgs: event.parameters
-                            });
-                        } else if (event.type === 'tool_result') {
-                            onEvent({
-                                type: 'tool_response',
-                                toolId: event.tool_id,
-                                content: event.output || event.error?.message || 'Success'
-                            });
-                        } else if (event.type === 'result' && event.stats) {
+                        // Track usage stats from the 'done' event or intermediate ones
+                        if (event.tokens) {
                             usageStats = {
-                                inputTokens: event.stats.input_tokens || 0,
-                                outputTokens: event.stats.output_tokens || 0,
-                                cachedTokens: event.stats.cached || 0
+                                inputTokens: event.tokens.input,
+                                outputTokens: event.tokens.output,
+                                cachedTokens: event.tokens.cached || 0
                             };
-                        } else if (event.type === 'error') {
-                            onEvent({
-                                type: 'error',
-                                error: event.message || JSON.stringify(event)
-                            });
                         }
+                        onEvent(event);
                     } catch (e) {
-                        // Not JSON, likely a log message
-                        // logger.debug(`[Gemini CLI Log] ${line}`);
+                        // If it's not valid JSON, it's likely a status message or hook log.
+                        // We skip it instead of blocking the buffer.
+                        logger.debug(`[Gemini CLI Stdout] ${line.trim()}`);
+                        continue;
                     }
                 }
             });
@@ -111,11 +99,11 @@ export class GeminiCli {
             child.stderr.on('data', (data) => {
                 const error = data.toString();
                 logger.warn(`[Gemini CLI Stderr] ${error.trim()}`);
-                // Don't emit errors to user from stderr as it often contains non-fatal warnings (like MCP discovery issues)
-                // Real errors will come via the stream-json output or non-zero exit code.
             });
 
             child.on('close', (code) => {
+                clearTimeout(timeout);
+                logger.info(`⏹️ ${childDescription} closed with code ${code}`);
                 if (code === 0) {
                     onEvent({ type: 'done', usageStats });
                     resolve();
@@ -150,6 +138,127 @@ export class GeminiCli {
             sessionId,
             extensions
         );
+
+        // Always try to compact after interaction
+        if (sessionId) {
+            await this.compactSession(sessionId);
+        }
+
         return fullContent;
+    }
+
+    /**
+     * Removes the last interaction (user prompt + assistant response) from the history.
+     * Used for "Silent Heartbeats" to prevent context bloat.
+     */
+    public async pruneLastTurn(sessionId: string): Promise<void> {
+        try {
+            const filePath = this.getSessionFilePath(sessionId);
+            if (!filePath) return;
+
+            const raw = fs.readFileSync(filePath, 'utf-8');
+            const session = JSON.parse(raw);
+
+            if (session.messages && session.messages.length > 0) {
+                let lastUserIndex = -1;
+                for (let i = session.messages.length - 1; i >= 0; i--) {
+                    if (session.messages[i].type === 'user') {
+                        lastUserIndex = i;
+                        break;
+                    }
+                }
+
+                if (lastUserIndex !== -1) {
+                    session.messages = session.messages.slice(0, lastUserIndex);
+                    fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
+                    logger.debug(`✂️ Pruned session history at index ${lastUserIndex}`);
+                }
+            } else if (session.history && session.history.length > 0) {
+                // Compatibility for alternate formats
+                let lastUserIndex = -1;
+                for (let i = session.history.length - 1; i >= 0; i--) {
+                    if (session.history[i].role === 'user') {
+                        lastUserIndex = i;
+                        break;
+                    }
+                }
+                if (lastUserIndex !== -1) {
+                    session.history = session.history.slice(0, lastUserIndex);
+                    fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
+                }
+            }
+        } catch (error: any) {
+            logger.error(`❌ Pruning failed: ${error.message}`);
+        }
+    }
+
+    /**
+     * Compacts the session by removing non-essential metadata (like resultDisplay)
+     * to prevent hitting token/quota limits.
+     */
+    public async compactSession(sessionId: string): Promise<void> {
+        try {
+            const filePath = this.getSessionFilePath(sessionId);
+            if (!filePath) return;
+
+            const stats = fs.statSync(filePath);
+            if (stats.size < 50 * 1024) return; // Only compact if > 50KB
+
+            logger.info(`🧹 Compacting bloated session (${(stats.size / 1024).toFixed(1)} KB)...`);
+
+            const raw = fs.readFileSync(filePath, 'utf-8');
+            const session = JSON.parse(raw);
+
+            const cleanMessages = (msgs: any[]) => {
+                if (!msgs) return msgs;
+                return msgs.map((m: any) => {
+                    if (m.resultDisplay) delete m.resultDisplay;
+                    if (m.thoughts && m.thoughts.length > 3) m.thoughts = m.thoughts.slice(-3);
+
+                    if (m.content && Array.isArray(m.content)) {
+                        m.content = m.content.map((item: any) => {
+                            if (item.result) {
+                                item.result = item.result.map((r: any) => {
+                                    if (r.functionResponse?.response?.resultDisplay) {
+                                        delete r.functionResponse.response.resultDisplay;
+                                    }
+                                    return r;
+                                });
+                            }
+                            return item;
+                        });
+                    }
+                    return m;
+                });
+            };
+
+            if (session.messages) session.messages = cleanMessages(session.messages);
+            if (session.history) session.history = cleanMessages(session.history);
+
+            fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
+            const newStats = fs.statSync(filePath);
+            logger.info(`✨ Compacted: ${(stats.size / 1024).toFixed(1)} KB -> ${(newStats.size / 1024).toFixed(1)} KB`);
+        } catch (error: any) {
+            logger.error(`❌ Compaction failed: ${error.message}`);
+        }
+    }
+
+    private getSessionFilePath(sessionId: string): string | null {
+        try {
+            const projectDir = this.config.homeDir;
+            const projectHash = crypto.createHash('sha256').update(projectDir).digest('hex');
+            const chatsDir = path.join(this.config.homeDir, '.gemini', 'tmp', projectHash, 'chats');
+
+            if (!fs.existsSync(chatsDir)) return null;
+
+            const files = fs.readdirSync(chatsDir)
+                .filter(f => f.startsWith('session-') && f.includes(sessionId.substring(0, 8)) && f.endsWith('.json'))
+                .map(f => ({ name: f, time: fs.statSync(path.join(chatsDir, f)).mtime.getTime() }))
+                .sort((a, b) => b.time - a.time);
+
+            return files.length > 0 ? path.join(chatsDir, files[0].name) : null;
+        } catch {
+            return null;
+        }
     }
 }

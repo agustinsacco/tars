@@ -102,6 +102,82 @@ function installSkills(config: Config): void {
 }
 
 /**
+ * Automatically install/link extensions and enable them.
+ */
+function installExtensions(config: Config): void {
+    const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
+    const targetExtensionsDir = path.join(config.homeDir, '.gemini', 'extensions');
+    const enablementFile = path.join(targetExtensionsDir, 'extension-enablement.json');
+
+    if (!fs.existsSync(repoExtensionsDir)) {
+        logger.warn('⚠️ Could not locate extensions directory');
+        return;
+    }
+
+    if (!fs.existsSync(targetExtensionsDir)) {
+        fs.mkdirSync(targetExtensionsDir, { recursive: true });
+    }
+
+    const builtInExtensions = fs.readdirSync(repoExtensionsDir);
+    let enablement: Record<string, any> = {};
+
+    if (fs.existsSync(enablementFile)) {
+        try {
+            enablement = JSON.parse(fs.readFileSync(enablementFile, 'utf-8'));
+        } catch (e) {
+            logger.warn('⚠️ Could not parse extension-enablement.json, starting fresh');
+        }
+    }
+
+    for (const extName of builtInExtensions) {
+        const srcPath = path.resolve(repoExtensionsDir, extName);
+        if (!fs.statSync(srcPath).isDirectory()) continue;
+
+        const destPath = path.join(targetExtensionsDir, extName);
+
+        // Map "tasks" folder to "tars-tasks" extension name if that's the convention
+        const finalExtName = extName === 'tasks' ? 'tars-tasks' : extName;
+        const finalDestPath = path.join(targetExtensionsDir, finalExtName);
+
+        if (!fs.existsSync(finalDestPath)) {
+            try {
+                fs.symlinkSync(srcPath, finalDestPath, 'dir');
+                logger.info(`🔌 Linked extension: ${finalExtName} -> ${srcPath}`);
+            } catch (error) {
+                logger.error(`❌ Failed to link extension ${finalExtName}: ${error}`);
+            }
+        }
+
+        // Ensure enabled
+        if (!enablement[finalExtName]) {
+            enablement[finalExtName] = {
+                overrides: [path.join(config.homeDir, '*')]
+            };
+        }
+    }
+
+    fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));
+}
+
+/**
+ * Install default settings if none exist.
+ */
+function installDefaultSettings(config: Config): void {
+    const settingsTemplate = path.join(__dirname, '..', '..', 'context', 'config', 'settings.json-template');
+    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+
+    if (fs.existsSync(targetSettings)) return;
+
+    if (fs.existsSync(settingsTemplate)) {
+        fs.mkdirSync(path.dirname(targetSettings), { recursive: true });
+        fs.copyFileSync(settingsTemplate, targetSettings);
+        logger.info(`⚙️ Default settings installed: ${targetSettings}`);
+    } else {
+        logger.warn('⚠️ Could not locate settings.json-template');
+    }
+}
+
+/**
  * Tars Main Entry Point
  */
 async function main() {
@@ -111,12 +187,14 @@ async function main() {
         // 1. Load Configuration
         const config = Config.getInstance();
 
-        // 2. Install system prompt and skills
+        // 2. Install system prompt, skills, extensions and settings
         installSystemPrompt(config);
         installSkills(config);
+        installExtensions(config);
+        installDefaultSettings(config);
 
         // 3. Initialize Core Services
-        const gemini = new GeminiCli(config.geminiModel);
+        const gemini = new GeminiCli(config);
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 

@@ -9,7 +9,11 @@ describe('GeminiCli', () => {
     let cli: GeminiCli;
 
     beforeEach(() => {
-        cli = new GeminiCli('test-model');
+        const mockConfig = {
+            geminiModel: 'test-model',
+            homeDir: '/tmp/tars-test'
+        } as any;
+        cli = new GeminiCli(mockConfig);
         vi.clearAllMocks();
     });
 
@@ -89,7 +93,7 @@ describe('GeminiCli', () => {
         mockChild.stderr = new EventEmitter();
         vi.mocked(spawn).mockReturnValue(mockChild);
 
-        const runPromise = cli.run('test prompt', () => {});
+        const runPromise = cli.run('test prompt', () => { });
         mockChild.emit('close', 1);
 
         await expect(runPromise).rejects.toThrow(/exited with code 1/);
