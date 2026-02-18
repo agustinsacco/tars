@@ -11,6 +11,12 @@ export async function start() {
     // Point to the compiled JS entry point (dist/supervisor/main.js)
     const mainPath = path.resolve(__dirname, '../../supervisor/main.js');
 
+    // Pre-start cleanup: Kill any stray orphans that aren't managed by PM2
+    try {
+        const { execSync } = await import('child_process');
+        execSync('pkill -9 -f "supervisor/main.js" || true');
+    } catch (e) {}
+
     pm2.connect((err) => {
         if (err) {
             console.error(chalk.red('❌ Failed to connect to PM2'), err);
@@ -23,7 +29,9 @@ export async function start() {
                 name: 'tars-supervisor',
                 interpreter: 'node',
                 env: {
-                    NODE_ENV: 'production'
+                    NODE_ENV: 'production',
+                    LOG_LEVEL: 'debug',
+                    TARS_SUPERVISOR_MODE: 'true'
                 }
             },
             (err, apps) => {

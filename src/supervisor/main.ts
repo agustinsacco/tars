@@ -53,6 +53,10 @@ function installSystemPrompt(config: Config): void {
 /**
  * Install built-in skills into the Tars runtime directory.
  */
+/**
+ * Install and sync built-in skills into the Tars runtime directory.
+ * Safely updates built-in skills while preserving user-created ones.
+ */
 function installSkills(config: Config): void {
     // 1. Locate context/skills/ in the repo
     let searchDir = __dirname;
@@ -85,7 +89,6 @@ function installSkills(config: Config): void {
     }
 
     // 2. Define target directory (~/.tars/.gemini/skills)
-    // config.homeDir is ~/.tars. We assume .gemini structure.
     const skillsDest = path.join(config.homeDir, '.gemini', 'skills');
 
     try {
@@ -93,11 +96,131 @@ function installSkills(config: Config): void {
             fs.mkdirSync(skillsDest, { recursive: true });
         }
 
-        // 3. Recursive Copy (Node 16.7+)
-        fs.cpSync(skillsSrc, skillsDest, { recursive: true, force: true });
-        logger.info(`📚 Skills installed: ${skillsDest}`);
+        // 3. Selective Sync: Copy each built-in skill individually
+        const builtInSkills = fs.readdirSync(skillsSrc);
+
+        for (const skillName of builtInSkills) {
+            const srcSkillPath = path.join(skillsSrc, skillName);
+            const destSkillPath = path.join(skillsDest, skillName);
+
+            // Only copy directories
+            if (!fs.statSync(srcSkillPath).isDirectory()) continue;
+
+            // Remove existing destination (to ensure clean update - e.g. deleting old files)
+            // This assumes built-in skills are managed entirely by the repo
+            if (fs.existsSync(destSkillPath)) {
+                fs.rmSync(destSkillPath, { recursive: true, force: true });
+            }
+
+            // Copy fresh from repo
+            fs.cpSync(srcSkillPath, destSkillPath, { recursive: true });
+            logger.info(`📚 Skill synced: ${skillName}`);
+        }
     } catch (error) {
-        logger.error(`❌ Failed to install skills: ${error}`);
+        logger.error(`❌ Failed to sync skills: ${error}`);
+    }
+}
+
+/**
+ * Automatically install/link extensions and enable them.
+ * Verifies symlinks are valid and re-links if broken.
+ */
+function installExtensions(config: Config): void {
+    const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
+    const targetExtensionsDir = path.join(config.homeDir, '.gemini', 'extensions');
+    const enablementFile = path.join(targetExtensionsDir, 'extension-enablement.json');
+
+    if (!fs.existsSync(repoExtensionsDir)) {
+        logger.warn('⚠️ Could not locate extensions directory');
+        return;
+    }
+
+    if (!fs.existsSync(targetExtensionsDir)) {
+        fs.mkdirSync(targetExtensionsDir, { recursive: true });
+    }
+
+    // Load Enablement
+    let enablement: Record<string, any> = {};
+    if (fs.existsSync(enablementFile)) {
+        try {
+            enablement = JSON.parse(fs.readFileSync(enablementFile, 'utf-8'));
+        } catch (e) {
+            logger.warn('⚠️ Could not parse extension-enablement.json, starting fresh');
+        }
+    }
+
+    const builtInExtensions = fs.readdirSync(repoExtensionsDir);
+
+    for (const extName of builtInExtensions) {
+        const srcPath = path.resolve(repoExtensionsDir, extName);
+        if (!fs.statSync(srcPath).isDirectory()) continue;
+
+        const finalExtName = extName === 'tasks' ? 'tars-tasks' : extName;
+        const finalDestPath = path.join(targetExtensionsDir, finalExtName);
+
+        // Check if symlink exists and is valid
+        let needsLink = true;
+        try {
+            if (fs.existsSync(finalDestPath)) {
+                const stats = fs.lstatSync(finalDestPath);
+                if (stats.isSymbolicLink()) {
+                    const realPath = fs.realpathSync(finalDestPath);
+                    if (realPath === srcPath) {
+                        needsLink = false; // Already linked correctly
+                    }
+                }
+            }
+        } catch (e) {
+            // Broken link or other error, proceed to re-link
+        }
+
+        if (needsLink) {
+            try {
+                // Remove existing file/link if present to prevent EEXIST
+                if (fs.existsSync(finalDestPath) || fs.lstatSync(finalDestPath).isSymbolicLink()) {
+                    fs.rmSync(finalDestPath, { recursive: true, force: true });
+                }
+
+                fs.symlinkSync(srcPath, finalDestPath, 'dir');
+                logger.info(`🔌 Linked extension: ${finalExtName} -> ${srcPath}`);
+            } catch (error) {
+                logger.error(`❌ Failed to link extension ${finalExtName}: ${error}`);
+            }
+        }
+
+        // Ensure enabled
+        if (!enablement[finalExtName]) {
+            enablement[finalExtName] = {
+                overrides: [path.join(config.homeDir, '*')]
+            };
+        }
+    }
+
+    fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));
+}
+
+/**
+ * Install default settings if none exist.
+ */
+function installDefaultSettings(config: Config): void {
+    const settingsTemplate = path.join(
+        __dirname,
+        '..',
+        '..',
+        'context',
+        'config',
+        'settings.json-template'
+    );
+    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+
+    if (fs.existsSync(targetSettings)) return;
+
+    if (fs.existsSync(settingsTemplate)) {
+        fs.mkdirSync(path.dirname(targetSettings), { recursive: true });
+        fs.copyFileSync(settingsTemplate, targetSettings);
+        logger.info(`⚙️ Default settings installed: ${targetSettings}`);
+    } else {
+        logger.warn('⚠️ Could not locate settings.json-template');
     }
 }
 
@@ -111,12 +234,14 @@ async function main() {
         // 1. Load Configuration
         const config = Config.getInstance();
 
-        // 2. Install system prompt and skills
+        // 2. Install system prompt, skills, extensions and settings
         installSystemPrompt(config);
         installSkills(config);
+        installExtensions(config);
+        installDefaultSettings(config);
 
         // 3. Initialize Core Services
-        const gemini = new GeminiCli(config.geminiModel);
+        const gemini = new GeminiCli(config);
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 
@@ -142,6 +267,16 @@ async function main() {
         logger.error(`💥 Fatal error during startup: ${error.message}`);
         process.exit(1);
     }
+}
+
+// 6. Run Main
+// Strict Safety Check: The supervisor must be explicitly activated via environment variable.
+// This prevents accidental execution via "node dist/supervisor/main.js" which can spawn zombie processes.
+if (process.env.TARS_SUPERVISOR_MODE !== 'true') {
+    logger.error('❌ TARS_SUPERVISOR_MODE=true is required to start the supervisor.');
+    logger.error('   This safety check prevents accidental multiple instances.');
+    logger.error('👉 Use "tars start" or "npm run dev" instead.');
+    process.exit(1);
 }
 
 main();

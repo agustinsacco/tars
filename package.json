@@ -12,7 +12,7 @@
     "main": "./dist/supervisor/main.js",
     "scripts": {
         "build": "npm run build:src && npm run build:extensions",
-        "build:src": "tsc",
+        "build:src": "tsc && chmod +x dist/cli/index.js",
         "build:extensions": "true",
         "dev": "tsx watch src/supervisor/main.ts",
         "start": "node dist/supervisor/main.js",
@@ -38,8 +38,7 @@
         "ora": "^8.0.0",
         "pm2": "^5.3.0",
         "uuid": "^13.0.0",
-        "winston": "^3.19.0",
-        "zod": "^3.23.8"
+        "winston": "^3.19.0"
     },
     "devDependencies": {
         "@types/inquirer": "^9.0.0",

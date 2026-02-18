@@ -1,0 +1,36 @@
+{
+  "model": {
+    "compressionThreshold": 0.2,
+    "summarizeToolOutput": {
+      "run_shell_command": {
+        "tokenBudget": 2000
+      }
+    }
+  },
+  "security": {
+    "auth": {
+      "selectedType": "oauth-personal"
+    }
+  },
+  "experimental": {
+    "enableAgents": true,
+    "codebaseInvestigatorSettings": {
+      "enabled": true,
+      "maxNumTurns": 20,
+      "model": "gemini-3-flash-preview"
+    }
+  },
+  "agents": {
+    "overrides": {
+      "codebase_investigator": {
+        "enabled": true,
+        "runConfig": {
+          "maxTurns": 20
+        },
+        "modelConfig": {
+          "model": "gemini-3-flash-preview"
+        }
+      }
+    }
+  }
+}

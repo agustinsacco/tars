@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Supervisor } from '../../supervisor/supervisor.js';
 
+vi.mock('../../memory/memory-manager.js', () => {
+    return {
+        MemoryManager: vi.fn().mockImplementation(() => ({
+            fullSync: vi.fn().mockResolvedValue(undefined),
+            search: vi.fn().mockResolvedValue([])
+        }))
+    };
+});
+
 describe('Supervisor', () => {
     let supervisor: Supervisor;
     let mockGemini: any;
@@ -11,7 +20,8 @@ describe('Supervisor', () => {
             run: vi.fn().mockImplementation(async (content, onEvent) => {
                 onEvent({ type: 'done' });
             }),
-            runSync: vi.fn().mockResolvedValue('task output')
+            runSync: vi.fn().mockResolvedValue('task output'),
+            pruneLastTurn: vi.fn()
         };
         mockSessionManager = {
             load: vi.fn().mockReturnValue('existing-session'),
@@ -47,7 +57,7 @@ describe('Supervisor', () => {
     it('should execute tasks synchronously', async () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
-        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt');
+        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session');
     });
 
     it('should learn session ID from gemini events', async () => {

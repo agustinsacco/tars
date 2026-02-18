@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { TaskStore, Task } from './store.js';
 import { v4 as uuidv4 } from 'uuid';
-import cronParser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 
 const store = new TaskStore();
 const server = new Server(
@@ -61,6 +61,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     },
                     required: ['id']
                 }
+            },
+            {
+                name: 'toggle_task',
+                description: 'Enable or disable a task',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', description: 'Task ID' },
+                        enabled: {
+                            type: 'boolean',
+                            description: 'Whether the task should be enabled'
+                        }
+                    },
+                    required: ['id', 'enabled']
+                }
+            },
+            {
+                name: 'modify_task',
+                description: 'Modify an existing task',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', description: 'Task ID' },
+                        title: { type: 'string', description: 'New title' },
+                        prompt: { type: 'string', description: 'New prompt' },
+                        schedule: { type: 'string', description: 'New cron or ISO date' }
+                    },
+                    required: ['id']
+                }
             }
         ]
     };
@@ -80,10 +109,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 // Calculate next run
                 let nextRun: string;
                 try {
-                    const interval = cronParser.parseExpression(schedule);
-                    nextRun = interval.next().toISOString();
-                } catch {
-                    nextRun = new Date(schedule).toISOString();
+                    const next = CronExpressionParser.parse(schedule).next();
+                    const iso = next.toISOString();
+                    if (!iso) {
+                        throw new Error('Could not calculate next run time from cron expression.');
+                    }
+                    nextRun = iso;
+                } catch (error: any) {
+                    // If it's not a valid cron, try parsing as ISO date
+                    const date = new Date(schedule);
+                    if (!isNaN(date.getTime()) && schedule.includes('-')) {
+                        nextRun = date.toISOString();
+                    } else {
+                        throw new Error(
+                            `Invalid schedule: "${schedule}". Must be a valid cron expression or ISO date string (e.g., "YYYY-MM-DDTHH:mm:ssZ").`
+                        );
+                    }
                 }
 
                 const task: Task = {
@@ -121,10 +162,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 }
 
                 const text = filtered
-                    .map(
-                        (t) =>
-                            `- [${t.enabled ? 'ON' : 'OFF'}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}`
-                    )
+                    .map((t) => {
+                        const status = t.enabled ? 'ON' : 'OFF';
+                        let info = `- [${status}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}`;
+                        if (t.failedCount > 0) {
+                            info += `\n  ⚠️ Failures: ${t.failedCount}`;
+                        }
+                        if (t.lastRun) {
+                            info += `\n  Last run: ${t.lastRun}`;
+                        }
+                        return info;
+                    })
                     .join('\n\n');
 
                 return { content: [{ type: 'text', text }] };
@@ -138,6 +186,54 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         {
                             type: 'text',
                             text: success ? `✅ Task ${id} deleted.` : `❌ Task ${id} not found.`
+                        }
+                    ]
+                };
+            }
+
+            case 'toggle_task': {
+                const { id, enabled } = args as any;
+                const task = await store.updateTask(id, { enabled });
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: task
+                                ? `✅ Task "${task.title}" is now ${enabled ? 'enabled' : 'disabled'}.`
+                                : `❌ Task ${id} not found.`
+                        }
+                    ]
+                };
+            }
+
+            case 'modify_task': {
+                const { id, title, prompt, schedule } = args as any;
+                const updates: any = {};
+                if (title) updates.title = title;
+                if (prompt) updates.prompt = prompt;
+                if (schedule) {
+                    updates.schedule = schedule;
+                    try {
+                        const next = CronExpressionParser.parse(schedule).next();
+                        updates.nextRun = next.toISOString();
+                    } catch {
+                        const date = new Date(schedule);
+                        if (!isNaN(date.getTime()) && schedule.includes('-')) {
+                            updates.nextRun = date.toISOString();
+                        } else {
+                            throw new Error(`Invalid schedule: ${schedule}`);
+                        }
+                    }
+                }
+
+                const task = await store.updateTask(id, updates);
+                return {
+                    content: [
+                        {
+                            type: 'text',
+                            text: task
+                                ? `✅ Task "${task.title}" updated.`
+                                : `❌ Task ${id} not found.`
                         }
                     ]
                 };

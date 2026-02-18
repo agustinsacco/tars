@@ -4,8 +4,10 @@ This file is my dynamic memory. I can update it at any time using `save_memory` 
 
 ## User Preferences
 
-_No preferences recorded yet._
+- **Name**: User
+- **Role**: Developer / Architect
+- **Style**: Direct, code-focused, no fluff.
 
 ## Notes & Context
 
-_No notes recorded yet._
+_(Empty)_

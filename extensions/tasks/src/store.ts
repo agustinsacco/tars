@@ -19,13 +19,23 @@ export interface Task {
 
 export class TaskStore {
     private readonly filePath: string;
+    private lock: Promise<void> = Promise.resolve();
 
     constructor() {
         const tarsHome = process.env.TARS_HOME || path.join(os.homedir(), '.tars');
         this.filePath = path.join(tarsHome, 'data', 'tasks.json');
     }
 
-    public async loadTasks(): Promise<Task[]> {
+    private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+        const result = this.lock.then(fn);
+        this.lock = result.then(
+            () => {},
+            () => {}
+        );
+        return result;
+    }
+
+    private async _load(): Promise<Task[]> {
         try {
             const data = await fs.readFile(this.filePath, 'utf-8');
             return JSON.parse(data);
@@ -37,37 +47,46 @@ export class TaskStore {
         }
     }
 
-    public async saveTasks(tasks: Task[]): Promise<void> {
-        // Ensure directory exists
+    private async _save(tasks: Task[]): Promise<void> {
         await fs.mkdir(path.dirname(this.filePath), { recursive: true });
         const data = JSON.stringify(tasks, null, 2);
         await fs.writeFile(this.filePath, data, 'utf-8');
     }
 
+    public async loadTasks(): Promise<Task[]> {
+        return this.withLock(() => this._load());
+    }
+
     public async addTask(task: Task): Promise<void> {
-        const tasks = await this.loadTasks();
-        tasks.push(task);
-        await this.saveTasks(tasks);
+        return this.withLock(async () => {
+            const tasks = await this._load();
+            tasks.push(task);
+            await this._save(tasks);
+        });
     }
 
     public async updateTask(id: string, updates: Partial<Task>): Promise<Task | null> {
-        const tasks = await this.loadTasks();
-        const index = tasks.findIndex((t) => t.id === id);
-        if (index === -1) return null;
+        return this.withLock(async () => {
+            const tasks = await this._load();
+            const index = tasks.findIndex((t) => t.id === id);
+            if (index === -1) return null;
 
-        tasks[index] = { ...tasks[index], ...updates, updatedAt: new Date().toISOString() };
-        await this.saveTasks(tasks);
-        return tasks[index];
+            tasks[index] = { ...tasks[index], ...updates, updatedAt: new Date().toISOString() };
+            await this._save(tasks);
+            return tasks[index];
+        });
     }
 
     public async deleteTask(id: string): Promise<boolean> {
-        const tasks = await this.loadTasks();
-        const initialLength = tasks.length;
-        const filteredTasks = tasks.filter((t) => t.id !== id);
+        return this.withLock(async () => {
+            const tasks = await this._load();
+            const initialLength = tasks.length;
+            const filteredTasks = tasks.filter((t) => t.id !== id);
 
-        if (filteredTasks.length === initialLength) return false;
+            if (filteredTasks.length === initialLength) return false;
 
-        await this.saveTasks(filteredTasks);
-        return true;
+            await this._save(filteredTasks);
+            return true;
+        });
     }
 }

@@ -39,16 +39,20 @@ Unlike cloud-only assistants, Tars integrated into the operating system. It poss
 ## Installation and Setup
 
 ### Prerequisites
+
 - Node.js: ≥ 22.0.0
 - Gemini CLI: `npm i -g @google/gemini-cli-beta`
 
 ### Installation
+
 ```bash
 npm install -g @saccolabs/tars
 ```
 
 ### Initial Setup
+
 Run the setup wizard to authorize Gemini and connect your Discord bot:
+
 ```bash
 tars setup
 ```
@@ -58,6 +62,7 @@ tars setup
 ## Usage
 
 ### Commands
+
 - `tars start`: Launch the Tars supervisor.
 - `tars status`: View system health and brain statistics.
 - `tars export`: Compress the brain and configuration for portability.
@@ -65,6 +70,7 @@ tars setup
 - `tars secret set <key> <value>`: Securely store platform credentials.
 
 ### Interaction
+
 Communication occurs via a private Discord channel. Tars supports file processing, background task management, and expert delegation.
 
 > **!tars** Initialize a Next.js project in the workspace and delegate the repository setup to a GitHub subagent.
