@@ -14,25 +14,38 @@
 
 ---
 
-Tars is an autonomous, bare-metal AI assistant inspired by the functional minimalism of Interstellar. The design is strictly functional, and the capability is modular. Tars operates in the terminal, retains user preferences, and manages workspaces through a supervisor-subagent architecture.
+Tars is a Gemini-first autonomous AI assistant—because apparently, everyone else needs a credit card or a server farm just to run `hello world`.
 
-## The Vision
+Leveraging the free tier of Google's Gemini models (you _do_ have a Gmail account, right?), Tars gives you a personal assistant without the token bloat or the surprise bill at the end of the month. It knows its limits, keeps your data on _your_ machine (groundbreaking concept), and can even pack itself up to move computers. It’s like a digital hermit crab, but useful.
 
-Unlike cloud-only assistants, Tars integrated into the operating system. It possesses a persistent Brain-a collection of memories, tasks, and learned skills stored locally and transparently.
+## The Reality
 
-- **Private**: Data remains on the local machine.
-- **Portable**: Export the entire brain and configuration for immediate restoration on new hardware.
-- **Extensible**: Tars constructs its own MCP extensions and skills to adapt to workflows.
+Most assistants live in the cloud and forget you exist when the tab closes. OpenClaw lives in 5 different messaging apps and requires a GPU the size of a toaster to run locally. Tars lives in your terminal. It has a persistent **Brain**—a local database of memories, tasks, and skills.
+
+- **Private**: Your data stays here. Unless you post it on Twitter. That's on you.
+- **Portable**: `tars export` packs up the entire brain. Moving to a new laptop? Tars comes with you.
+- **Extensible**: It builds its own tools. If it can't do something, it writes the code to do it.
+
+### Tars vs. The Competition (OpenClaw)
+
+OpenClaw is great if you want to chat with your AI on WhatsApp while burning your GPU or your wallet. Tars is for when you want to get work done without the overhead.
+
+| Feature        | Tars (The Smart Choice)     | OpenClaw (The Expensive Habit)                          |
+| :------------- | :-------------------------- | :------------------------------------------------------ |
+| **Cost**       | **Free** (Gemini Free Tier) | **$$$** (Claude/GPT-4 or agonizingly slow local models) |
+| **Hardware**   | Runs on a potato (Node.js)  | Requires a gaming rig for local LLMs                    |
+| **Speed**      | Instant (Cloud Inference)   | Tokens per _minute_ on consumer hardware                |
+| **Focus**      | Terminal & Code             | Spreads itself thin across 10 chat apps                 |
+| **Philosophy** | "Get it done."              | "Let's chat about getting it done."                     |
 
 ---
 
 ## Key Features
 
-- **Multi-Agent Orchestration**: Delegation of specialized research or complex engineering tasks to background Subagents (Experts).
-- **Workspace Management**: Centralized, portable workspace at `~/.tars/workspace/` for AI-built applications, documented via `TARS.md`.
-- **Bare-Metal Runtime**: Native execution on Node.js without the overhead of containerization. Full access to local toolchains (Git, npm, gh).
-- **Autonomous Persistence**: Background Heartbeat service for scheduled task execution and system maintenance.
-- **Context-Aware Memory**: Dynamic memory evolution via `GEMINI.md` for long-term project context.
+- **Multi-Agent Orchestration**: Delegates complex work to specialized sub-agents because even AI shouldn't have to context-switch this much.
+- **Bare-Metal Runtime**: Native execution on Node.js. No Docker containers eating 8GB of RAM just to check the time.
+- **Autonomous Persistence**: A background "Heartbeat" service that runs scheduled tasks and cleans up after itself. It works while you sleep.
+- **Context-Aware Memory**: Uses `GEMINI.md` to track long-term project context, so you don't have to explain the architecture for the 50th time.
 
 ---
 
@@ -48,7 +61,7 @@ Full documentation is available in the `website/` directory.
 
 ### Prerequisites
 
-- Node.js: ≥ 22.0.0
+- Node.js: ≥ 22.0.0 (If you're still on v14, we need to talk.)
 - Gemini CLI: `npm i -g @google/gemini-cli`
 
 ### Installation
@@ -79,9 +92,9 @@ tars setup
 
 ### Interaction
 
-Communication occurs via a private Discord channel. Tars supports file processing, background task management, and expert delegation.
+You talk to Tars via a private Discord channel. It supports file processing, background tasks, and pretending to care about your deadlines.
 
-> **!tars** Initialize a Next.js project in the workspace and delegate the repository setup to a GitHub subagent.
+> **!tars** "Initialize a Next.js project and don't use Tailwind unless I ask."
 
 ---
 

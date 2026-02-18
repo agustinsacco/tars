@@ -3,9 +3,9 @@ kind: Kustomization
 namespace: tars
 
 resources:
-  - service.yaml
-  - deployment.yaml
+    - service.yaml
+    - deployment.yaml
 
 images:
-  - name: saccodigital/tars-docs
-    newName: saccodigital/tars-docs
+    - name: saccodigital/tars-docs
+      newName: saccodigital/tars-docs

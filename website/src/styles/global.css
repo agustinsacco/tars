@@ -152,7 +152,7 @@ body {
     font-size: 13px;
 }
 
-.prose :not(pre)>code {
+.prose :not(pre) > code {
     background: #27272a;
     color: #e4e4e7;
     padding: 0.15rem 0.4rem;

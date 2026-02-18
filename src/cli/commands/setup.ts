@@ -215,7 +215,10 @@ export async function setup() {
                 { name: 'Auto (Highly Recommended)', value: 'auto' },
                 { name: 'Gemini 2.0 Flash (Fastest)', value: 'gemini-2.0-flash' },
                 { name: 'Gemini 2.0 Flash Lite (Ultra-fast)', value: 'gemini-2.0-flash-lite' },
-                { name: 'Gemini 2.0 Pro (Most Powerful, Preview)', value: 'gemini-2.0-pro-exp-02-05' },
+                {
+                    name: 'Gemini 2.0 Pro (Most Powerful, Preview)',
+                    value: 'gemini-2.0-pro-exp-02-05'
+                },
                 { name: 'Gemini 1.5 Pro (Balanced)', value: 'gemini-1.5-pro' },
                 { name: 'Gemini 1.5 Flash (Efficient)', value: 'gemini-1.5-flash' },
                 { name: 'Custom (Advanced)', value: 'custom' }

@@ -1,4 +1,3 @@
-
 export function TarsLogo({ size = 32 }: { size?: number }) {
     return (
         <img
