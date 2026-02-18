@@ -36,6 +36,13 @@ Unlike cloud-only assistants, Tars integrated into the operating system. It poss
 
 ---
 
+## Documentation
+
+Full documentation is available in the `website/` directory.
+
+- **Development**: `npm run docs:dev`
+- **Build**: `npm run docs:build`
+
 ## Installation and Setup
 
 ### Prerequisites

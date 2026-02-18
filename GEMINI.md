@@ -25,6 +25,16 @@ Tars is an autonomous AI assistant built with a **Supervisor-Orchestrator** mode
 - **Memory**: The agent maintains the workspace via `TARS.md` and personal history via `GEMINI.md`.
 - **Self-Management**: Use the `tars-ops` skill for all CLI interactions (secrets, configuration, memory sync). NEVER use `npm run start` to modify configuration as it causes recursive deadlocks.
 
+### 📚 Documentation
+
+- **Stack**: Astro 5 + React + Tailwind CSS v4.
+- **Source**: `website/src/pages/` containing markdown (`.md`) content.
+- **Theme**: "Terminal Console" — Dark mode (#050505), JetBrains Mono, minimal.
+- **Commands**:
+    - `npm run docs:dev`: Start local dev server (http://localhost:4321).
+    - `npm run docs:build`: Build static site to `website/dist/`.
+- **Deployment**: Automatic via GitHub Actions on push to `main`.
+
 ### 🛠️ Operational Skills
 
 - `tars-ops`: Standardized command list for configuration and maintenance.
