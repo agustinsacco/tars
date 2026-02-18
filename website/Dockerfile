@@ -12,8 +12,9 @@ RUN npm run build
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Custom Nginx config to handle SPA routing if needed (though Starlight is SSG)
-EXPOSE 80
+EXPOSE 4242
 CMD ["nginx", "-g", "daemon off;"]

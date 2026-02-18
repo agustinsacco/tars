@@ -21,7 +21,7 @@ spec:
           image: saccodigital/tars-docs:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 80
+            - containerPort: 4242
           resources:
             limits:
               memory: 128Mi
