@@ -47,7 +47,7 @@ jobs:
           KUBECONFIG_CONTENT: ${{ secrets.ULTRON_KUBE_CONFIG }}
         run: |
           mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" > ~/.kube/config
+          echo "$KUBECONFIG_CONTENT" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
           
           # Create namespace if not exists
