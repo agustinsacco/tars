@@ -29,7 +29,6 @@
         "README.md"
     ],
     "dependencies": {
-        "@google/generative-ai": "^0.24.1",
         "chalk": "^5.0.0",
         "commander": "^12.0.0",
         "cron-parser": "^5.4.0",
@@ -38,10 +37,8 @@
         "inquirer": "^9.0.0",
         "ora": "^8.0.0",
         "pm2": "^5.3.0",
-        "sqlite-vec": "^0.1.7-alpha.2",
         "uuid": "^13.0.0",
-        "winston": "^3.19.0",
-        "zod": "^3.23.8"
+        "winston": "^3.19.0"
     },
     "devDependencies": {
         "@types/inquirer": "^9.0.0",
