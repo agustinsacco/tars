@@ -10,6 +10,7 @@ import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
 import { secret } from './commands/secret.js';
 import { memory } from './commands/memory.js';
+import { uninstall } from './commands/uninstall.js';
 
 import { versionString } from '../utils/version.js';
 
@@ -61,5 +62,7 @@ program
     .argument('<action>', 'Action to perform (search, sync)')
     .argument('[query...]', 'Search query')
     .action((action, queryArgs) => memory(action, ...queryArgs));
+
+program.command('uninstall').description('Uninstall Tars and remove all data').action(uninstall);
 
 program.parse();

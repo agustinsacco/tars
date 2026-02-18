@@ -24,3 +24,5 @@ coverage/
 # Misc
 .antigravityignore
 .gemini/
+
+tars-brain*
