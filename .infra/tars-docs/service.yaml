@@ -11,6 +11,6 @@ spec:
   type: LoadBalancer
   ports:
     - protocol: TCP
-      port: 4242
-      targetPort: 4242
+      port: 5252
+      targetPort: 5252
       name: http
