@@ -7,5 +7,5 @@ resources:
   - deployment.yaml
 
 images:
-  - name: ghcr.io/agustinsacco/tars/tars-docs
-    newName: ghcr.io/agustinsacco/tars/tars-docs
+  - name: saccodigital/tars-docs
+    newName: saccodigital/tars-docs

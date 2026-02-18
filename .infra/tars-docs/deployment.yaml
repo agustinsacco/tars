@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: tars-docs
-          image: ghcr.io/agustinsacco/tars/tars-docs:latest
+          image: saccodigital/tars-docs:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -30,4 +30,4 @@ spec:
               memory: 64Mi
               cpu: 100m
       imagePullSecrets:
-        - name: ghcr-secret
+        - name: docker-registry-key
