@@ -42,6 +42,7 @@ Full documentation is available in the `website/` directory.
 
 - **Development**: `npm run docs:dev`
 - **Build**: `npm run docs:build`
+- **Live Deployment**: `http://<ULTRON_IP>:5252`
 
 ## Installation and Setup
 
