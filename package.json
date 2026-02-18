@@ -28,7 +28,8 @@
         "extensions/",
         "!extensions/**/node_modules/",
         "context/",
-        "README.md"
+        "README.md",
+        "!website/"
     ],
     "dependencies": {
         "chalk": "^5.0.0",
