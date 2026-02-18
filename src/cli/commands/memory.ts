@@ -19,7 +19,11 @@ export async function memory(action: string, ...args: string[]) {
             } else {
                 console.log(chalk.cyan(`\n🧠 Search Results for: "${query}"`));
                 results.forEach((r, i) => {
-                    console.log(chalk.white(`\n[${i + 1}] ${chalk.bold(r.path)} (Score: ${r.score.toFixed(2)})`));
+                    console.log(
+                        chalk.white(
+                            `\n[${i + 1}] ${chalk.bold(r.path)} (Score: ${r.score.toFixed(2)})`
+                        )
+                    );
                     console.log(chalk.gray(r.content));
                 });
             }

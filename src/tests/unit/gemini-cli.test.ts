@@ -21,6 +21,7 @@ describe('GeminiCli', () => {
         const mockChild: any = new EventEmitter();
         mockChild.stdout = new EventEmitter();
         mockChild.stderr = new EventEmitter();
+        mockChild.kill = vi.fn();
 
         vi.mocked(spawn).mockReturnValue(mockChild);
 
@@ -28,15 +29,20 @@ describe('GeminiCli', () => {
         const runPromise = cli.run('test prompt', onEvent, 'test-session');
 
         // Simulate stream-json output
-        const event1 = JSON.stringify({ type: 'message', role: 'assistant', content: 'hello ' });
-        const event2 = JSON.stringify({ type: 'message', role: 'assistant', content: 'world' });
-        const result = JSON.stringify({
+        const event1 = { type: 'message', role: 'assistant', content: 'hello ' };
+        const event2 = { type: 'message', role: 'assistant', content: 'world' };
+        const result = {
             type: 'result',
+            status: 'success',
             stats: { input_tokens: 10, output_tokens: 20, cached: 5 }
-        });
+        };
 
-        mockChild.stdout.emit('data', Buffer.from(`${event1}\n${event2}\n${result}\n`));
-        mockChild.emit('close', 0);
+        mockChild.stdout.emit(
+            'data',
+            Buffer.from(
+                `${JSON.stringify(event1)}\n${JSON.stringify(event2)}\n${JSON.stringify(result)}\n`
+            )
+        );
 
         await runPromise;
 
@@ -45,8 +51,14 @@ describe('GeminiCli', () => {
             expect.arrayContaining(['--resume', 'test-session']),
             expect.any(Object)
         );
-        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'hello ' });
-        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: 'world' });
+
+        // Check for normalized events
+        expect(onEvent).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'message', content: 'hello ' })
+        );
+        expect(onEvent).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'message', content: 'world' })
+        );
         expect(onEvent).toHaveBeenCalledWith({
             type: 'done',
             usageStats: { inputTokens: 10, outputTokens: 20, cachedTokens: 5 }
@@ -57,6 +69,7 @@ describe('GeminiCli', () => {
         const mockChild: any = new EventEmitter();
         mockChild.stdout = new EventEmitter();
         mockChild.stderr = new EventEmitter();
+        mockChild.kill = vi.fn();
 
         vi.mocked(spawn).mockReturnValue(mockChild);
 
@@ -70,7 +83,9 @@ describe('GeminiCli', () => {
 
         await runPromise;
 
-        expect(onEvent).toHaveBeenCalledWith({ type: 'text', content: '', sessionId: 'new-uuid' });
+        expect(onEvent).toHaveBeenCalledWith(
+            expect.objectContaining({ type: 'init', sessionId: 'new-uuid' })
+        );
     });
 
     it('should handle process errors', async () => {
@@ -93,7 +108,7 @@ describe('GeminiCli', () => {
         mockChild.stderr = new EventEmitter();
         vi.mocked(spawn).mockReturnValue(mockChild);
 
-        const runPromise = cli.run('test prompt', () => { });
+        const runPromise = cli.run('test prompt', () => {});
         mockChild.emit('close', 1);
 
         await expect(runPromise).rejects.toThrow(/exited with code 1/);

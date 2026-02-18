@@ -28,15 +28,10 @@ export class GeminiCli extends EventEmitter {
         extensions: string[] = []
     ): Promise<void> {
         return new Promise((resolve, reject) => {
-            const args = [
-                '--output-format', 'stream-json',
-                '--experimental-acp',
-                '--yolo',
-                '--include-directories', this.config.homeDir
-            ];
+            const args = ['--output-format', 'stream-json', '--yolo', '--prompt', prompt];
 
             if (sessionId) {
-                args.push('--session-id', sessionId);
+                args.push('--resume', sessionId);
             }
 
             // Add extensions (MCP servers) if any
@@ -44,33 +39,90 @@ export class GeminiCli extends EventEmitter {
                 args.push('--extensions', ext);
             }
 
-            args.push('--prompt', prompt);
-
             const childDescription = `Gemini CLI (Session: ${sessionId || 'new'})`;
-            const cmdStr = `HOME=${this.config.homeDir} gemini ${args.join(' ')}`;
-            logger.info(`🚀 Spawning: ${cmdStr}`);
+
+            // Re-homing environment for subprocess
+            const env = {
+                ...process.env,
+                HOME: this.config.homeDir,
+                GEMINI_CLI_HOME: this.config.homeDir,
+                GEMINI_SYSTEM_MD: this.config.systemPromptPath,
+                PWD: process.cwd()
+            };
+
+            logger.info(`🚀 [GeminiCli] Spawning: gemini ${args.join(' ')}`);
 
             const child = spawn('gemini', args, {
-                env: {
-                    ...process.env,
-                    HOME: this.config.homeDir
-                },
+                env,
+                cwd: process.cwd(),
                 stdio: ['ignore', 'pipe', 'pipe']
             });
 
+            const debugFile = `/tmp/gemini-debug-${Date.now()}.log`;
+            const debugStream = fs.createWriteStream(debugFile);
+
             let stdoutBuffer = '';
             let usageStats = { inputTokens: 0, outputTokens: 0, cachedTokens: 0 };
+            let hasResolved = false;
 
-            const timeout = setTimeout(() => {
-                logger.warn(`🕒 ${childDescription} timed out after 60s. Killing...`);
+            // --- Timeout Logic ---
+            // 1. Total Safety Timeout (5m) - Absolute max for any task
+            // 2. Idleness Timeout (30s) - Reset every time we get data
+            let idleTimeout: NodeJS.Timeout;
+            const TOTAL_TIMEOUT = 300000;
+            const IDLE_TIMEOUT = 30000;
+
+            const resetIdleTimeout = () => {
+                clearTimeout(idleTimeout);
+                idleTimeout = setTimeout(() => {
+                    if (hasResolved) return;
+                    logger.warn(
+                        `🕒 ${childDescription} idle for ${IDLE_TIMEOUT / 1000}s. Killing...`
+                    );
+                    cleanup(null, new Error('Idle timeout'));
+                    child.kill('SIGKILL');
+                }, IDLE_TIMEOUT);
+            };
+
+            const totalTimeout = setTimeout(() => {
+                if (hasResolved) return;
+                logger.warn(
+                    `🕒 ${childDescription} reached absolute limit (${TOTAL_TIMEOUT / 1000}s). Killing...`
+                );
+                cleanup(null, new Error('Absolute timeout'));
                 child.kill('SIGKILL');
-                reject(new Error(`${childDescription} timed out`));
-            }, 60000);
+            }, TOTAL_TIMEOUT);
+
+            resetIdleTimeout();
+            // ---------------------
+
+            const cleanup = (code: number | null, error?: Error) => {
+                if (hasResolved) return;
+                hasResolved = true;
+                clearTimeout(totalTimeout);
+                clearTimeout(idleTimeout);
+                debugStream.end();
+
+                if (error) {
+                    reject(error);
+                    return;
+                }
+
+                logger.info(`⏹️ ${childDescription} closed with code ${code}`);
+                if (code === 0 || code === null) {
+                    onEvent({ type: 'done', usageStats });
+                    resolve();
+                } else {
+                    reject(new Error(`${childDescription} exited with code ${code}`));
+                }
+            };
 
             child.stdout.on('data', (data) => {
-                stdoutBuffer += data.toString();
+                resetIdleTimeout(); // Reset timer on any output
+                const chunk = data.toString();
+                debugStream.write(chunk);
+                stdoutBuffer += chunk;
 
-                // Try to parse full JSON objects from the stream
                 const lines = stdoutBuffer.split('\n');
                 stdoutBuffer = lines.pop() || '';
 
@@ -78,19 +130,66 @@ export class GeminiCli extends EventEmitter {
                     if (!line.trim()) continue;
                     try {
                         const event = JSON.parse(line);
-                        // Track usage stats from the 'done' event or intermediate ones
-                        if (event.tokens) {
+
+                        // --- Normalize Event ---
+                        // 1. Tool Calls
+                        if (event.type === 'tool_use') {
+                            event.type = 'tool_call';
+                            event.toolName = event.tool_name;
+                            event.toolArgs = event.parameters;
+                        }
+
+                        // 2. Tool Responses
+                        if (event.type === 'tool_result') {
+                            event.type = 'tool_response';
+                            event.toolId = event.tool_id;
+                            event.content = event.output;
+                        }
+
+                        // 3. Thoughts
+                        if (event.thoughts && !event.content) {
+                            onEvent({
+                                type: 'thought',
+                                content: Array.isArray(event.thoughts)
+                                    ? event.thoughts.join('\n')
+                                    : event.thoughts
+                            });
+                        }
+
+                        if (event.type === 'message' && event.thoughts) {
+                            // If message has thoughts, emit them separately or as a combined event
+                            onEvent({
+                                type: 'thought',
+                                content: Array.isArray(event.thoughts)
+                                    ? event.thoughts.join('\n')
+                                    : event.thoughts
+                            });
+                        }
+
+                        // 4. Session & Stats
+                        if (event.stats) {
                             usageStats = {
-                                inputTokens: event.tokens.input,
-                                outputTokens: event.tokens.output,
-                                cachedTokens: event.tokens.cached || 0
+                                inputTokens: event.stats.input_tokens || event.stats.input || 0,
+                                outputTokens: event.stats.output_tokens || event.stats.output || 0,
+                                cachedTokens: event.stats.cached || 0
                             };
                         }
+
+                        if (event.session_id && !event.sessionId) {
+                            event.sessionId = event.session_id;
+                        }
+
                         onEvent(event);
+
+                        // If we see a 'done' event, the CLI is effectively finished
+                        if (
+                            event.type === 'done' ||
+                            (event.type === 'result' && event.status === 'success')
+                        ) {
+                            cleanup(0);
+                            child.kill('SIGTERM');
+                        }
                     } catch (e) {
-                        // If it's not valid JSON, it's likely a status message or hook log.
-                        // We skip it instead of blocking the buffer.
-                        logger.debug(`[Gemini CLI Stdout] ${line.trim()}`);
                         continue;
                     }
                 }
@@ -102,14 +201,7 @@ export class GeminiCli extends EventEmitter {
             });
 
             child.on('close', (code) => {
-                clearTimeout(timeout);
-                logger.info(`⏹️ ${childDescription} closed with code ${code}`);
-                if (code === 0) {
-                    onEvent({ type: 'done', usageStats });
-                    resolve();
-                } else {
-                    reject(new Error(`${childDescription} exited with code ${code}`));
-                }
+                cleanup(code);
             });
 
             child.on('error', (err) => {
@@ -131,7 +223,11 @@ export class GeminiCli extends EventEmitter {
         await this.run(
             prompt,
             (event) => {
-                if (event.type === 'text' && event.content) {
+                if (
+                    (event.type === 'message' || event.type === 'text') &&
+                    event.role === 'assistant' &&
+                    event.content
+                ) {
                     fullContent += event.content;
                 }
             },
@@ -237,7 +333,9 @@ export class GeminiCli extends EventEmitter {
 
             fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
             const newStats = fs.statSync(filePath);
-            logger.info(`✨ Compacted: ${(stats.size / 1024).toFixed(1)} KB -> ${(newStats.size / 1024).toFixed(1)} KB`);
+            logger.info(
+                `✨ Compacted: ${(stats.size / 1024).toFixed(1)} KB -> ${(newStats.size / 1024).toFixed(1)} KB`
+            );
         } catch (error: any) {
             logger.error(`❌ Compaction failed: ${error.message}`);
         }
@@ -245,15 +343,29 @@ export class GeminiCli extends EventEmitter {
 
     private getSessionFilePath(sessionId: string): string | null {
         try {
-            const projectDir = this.config.homeDir;
+            // The Gemini CLI calculates the project hash based on the current working directory (repo root)
+            // when it detects a git repo or project context.
+            const projectDir = process.cwd();
             const projectHash = crypto.createHash('sha256').update(projectDir).digest('hex');
             const chatsDir = path.join(this.config.homeDir, '.gemini', 'tmp', projectHash, 'chats');
 
-            if (!fs.existsSync(chatsDir)) return null;
+            if (!fs.existsSync(chatsDir)) {
+                logger.debug(`[GeminiCli] Chats directory not found: ${chatsDir}`);
+                return null;
+            }
 
-            const files = fs.readdirSync(chatsDir)
-                .filter(f => f.startsWith('session-') && f.includes(sessionId.substring(0, 8)) && f.endsWith('.json'))
-                .map(f => ({ name: f, time: fs.statSync(path.join(chatsDir, f)).mtime.getTime() }))
+            const files = fs
+                .readdirSync(chatsDir)
+                .filter(
+                    (f) =>
+                        f.startsWith('session-') &&
+                        f.includes(sessionId.substring(0, 8)) &&
+                        f.endsWith('.json')
+                )
+                .map((f) => ({
+                    name: f,
+                    time: fs.statSync(path.join(chatsDir, f)).mtime.getTime()
+                }))
                 .sort((a, b) => b.time - a.time);
 
             return files.length > 0 ? path.join(chatsDir, files[0].name) : null;

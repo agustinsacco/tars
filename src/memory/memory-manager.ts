@@ -60,7 +60,7 @@ export class MemoryManager {
             const chatsDir = path.join(tmpDir, dir, 'chats');
             if (!fs.existsSync(chatsDir)) continue;
 
-            const files = fs.readdirSync(chatsDir).filter(f => f.endsWith('.json'));
+            const files = fs.readdirSync(chatsDir).filter((f) => f.endsWith('.json'));
             for (const file of files) {
                 try {
                     const fullPath = path.join(chatsDir, file);

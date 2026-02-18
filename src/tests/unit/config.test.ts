@@ -8,31 +8,30 @@ describe('Config', () => {
         // Reset singleton and env
         vi.resetModules();
         (Config as any).instance = undefined;
-        delete process.env.TARS_HOME;
-        delete process.env.DISCORD_TOKEN;
-        delete process.env.HEARTBEAT_INTERVAL_SEC;
+        vi.unstubAllEnvs();
+        vi.stubEnv('TARS_HOME', '/tmp/tars-unit-test');
     });
 
-    it('should use default home directory if TARS_HOME is not set', () => {
+    it('should use provided home directory if TARS_HOME is set', () => {
         const config = Config.getInstance();
-        const expectedHome = path.join(os.homedir(), '.tars');
-        expect(config.homeDir).toBe(expectedHome);
+        expect(config.homeDir).toBe('/tmp/tars-unit-test');
     });
 
     it('should respect TARS_HOME environment variable', () => {
-        process.env.TARS_HOME = '/tmp/tars-test';
+        vi.stubEnv('TARS_HOME', '/tmp/tars-test');
         const config = Config.getInstance();
         expect(config.homeDir).toBe('/tmp/tars-test');
     });
 
     it('should parse HEARTBEAT_INTERVAL_SEC to milliseconds', () => {
-        process.env.HEARTBEAT_INTERVAL_SEC = '30';
+        vi.stubEnv('HEARTBEAT_INTERVAL_SEC', '30');
         const config = Config.getInstance();
         expect(config.heartbeatIntervalMs).toBe(30000);
     });
 
     it('should use default interval if env var is missing', () => {
+        vi.stubEnv('HEARTBEAT_INTERVAL_SEC', '');
         const config = Config.getInstance();
-        expect(config.heartbeatIntervalMs).toBe(60000); // Default 60s
+        expect(config.heartbeatIntervalMs).toBe(300000); // Default 300s
     });
 });

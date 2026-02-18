@@ -31,7 +31,8 @@ export class Config {
         // 1. Establish Home Directory (~/.tars)
         // Hardcode the base to be the real user home to avoid recursion if HOME is changed for subprocesses
         const realUserHome = process.env.REAL_HOME || os.homedir();
-        this.homeDir = process.env.TARS_HOME || path.join(realUserHome.replace('/.tars', ''), '.tars');
+        this.homeDir =
+            process.env.TARS_HOME || path.join(realUserHome.replace('/.tars', ''), '.tars');
         this.configFilePath = path.join(this.homeDir, 'config.json');
 
         // 1.5 Load Secrets into environment
@@ -56,7 +57,8 @@ export class Config {
         this.discordToken = process.env.DISCORD_TOKEN || jsonConfig.discordToken || '';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
 
-        const hbSec = process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
+        const hbSec =
+            process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
         this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
 
         // 4. Derived Paths

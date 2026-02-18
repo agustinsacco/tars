@@ -77,9 +77,7 @@ export class Supervisor {
     /**
      * Specialized execution for background tasks
      */
-    public async executeTask(
-        prompt: string,
-    ): Promise<string> {
+    public async executeTask(prompt: string): Promise<string> {
         if (this.isProcessing) {
             logger.warn('⚠️ Supervisor is busy, skipping background task');
             throw new Error('Supervisor is busy');

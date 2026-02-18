@@ -82,7 +82,9 @@ export class KnowledgeStore {
         const hash = crypto.createHash('sha256').update(content).digest('hex');
 
         // 1. Check if file has changed
-        const existing = this.db.prepare('SELECT id, hash FROM files WHERE path = ?').get(filePath) as any;
+        const existing = this.db
+            .prepare('SELECT id, hash FROM files WHERE path = ?')
+            .get(filePath) as any;
         if (existing && existing.hash === hash) {
             return; // No changes
         }
@@ -95,19 +97,19 @@ export class KnowledgeStore {
         }
 
         // 3. Insert File Record
-        const fileResult = this.db.prepare('INSERT INTO files (path, hash, updated_at) VALUES (?, ?, ?)').run(
-            filePath, hash, Date.now()
-        );
+        const fileResult = this.db
+            .prepare('INSERT INTO files (path, hash, updated_at) VALUES (?, ?, ?)')
+            .run(filePath, hash, Date.now());
         const fileId = fileResult.lastInsertRowid;
 
         // 4. Chunk Content (Simple paragraph split)
-        const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 20);
+        const paragraphs = content.split(/\n\s*\n/).filter((p) => p.trim().length > 20);
 
         // 5. Store Chunks (FTS is updated automatically via triggers)
         for (const p of paragraphs) {
-            this.db.prepare('INSERT INTO chunks (file_id, content, start_line) VALUES (?, ?, ?)').run(
-                fileId, p, 0
-            );
+            this.db
+                .prepare('INSERT INTO chunks (file_id, content, start_line) VALUES (?, ?, ?)')
+                .run(fileId, p, 0);
         }
     }
 
@@ -116,7 +118,9 @@ export class KnowledgeStore {
      */
     async search(query: string, limit: number = 5): Promise<MemoryResult[]> {
         try {
-            const results = this.db.prepare(`
+            const results = this.db
+                .prepare(
+                    `
                 SELECT f.path, c.content, c.start_line, rank as score
                 FROM chunks_fts fts
                 JOIN chunks c ON fts.rowid = c.id
@@ -124,13 +128,15 @@ export class KnowledgeStore {
                 WHERE chunks_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            `).all(query, limit) as any[];
+            `
+                )
+                .all(query, limit) as any[];
 
-            return results.map(r => ({
+            return results.map((r) => ({
                 path: r.path,
                 content: r.content,
                 startLine: r.start_line,
-                score: (1 / (1 + Math.abs(r.score))) // Normalize FTS rank to 0-1 range
+                score: 1 / (1 + Math.abs(r.score)) // Normalize FTS rank to 0-1 range
             }));
         } catch (err) {
             logger.warn(`⚠️ Search failed: ${query}`);
