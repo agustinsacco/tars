@@ -13,8 +13,8 @@ export function Header() {
                         href="/"
                         className="flex items-center gap-3 hover:opacity-80 transition-opacity"
                     >
-                        <TarsLogo size={28} />
-                        <span className="text-sm font-bold text-zinc-200 tracking-wide">TARS</span>
+                        <TarsLogo size={32} />
+                        <span className="text-xl font-bold text-zinc-100 tracking-wide font-['Space_Grotesk']">TARS</span>
                         <span className="text-[10px] text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded border border-zinc-700">
                             docs
                         </span>

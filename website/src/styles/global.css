@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
-/* ─── Google Fonts: JetBrains Mono ─── */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap');
+/* ─── Google Fonts: JetBrains Mono & Space Grotesk ─── */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
 
 /* ─── Design Tokens ─── */
 @theme {
@@ -15,9 +15,9 @@
     --color-accent-dim: rgba(59, 130, 246, 0.05);
 }
 
-/* ─── Global Reset: 100% Monospace ─── */
-* {
-    font-family: 'JetBrains Mono', monospace !important;
+/* ─── Global Reset: Default to Monospace ─── */
+body {
+    font-family: 'JetBrains Mono', monospace;
 }
 
 /* ─── Base Styles ─── */
@@ -152,7 +152,7 @@ body {
     font-size: 13px;
 }
 
-.prose :not(pre) > code {
+.prose :not(pre)>code {
     background: #27272a;
     color: #e4e4e7;
     padding: 0.15rem 0.4rem;
