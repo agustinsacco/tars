@@ -1,12 +1,12 @@
 name: Deploy Documentation
 
-# on:
-#   push:
-#     branches:
-#       - main
-#     paths:
-#       - 'website/**'
-#       - '.github/workflows/deploy-docs.yml'
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'website/**'
+      - '.github/workflows/deploy-docs.yml'
 
 jobs:
   build-and-deploy:
