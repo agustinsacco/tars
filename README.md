@@ -41,7 +41,7 @@ Unlike cloud-only assistants, Tars integrated into the operating system. It poss
 ### Prerequisites
 
 - Node.js: ≥ 22.0.0
-- Gemini CLI: `npm i -g @google/gemini-cli-beta`
+- Gemini CLI: `npm i -g @google/gemini-cli`
 
 ### Installation
 

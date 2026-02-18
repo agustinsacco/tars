@@ -57,8 +57,8 @@ A dedicated wrapper around the `gemini` command-line tool. It handles:
 
 - Spawning the `gemini` child process.
 - Streaming `stdout`/`stderr` events in real-time.
-- managing session persistence via the `--session` flag.
-- Injecting extensions via the `--extension` flag.
+- managing session persistence via the `--resume` flag.
+- Injecting extensions via the `--extensions` flag.
 
 ### 3. Heartbeat Service (`src/supervisor/HeartbeatService.ts`)
 

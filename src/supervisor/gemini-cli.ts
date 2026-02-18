@@ -34,6 +34,10 @@ export class GeminiCli extends EventEmitter {
                 args.push('--resume', sessionId);
             }
 
+            if (this.config.geminiModel && this.config.geminiModel !== 'auto') {
+                args.push('--model', this.config.geminiModel);
+            }
+
             // Add extensions (MCP servers) if any
             for (const ext of extensions) {
                 args.push('--extensions', ext);
