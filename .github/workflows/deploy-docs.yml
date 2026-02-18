@@ -40,18 +40,12 @@ jobs:
           tags: tag:ci
 
       - name: Setup Kubectl
-        uses: azure/setup-kubectl@v3
+        uses: ./.github/actions/kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.ULTRON_KUBE_CONFIG }}
 
       - name: Deploy to K3s
-        env:
-          KUBECONFIG_CONTENT: ${{ secrets.ULTRON_KUBE_CONFIG }}
         run: |
-          mkdir -p ~/.kube
-          echo "$KUBECONFIG_CONTENT" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-          
-          # Create namespace if not exists
           kubectl create namespace tars --dry-run=client -o yaml | kubectl apply -f -
-          
           kubectl apply -k .infra/tars-docs
           kubectl rollout restart deployment/tars-docs -n tars
