@@ -1,0 +1,123 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { Header } from '../components/Header';
+import { Sidebar } from '../components/Sidebar';
+import { TarsLogo } from '../components/TarsLogo';
+import { Terminal, Cpu, Brain, Puzzle, Zap, Clock } from 'lucide-react';
+---
+
+<BaseLayout title="TARS — Autonomous AI Assistant">
+  <Header client:load />
+
+  <div class="flex pt-14 max-w-[1440px] mx-auto">
+    <Sidebar currentPath="/" client:load />
+
+    <main class="flex-1 min-w-0 px-8 lg:px-12 py-12">
+      <!-- Hero -->
+      <div class="max-w-4xl mx-auto">
+        <div class="flex items-center gap-4 mb-6">
+          <TarsLogo size={48} />
+          <div>
+            <h1 class="text-2xl font-bold text-zinc-100 tracking-tight">TARS</h1>
+            <p class="text-xs text-zinc-500 tracking-widest uppercase">Autonomous AI Assistant</p>
+          </div>
+        </div>
+
+        <p class="text-zinc-400 text-sm leading-relaxed mb-4 max-w-2xl">
+          A bare-metal, autonomous AI assistant inspired by the functional minimalism of <em class="text-zinc-300">Interstellar</em>. 
+          Tars integrates directly into your operating system — retaining memory, managing tasks, 
+          and extending itself through a modular extension system.
+        </p>
+
+        <div class="flex items-center gap-3 mb-10">
+          <a href="/getting-started/installation" class="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-4 py-2 rounded hover:bg-blue-500/20 transition-colors">
+            Get Started →
+          </a>
+          <a href="/architecture/supervisor" class="text-xs text-zinc-500 border border-zinc-800 px-4 py-2 rounded hover:text-zinc-300 hover:border-zinc-700 transition-colors">
+            Architecture
+          </a>
+        </div>
+
+        <!-- Feature Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Terminal className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Bare-Metal Runtime</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Native Node.js execution with full access to local toolchains. No containers, no VMs — direct OS integration.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Autonomous Heartbeat</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Background service with cron-based task scheduling and self-correcting health checks via the SILENT_ACK protocol.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Brain className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Persistent Memory</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              SQLite FTS5 knowledge store with BM25 ranking. Indexes skills, session transcripts, and working memory.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Puzzle className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">MCP Extensions</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Model Context Protocol servers that provide tool-level capabilities. Tars can create, install, and manage its own extensions.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Cpu className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Supervisor Architecture</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Session orchestration with token tracking, context compaction, and dead-letter pruning for long-running operations.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Discord Interface</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Communicate via DM, @mention, or !tars prefix. Supports file attachments, long-response chunking, and typing indicators.
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Install -->
+        <div class="mt-10 border border-zinc-800 rounded-md overflow-hidden">
+          <div class="bg-[#0e0e10] px-4 py-2 border-b border-zinc-800 flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
+            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
+            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
+            <span class="text-[10px] text-zinc-600 ml-2">terminal</span>
+          </div>
+          <div class="bg-[#0e0e10] p-4">
+            <code class="text-sm text-zinc-300">
+              <span class="text-zinc-500">$</span> npm install -g @saccolabs/tars<br/>
+              <span class="text-zinc-500">$</span> tars setup<br/>
+              <span class="text-zinc-500">$</span> tars start
+            </code>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</BaseLayout>

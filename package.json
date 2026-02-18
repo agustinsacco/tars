@@ -14,6 +14,8 @@
         "build": "npm run build:src && npm run build:extensions",
         "build:src": "tsc && chmod +x dist/cli/index.js",
         "build:extensions": "true",
+        "docs:dev": "npm run dev --prefix website",
+        "docs:build": "npm run build --prefix website",
         "dev": "tsx watch src/supervisor/main.ts",
         "start": "node dist/supervisor/main.js",
         "test": "vitest run",

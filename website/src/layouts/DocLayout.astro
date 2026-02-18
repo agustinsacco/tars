@@ -1,0 +1,54 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import { Header } from '../components/Header';
+import { Sidebar } from '../components/Sidebar';
+import { TableOfContents } from '../components/TableOfContents';
+import { Breadcrumbs } from '../components/Breadcrumbs';
+
+interface Props {
+  frontmatter: {
+    title: string;
+    description?: string;
+    section?: string;
+    order?: number;
+  };
+  headings: { depth: number; slug: string; text: string }[];
+}
+
+const { frontmatter, headings } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+// Build breadcrumbs from URL segments
+const segments = currentPath.split('/').filter(Boolean);
+const breadcrumbItems = [
+  { label: 'Docs', href: '/' },
+  ...segments.map((seg, i) => ({
+    label: seg.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+    href: i < segments.length - 1 ? '/' + segments.slice(0, i + 1).join('/') : undefined,
+  })),
+];
+---
+
+<BaseLayout title={frontmatter.title}>
+  <Header client:load />
+
+  <div class="flex pt-14 max-w-[1440px] mx-auto">
+    <Sidebar currentPath={currentPath} client:load />
+
+    <main class="flex-1 min-w-0 px-6 py-10 lg:px-8">
+      <div class="max-w-4xl mx-auto">
+        <Breadcrumbs items={breadcrumbItems} client:load />
+
+        <article class="prose max-w-none mt-8">
+          <h1>{frontmatter.title}</h1>
+          {frontmatter.description && (
+            <p class="text-zinc-500 text-sm mt-1 mb-8 !text-[14px]">{frontmatter.description}</p>
+          )}
+          <slot />
+        </article>
+      </div>
+    </main>
+
+    <TableOfContents headings={headings} client:load />
+  </div>
+</BaseLayout>
