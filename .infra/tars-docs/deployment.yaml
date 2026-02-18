@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tars-docs
+  namespace: tars
+  labels:
+    app: tars-docs
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: tars-docs
+  template:
+    metadata:
+      labels:
+        app: tars-docs
+    spec:
+      containers:
+        - name: tars-docs
+          image: ghcr.io/agustinsacco/tars/tars-docs:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 500m
+            requests:
+              memory: 64Mi
+              cpu: 100m
+      imagePullSecrets:
+        - name: ghcr-secret
