@@ -98,6 +98,13 @@ export class Supervisor {
             const result = await this.gemini.runSync(prompt, sessionId || undefined);
             return result;
         } catch (error: any) {
+            // Auto-recovery for invalid sessions (e.g. after update or project path change)
+            if (error.message && error.message.includes('code 42')) {
+                logger.warn('⚠️ Background task session invalid (code 42). Clearing session and retrying...');
+                this.sessionManager.clear();
+                this.isProcessing = false;
+                return this.executeTask(prompt);
+            }
             logger.error(`❌ Background task failed: ${error.message}`);
             throw error;
         } finally {

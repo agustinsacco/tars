@@ -5,7 +5,7 @@ import { Config } from '../config/config.js';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
-import crypto from 'crypto';
+
 
 /**
  * Wrapper for the Gemini CLI process
@@ -349,32 +349,42 @@ export class GeminiCli extends EventEmitter {
 
     private getSessionFilePath(sessionId: string): string | null {
         try {
-            // The Gemini CLI calculates the project hash based on the CWD.
-            // Since we pin CWD to homeDir, the hash must match.
-            const projectDir = this.config.homeDir;
-            const projectHash = crypto.createHash('sha256').update(projectDir).digest('hex');
-            const chatsDir = path.join(this.config.homeDir, '.gemini', 'tmp', projectHash, 'chats');
+            // The Gemini CLI stores sessions under $HOME/.gemini/tmp/<project_name>/chats/
+            // The project name varies (e.g. 'tars', 'tars-1'), so we scan all directories.
+            const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
 
-            if (!fs.existsSync(chatsDir)) {
-                logger.debug(`[GeminiCli] Chats directory not found: ${chatsDir}`);
+            if (!fs.existsSync(tmpDir)) {
+                logger.debug(`[GeminiCli] Tmp directory not found: ${tmpDir}`);
                 return null;
             }
 
-            const files = fs
-                .readdirSync(chatsDir)
-                .filter(
-                    (f) =>
-                        f.startsWith('session-') &&
-                        f.includes(sessionId.substring(0, 8)) &&
-                        f.endsWith('.json')
-                )
-                .map((f) => ({
-                    name: f,
-                    time: fs.statSync(path.join(chatsDir, f)).mtime.getTime()
-                }))
-                .sort((a, b) => b.time - a.time);
+            const sessionPrefix = sessionId.substring(0, 8);
+            const projectDirs = fs.readdirSync(tmpDir);
 
-            return files.length > 0 ? path.join(chatsDir, files[0].name) : null;
+            for (const dir of projectDirs) {
+                const chatsDir = path.join(tmpDir, dir, 'chats');
+                if (!fs.existsSync(chatsDir)) continue;
+
+                const files = fs
+                    .readdirSync(chatsDir)
+                    .filter(
+                        (f) =>
+                            f.startsWith('session-') &&
+                            f.includes(sessionPrefix) &&
+                            f.endsWith('.json')
+                    )
+                    .map((f) => ({
+                        name: f,
+                        time: fs.statSync(path.join(chatsDir, f)).mtime.getTime()
+                    }))
+                    .sort((a, b) => b.time - a.time);
+
+                if (files.length > 0) {
+                    return path.join(chatsDir, files[0].name);
+                }
+            }
+
+            return null;
         } catch {
             return null;
         }
