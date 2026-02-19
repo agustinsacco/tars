@@ -25,9 +25,7 @@ export class HeartbeatService {
         const intervalMs = this.config.heartbeatIntervalMs;
         logger.info(`💓 Heartbeat service started (Interval: ${intervalMs / 1000}s)`);
 
-        // Initial run
-        this.tick();
-
+        // Start interval immediately, but first tick waits for interval
         this.interval = setInterval(() => this.tick(), intervalMs);
     }
 
