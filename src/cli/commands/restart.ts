@@ -40,7 +40,9 @@ export async function restart() {
         try {
             execSync('tars start', { stdio: 'inherit' });
         } catch (e) {
-            console.error(chalk.red('❌ Failed to restart automatically. Please run "tars start" manually.'));
+            console.error(
+                chalk.red('❌ Failed to restart automatically. Please run "tars start" manually.')
+            );
         }
     } else {
         // If no update, just start using the internal function (faster)

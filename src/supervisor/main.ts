@@ -203,12 +203,15 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) { }
+        } catch (e) {}
 
         if (needsLink) {
             try {
                 // Remove existing file/link if present to prevent EEXIST or to replace link with copy
-                if (fs.existsSync(finalDestPath) || (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())) {
+                if (
+                    fs.existsSync(finalDestPath) ||
+                    (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())
+                ) {
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
 
@@ -241,7 +244,9 @@ function installExtensions(config: Config): void {
         overrides.add(path.join(realPath, '*'));
 
         enablement[extName].overrides = Array.from(overrides);
-        logger.debug(`🔧 Configured safety overrides for ${extName}: ${enablement[extName].overrides.join(', ')}`);
+        logger.debug(
+            `🔧 Configured safety overrides for ${extName}: ${enablement[extName].overrides.join(', ')}`
+        );
     }
 
     fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));

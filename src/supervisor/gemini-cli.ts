@@ -6,7 +6,6 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs';
 
-
 /**
  * Wrapper for the Gemini CLI process
  */
@@ -338,14 +337,18 @@ export class GeminiCli extends EventEmitter {
             if (session.messages) {
                 session.messages = cleanMessages(session.messages);
                 if (session.messages.length > 100) {
-                    logger.info(`✂️ Pruning oldest ${session.messages.length - 100} messages from session.messages`);
+                    logger.info(
+                        `✂️ Pruning oldest ${session.messages.length - 100} messages from session.messages`
+                    );
                     session.messages = session.messages.slice(-100);
                 }
             }
             if (session.history) {
                 session.history = cleanMessages(session.history);
                 if (session.history.length > 100) {
-                    logger.info(`✂️ Pruning oldest ${session.history.length - 100} messages from session.history`);
+                    logger.info(
+                        `✂️ Pruning oldest ${session.history.length - 100} messages from session.history`
+                    );
                     session.history = session.history.slice(-100);
                 }
             }

@@ -23,13 +23,13 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 
 ### Comparison
 
-| Feature        | Tars                        | Traditional Cloud Assistants                            |
-| :------------- | :-------------------------- | :------------------------------------------------------ |
-| **Cost**       | Free (Gemini Tier)          | Subscription / Token Usage Fees                         |
-| **Runtime**    | Native Node.js Process      | Often Web-based or Heavy Local LLMs                     |
-| **Latency**    | Low (API Inference)         | High (Local Inference) or Variable (Cloud Queues)       |
-| **Context**    | Persistent Project Memory   | Session-based / Limited Context Window                  |
-| **Focus**      | System & Code Execution     | General Chat & Q&A                                      |
+| Feature     | Tars                      | Traditional Cloud Assistants                      |
+| :---------- | :------------------------ | :------------------------------------------------ |
+| **Cost**    | Free (Gemini Tier)        | Subscription / Token Usage Fees                   |
+| **Runtime** | Native Node.js Process    | Often Web-based or Heavy Local LLMs               |
+| **Latency** | Low (API Inference)       | High (Local Inference) or Variable (Cloud Queues) |
+| **Context** | Persistent Project Memory | Session-based / Limited Context Window            |
+| **Focus**   | System & Code Execution   | General Chat & Q&A                                |
 
 ---
 

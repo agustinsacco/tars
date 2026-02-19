@@ -25,10 +25,7 @@ program.command('start').description('Start Tars supervisor in the background').
 
 program.command('stop').description('Stop the Tars supervisor').action(stop);
 
-program
-    .command('restart')
-    .description('Check for updates and restart Tars')
-    .action(restart);
+program.command('restart').description('Check for updates and restart Tars').action(restart);
 
 program.command('status').description('Check the status of Tars supervisor').action(status);
 

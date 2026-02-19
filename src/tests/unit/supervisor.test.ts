@@ -21,7 +21,8 @@ describe('Supervisor', () => {
                 onEvent({ type: 'done' });
             }),
             runSync: vi.fn().mockResolvedValue('task output'),
-            pruneLastTurn: vi.fn()
+            pruneLastTurn: vi.fn(),
+            compactSession: vi.fn()
         };
         mockSessionManager = {
             load: vi.fn().mockReturnValue('existing-session'),

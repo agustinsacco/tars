@@ -352,7 +352,8 @@ export async function setup() {
     const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
 
     // Convert minutes to seconds
-    const minutes = config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes;
+    const minutes =
+        config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes;
     const intervalSec = minutes * 60;
 
     const configData = {
