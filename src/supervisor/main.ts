@@ -173,13 +173,16 @@ function installExtensions(config: Config): void {
 
         if (needsLink) {
             try {
+                // Remove existing file/link if present to prevent EEXIST or to replace link with copy
                 if (fs.existsSync(finalDestPath) || (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())) {
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
-                fs.symlinkSync(srcPath, finalDestPath, 'dir');
-                logger.info(`🔌 Linked extension: ${finalExtName} -> ${srcPath}`);
+
+                // Copy instead of symlink to ensure it stays within the workspace
+                fs.cpSync(srcPath, finalDestPath, { recursive: true });
+                logger.info(`🔌 Integrated extension: ${finalExtName}`);
             } catch (error) {
-                logger.error(`❌ Failed to link extension ${finalExtName}: ${error}`);
+                logger.error(`❌ Failed to integrate extension ${finalExtName}: ${error}`);
             }
         }
     }
