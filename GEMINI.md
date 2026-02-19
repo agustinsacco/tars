@@ -25,6 +25,16 @@ Tars is an autonomous AI assistant built with a **Supervisor-Orchestrator** mode
 - **Memory**: The agent maintains the workspace via `TARS.md` and personal history via `GEMINI.md`.
 - **Self-Management**: Use the `tars-ops` skill for all CLI interactions (secrets, configuration, memory sync). NEVER use `npm run start` to modify configuration as it causes recursive deadlocks.
 
+### 📦 Versioning & Release
+
+To update and release a new version of the `@saccolabs/tars` package:
+
+1.  **Update Version**: Update the version number in `package.json` (e.g., `1.0.10`).
+2.  **Commit**: Commit the change using conventional commits (e.g., `chore: bump version to 1.0.10`).
+3.  **Tag**: Create a git tag matching the version (e.g., `git tag v1.0.10`).
+4.  **Push**: Push the commit and the tag to origin (`git push && git push origin v1.0.10`).
+5.  **CI/CD**: The `.github/workflows/publish.yml` workflow will automatically build and publish the package to NPM when a tag starting with `v` is pushed.
+
 ### 📚 Documentation
 
 - **Stack**: Astro 5 + React + Tailwind CSS v4.
