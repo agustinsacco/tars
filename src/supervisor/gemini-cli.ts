@@ -5,6 +5,7 @@ import { Config } from '../config/config.js';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 
 /**
  * Wrapper for the Gemini CLI process
@@ -255,10 +256,10 @@ export class GeminiCli extends EventEmitter {
      */
     public async pruneLastTurn(sessionId: string): Promise<void> {
         try {
-            const filePath = this.getSessionFilePath(sessionId);
+            const filePath = await this.getSessionFilePath(sessionId);
             if (!filePath) return;
 
-            const raw = fs.readFileSync(filePath, 'utf-8');
+            const raw = await fsPromises.readFile(filePath, 'utf-8');
             const session = JSON.parse(raw);
 
             if (session.messages && session.messages.length > 0) {
@@ -272,7 +273,7 @@ export class GeminiCli extends EventEmitter {
 
                 if (lastUserIndex !== -1) {
                     session.messages = session.messages.slice(0, lastUserIndex);
-                    fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
+                    await fsPromises.writeFile(filePath, JSON.stringify(session, null, 2));
                     logger.debug(`✂️ Pruned session history at index ${lastUserIndex}`);
                 }
             } else if (session.history && session.history.length > 0) {
@@ -286,7 +287,7 @@ export class GeminiCli extends EventEmitter {
                 }
                 if (lastUserIndex !== -1) {
                     session.history = session.history.slice(0, lastUserIndex);
-                    fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
+                    await fsPromises.writeFile(filePath, JSON.stringify(session, null, 2));
                 }
             }
         } catch (error: any) {
@@ -300,15 +301,15 @@ export class GeminiCli extends EventEmitter {
      */
     public async compactSession(sessionId: string): Promise<void> {
         try {
-            const filePath = this.getSessionFilePath(sessionId);
+            const filePath = await this.getSessionFilePath(sessionId);
             if (!filePath) return;
 
-            const stats = fs.statSync(filePath);
+            const stats = await fsPromises.stat(filePath);
             if (stats.size < 50 * 1024) return; // Only compact if > 50KB
 
             logger.info(`🧹 Compacting bloated session (${(stats.size / 1024).toFixed(1)} KB)...`);
 
-            const raw = fs.readFileSync(filePath, 'utf-8');
+            const raw = await fsPromises.readFile(filePath, 'utf-8');
             const session = JSON.parse(raw);
 
             const cleanMessages = (msgs: any[]) => {
@@ -353,8 +354,8 @@ export class GeminiCli extends EventEmitter {
                 }
             }
 
-            fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
-            const newStats = fs.statSync(filePath);
+            await fsPromises.writeFile(filePath, JSON.stringify(session, null, 2));
+            const newStats = await fsPromises.stat(filePath);
             logger.info(
                 `✨ Compacted: ${(stats.size / 1024).toFixed(1)} KB -> ${(newStats.size / 1024).toFixed(1)} KB`
             );
@@ -363,40 +364,51 @@ export class GeminiCli extends EventEmitter {
         }
     }
 
-    private getSessionFilePath(sessionId: string): string | null {
+    private async getSessionFilePath(sessionId: string): Promise<string | null> {
         try {
             // The Gemini CLI stores sessions under $HOME/.gemini/tmp/<project_name>/chats/
             // The project name varies (e.g. 'tars', 'tars-1'), so we scan all directories.
             const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
 
-            if (!fs.existsSync(tmpDir)) {
+            try {
+                await fsPromises.access(tmpDir);
+            } catch {
                 logger.debug(`[GeminiCli] Tmp directory not found: ${tmpDir}`);
                 return null;
             }
 
             const sessionPrefix = sessionId.substring(0, 8);
-            const projectDirs = fs.readdirSync(tmpDir);
+            const projectDirs = await fsPromises.readdir(tmpDir);
 
             for (const dir of projectDirs) {
                 const chatsDir = path.join(tmpDir, dir, 'chats');
-                if (!fs.existsSync(chatsDir)) continue;
+                try {
+                    await fsPromises.access(chatsDir);
+                } catch {
+                    continue;
+                }
 
-                const files = fs
-                    .readdirSync(chatsDir)
-                    .filter(
-                        (f) =>
-                            f.startsWith('session-') &&
-                            f.includes(sessionPrefix) &&
-                            f.endsWith('.json')
-                    )
-                    .map((f) => ({
-                        name: f,
-                        time: fs.statSync(path.join(chatsDir, f)).mtime.getTime()
-                    }))
-                    .sort((a, b) => b.time - a.time);
+                const allFiles = await fsPromises.readdir(chatsDir);
+                const files = allFiles.filter(
+                    (f) =>
+                        f.startsWith('session-') && f.includes(sessionPrefix) && f.endsWith('.json')
+                );
 
-                if (files.length > 0) {
-                    return path.join(chatsDir, files[0].name);
+                if (files.length === 0) continue;
+
+                // We need to stat them to sort by time, but getting the exact match is usually enough if IDs are unique.
+                // However, the original logic sorted by mtime. Let's keep it but optimized.
+                const fileStats = await Promise.all(
+                    files.map(async (f) => {
+                        const s = await fsPromises.stat(path.join(chatsDir, f));
+                        return { name: f, time: s.mtime.getTime() };
+                    })
+                );
+
+                fileStats.sort((a, b) => b.time - a.time);
+
+                if (fileStats.length > 0) {
+                    return path.join(chatsDir, fileStats[0].name);
                 }
             }
 

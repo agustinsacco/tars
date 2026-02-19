@@ -390,7 +390,7 @@ export async function setup() {
         try {
             execSync('npm ci --production', {
                 cwd: linkTarget,
-                stdio: 'pipe'  // Capture output to throw on error
+                stdio: 'pipe' // Capture output to throw on error
             });
 
             // Verify node_modules exists
@@ -399,7 +399,10 @@ export async function setup() {
             }
         } catch (installError: any) {
             // Log the actual stdout/stderr if available
-            const output = installError.stdout?.toString() || installError.stderr?.toString() || installError.message;
+            const output =
+                installError.stdout?.toString() ||
+                installError.stderr?.toString() ||
+                installError.message;
             throw new Error(`Dependency install failed: ${output}`);
         }
 

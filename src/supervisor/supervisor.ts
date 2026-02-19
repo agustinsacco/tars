@@ -36,7 +36,7 @@ export class Supervisor {
 
         try {
             // Get or create session
-            let sessionIdToUse = sessionId || this.sessionManager.load();
+            let sessionIdToUse = sessionId || (await this.sessionManager.load());
 
             // Lock the supervisor
             this.isProcessing = true;
@@ -49,17 +49,23 @@ export class Supervisor {
                     if (event.sessionId) {
                         sessionIdToUse = event.sessionId;
                         if (sessionIdToUse) {
-                            this.sessionManager.save(sessionIdToUse);
+                            this.sessionManager
+                                .save(sessionIdToUse)
+                                .catch((e) => logger.error(`Failed to save session: ${e}`));
                         }
                     }
 
                     // Extract data for session tracking
                     if (event.type === 'done') {
                         if (event.usageStats) {
-                            this.sessionManager.updateUsage(event.usageStats);
+                            this.sessionManager
+                                .updateUsage(event.usageStats)
+                                .catch((e) => logger.error(`Failed to update usage: ${e}`));
                         }
                         if (sessionIdToUse) {
-                            this.sessionManager.save(sessionIdToUse);
+                            this.sessionManager
+                                .save(sessionIdToUse)
+                                .catch((e) => logger.error(`Failed to save session: ${e}`));
                         }
                     }
                     onEvent(event);
@@ -75,7 +81,7 @@ export class Supervisor {
             // Auto-recovery for invalid sessions (e.g. after project path changes)
             if (error.message && error.message.includes('code 42')) {
                 logger.warn('⚠️ Session invalid (code 42). Clearing session state and retrying...');
-                this.sessionManager.clear();
+                await this.sessionManager.clear();
                 return this.run(content, onEvent);
             }
 
@@ -99,7 +105,7 @@ export class Supervisor {
 
         try {
             this.isProcessing = true;
-            const sessionId = this.sessionManager.load();
+            const sessionId = await this.sessionManager.load();
             const result = await this.gemini.runSync(prompt, sessionId || undefined);
 
             // After execution, prune the heartbeat from the session history to prevent bloat
@@ -116,7 +122,7 @@ export class Supervisor {
                 logger.warn(
                     '⚠️ Background task session invalid (code 42). Clearing session and retrying...'
                 );
-                this.sessionManager.clear();
+                await this.sessionManager.clear();
                 this.isProcessing = false;
                 return this.executeTask(prompt);
             }
@@ -131,7 +137,7 @@ export class Supervisor {
      * Prunes the last turn from the current session.
      */
     public async pruneLastTurn(): Promise<void> {
-        const sessionId = this.sessionManager.load();
+        const sessionId = await this.sessionManager.load();
         if (sessionId) {
             await this.gemini.pruneLastTurn(sessionId);
         }

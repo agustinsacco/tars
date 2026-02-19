@@ -25,9 +25,10 @@ describe('Supervisor', () => {
             compactSession: vi.fn()
         };
         mockSessionManager = {
-            load: vi.fn().mockReturnValue('existing-session'),
-            save: vi.fn(),
-            updateUsage: vi.fn()
+            load: vi.fn().mockResolvedValue('existing-session'),
+            save: vi.fn().mockResolvedValue(undefined),
+            updateUsage: vi.fn().mockResolvedValue(undefined),
+            clear: vi.fn().mockResolvedValue(undefined)
         };
         supervisor = new Supervisor(mockGemini as any, mockSessionManager as any);
     });

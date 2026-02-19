@@ -1,4 +1,5 @@
 import fs from 'fs';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { KnowledgeStore } from './knowledge-store.js';
 import { Config } from '../config/config.js';
@@ -28,15 +29,20 @@ export class MemoryManager {
 
             // 1. Sync GEMINI.md
             const geminiPath = path.join(this.config.homeDir, '.gemini', 'GEMINI.md');
-            if (fs.existsSync(geminiPath)) {
-                const content = fs.readFileSync(geminiPath, 'utf-8');
+            try {
+                const content = await fsPromises.readFile(geminiPath, 'utf-8');
                 await this.knowledgeStore.indexFile('GEMINI.md', content);
+            } catch (e: any) {
+                if (e.code !== 'ENOENT') logger.warn(`Failed to sync GEMINI.md: ${e.message}`);
             }
 
             // 2. Sync Skills
             const skillsDir = path.join(this.config.homeDir, '.gemini', 'skills');
-            if (fs.existsSync(skillsDir)) {
+            try {
+                await fsPromises.access(skillsDir);
                 await this.syncDir(skillsDir, 'skills');
+            } catch (e: any) {
+                if (e.code !== 'ENOENT') logger.warn(`Failed to sync skills: ${e.message}`);
             }
 
             // 3. Sync Sessions (Episodic Memory)
@@ -53,51 +59,68 @@ export class MemoryManager {
      */
     private async syncSessions(): Promise<void> {
         const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
-        if (!fs.existsSync(tmpDir)) return;
+        try {
+            await fsPromises.access(tmpDir); // check exists
+            const projectDirs = await fsPromises.readdir(tmpDir);
 
-        const projectDirs = fs.readdirSync(tmpDir);
-        for (const dir of projectDirs) {
-            const chatsDir = path.join(tmpDir, dir, 'chats');
-            if (!fs.existsSync(chatsDir)) continue;
-
-            const files = fs.readdirSync(chatsDir).filter((f) => f.endsWith('.json'));
-            for (const file of files) {
+            for (const dir of projectDirs) {
+                const chatsDir = path.join(tmpDir, dir, 'chats');
                 try {
-                    const fullPath = path.join(chatsDir, file);
-                    const raw = fs.readFileSync(fullPath, 'utf-8');
-                    const session = JSON.parse(raw);
+                    await fsPromises.access(chatsDir);
+                    const files = (await fsPromises.readdir(chatsDir)).filter((f) =>
+                        f.endsWith('.json')
+                    );
 
-                    if (session.messages && session.messages.length > 0) {
-                        const transcript = session.messages
-                            .map((m: any) => {
-                                const role = m.type === 'user' ? 'USER' : 'ASSISTANT';
-                                const text = Array.isArray(m.content)
-                                    ? m.content.map((c: any) => c.text).join(' ')
-                                    : m.content || '[Action]';
-                                return `${role}: ${text}`;
-                            })
-                            .join('\n\n');
+                    for (const file of files) {
+                        try {
+                            const fullPath = path.join(chatsDir, file);
+                            const raw = await fsPromises.readFile(fullPath, 'utf-8');
+                            const session = JSON.parse(raw);
 
-                        await this.knowledgeStore.indexFile(`history/${file}`, transcript);
+                            if (session.messages && session.messages.length > 0) {
+                                const transcript = session.messages
+                                    .map((m: any) => {
+                                        const role = m.type === 'user' ? 'USER' : 'ASSISTANT';
+                                        const text = Array.isArray(m.content)
+                                            ? m.content.map((c: any) => c.text).join(' ')
+                                            : m.content || '[Action]';
+                                        return `${role}: ${text}`;
+                                    })
+                                    .join('\n\n');
+
+                                await this.knowledgeStore.indexFile(`history/${file}`, transcript);
+                            }
+                        } catch (err) {
+                            // Skip invalid session files
+                        }
                     }
-                } catch (err) {
-                    // Skip invalid session files
+                } catch {
+                    // chats dir doesn't exist
                 }
             }
+        } catch {
+            return;
         }
     }
 
     private async syncDir(dir: string, category: string): Promise<void> {
-        const entries = fs.readdirSync(dir, { withFileTypes: true });
-        for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                await this.syncDir(fullPath, category);
-            } else if (entry.name.endsWith('.md')) {
-                const content = fs.readFileSync(fullPath, 'utf-8');
-                const relPath = path.relative(path.join(this.config.homeDir, '.gemini'), fullPath);
-                await this.knowledgeStore.indexFile(relPath, content);
+        try {
+            const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+            for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    await this.syncDir(fullPath, category);
+                } else if (entry.name.endsWith('.md')) {
+                    const content = await fsPromises.readFile(fullPath, 'utf-8');
+                    const relPath = path.relative(
+                        path.join(this.config.homeDir, '.gemini'),
+                        fullPath
+                    );
+                    await this.knowledgeStore.indexFile(relPath, content);
+                }
             }
+        } catch (e) {
+            logger.warn(`Failed to sync directory ${dir}: ${e}`);
         }
     }
 

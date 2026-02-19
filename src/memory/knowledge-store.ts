@@ -91,25 +91,36 @@ export class KnowledgeStore {
 
         logger.info(`📝 Indexing: ${filePath}`);
 
-        // 2. Clear old file data (Cascade delete handles chunks and triggers handle FTS)
-        if (existing) {
-            this.db.prepare('DELETE FROM files WHERE id = ?').run(existing.id);
-        }
+        try {
+            this.db.exec('BEGIN IMMEDIATE');
 
-        // 3. Insert File Record
-        const fileResult = this.db
-            .prepare('INSERT INTO files (path, hash, updated_at) VALUES (?, ?, ?)')
-            .run(filePath, hash, Date.now());
-        const fileId = fileResult.lastInsertRowid;
+            // 2. Clear old file data (Cascade delete handles chunks and triggers handle FTS)
+            if (existing) {
+                this.db.prepare('DELETE FROM files WHERE id = ?').run(existing.id);
+            }
 
-        // 4. Chunk Content (Simple paragraph split)
-        const paragraphs = content.split(/\n\s*\n/).filter((p) => p.trim().length > 20);
+            // 3. Insert File Record
+            const fileResult = this.db
+                .prepare('INSERT INTO files (path, hash, updated_at) VALUES (?, ?, ?)')
+                .run(filePath, hash, Date.now());
+            const fileId = fileResult.lastInsertRowid;
 
-        // 5. Store Chunks (FTS is updated automatically via triggers)
-        for (const p of paragraphs) {
-            this.db
-                .prepare('INSERT INTO chunks (file_id, content, start_line) VALUES (?, ?, ?)')
-                .run(fileId, p, 0);
+            // 4. Chunk Content (Simple paragraph split)
+            const paragraphs = content.split(/\n\s*\n/).filter((p) => p.trim().length > 20);
+
+            // 5. Store Chunks (FTS is updated automatically via triggers)
+            const insertStmt = this.db.prepare(
+                'INSERT INTO chunks (file_id, content, start_line) VALUES (?, ?, ?)'
+            );
+
+            for (const p of paragraphs) {
+                insertStmt.run(fileId, p, 0);
+            }
+
+            this.db.exec('COMMIT');
+        } catch (error) {
+            this.db.exec('ROLLBACK');
+            throw error;
         }
     }
 

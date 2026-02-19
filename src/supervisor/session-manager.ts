@@ -32,13 +32,15 @@ export class SessionManager {
     /**
      * Load session data from storage
      */
-    load(): string | null {
-        if (!fs.existsSync(this.sessionFilePath)) {
+    async load(): Promise<string | null> {
+        try {
+            await fs.promises.access(this.sessionFilePath);
+        } catch {
             return null;
         }
 
         try {
-            const raw = fs.readFileSync(this.sessionFilePath, 'utf-8');
+            const raw = await fs.promises.readFile(this.sessionFilePath, 'utf-8');
             const parsed = JSON.parse(raw);
 
             // Check if sessionId exists
@@ -61,7 +63,7 @@ export class SessionManager {
     /**
      * Save or initialize session
      */
-    save(sessionId: string): void {
+    async save(sessionId: string): Promise<void> {
         try {
             // Initialize new session data if not exists
             if (!this.sessionData || this.sessionData.sessionId !== sessionId) {
@@ -79,8 +81,11 @@ export class SessionManager {
             }
 
             const dir = path.dirname(this.sessionFilePath);
-            fs.mkdirSync(dir, { recursive: true });
-            fs.writeFileSync(this.sessionFilePath, JSON.stringify(this.sessionData, null, 2));
+            await fs.promises.mkdir(dir, { recursive: true });
+            await fs.promises.writeFile(
+                this.sessionFilePath,
+                JSON.stringify(this.sessionData, null, 2)
+            );
             logger.info(`[SessionManager] Session saved: ${sessionId}`);
         } catch (e) {
             logger.error(`[SessionManager] Failed to save session: ${e}`);
@@ -90,7 +95,7 @@ export class SessionManager {
     /**
      * Update session with usage stats from latest interaction
      */
-    updateUsage(usage: UsageStats): void {
+    async updateUsage(usage: UsageStats): Promise<void> {
         if (!this.sessionData) {
             logger.warn('[SessionManager] Cannot update usage - no active session');
             return;
@@ -107,7 +112,10 @@ export class SessionManager {
 
         // Persist to disk
         try {
-            fs.writeFileSync(this.sessionFilePath, JSON.stringify(this.sessionData, null, 2));
+            await fs.promises.writeFile(
+                this.sessionFilePath,
+                JSON.stringify(this.sessionData, null, 2)
+            );
         } catch (e) {
             logger.error(`[SessionManager] Failed to update usage: ${e}`);
         }
@@ -123,13 +131,13 @@ export class SessionManager {
     /**
      * Clear the stored session
      */
-    clear(): void {
-        if (fs.existsSync(this.sessionFilePath)) {
-            try {
-                fs.unlinkSync(this.sessionFilePath);
-                this.sessionData = null;
-                logger.info('[SessionManager] Session cleared');
-            } catch (e) {
+    async clear(): Promise<void> {
+        try {
+            await fs.promises.unlink(this.sessionFilePath);
+            this.sessionData = null;
+            logger.info('[SessionManager] Session cleared');
+        } catch (e: any) {
+            if (e.code !== 'ENOENT') {
                 logger.error(`[SessionManager] Failed to clear session: ${e}`);
             }
         }
@@ -138,7 +146,12 @@ export class SessionManager {
     /**
      * Check if a session exists
      */
-    exists(): boolean {
-        return fs.existsSync(this.sessionFilePath);
+    async exists(): Promise<boolean> {
+        try {
+            await fs.promises.access(this.sessionFilePath);
+            return true;
+        } catch {
+            return false;
+        }
     }
 }
