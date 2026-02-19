@@ -1,4 +1,4 @@
-# Tars: Personal AI Robot
+# Tars: Your Autonomous AI Assistant
 
 <div align="center">
   <img src="assets/logo.png" alt="Tars Logo" width="300" />
