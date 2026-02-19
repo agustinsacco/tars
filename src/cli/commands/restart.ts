@@ -45,4 +45,7 @@ export async function restart() {
         // If no update, just start using the internal function (faster)
         await start();
     }
+
+    // Force exit to prevent hanging due to potentially lingering PM2 IPC connections
+    process.exit(0);
 }
