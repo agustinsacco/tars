@@ -105,6 +105,8 @@ export class Supervisor {
             // After execution, prune the heartbeat from the session history to prevent bloat
             if (sessionId) {
                 await this.gemini.pruneLastTurn(sessionId);
+                // Also compact the session to keep it healthy during long idle periods
+                await this.gemini.compactSession(sessionId);
             }
 
             return result;

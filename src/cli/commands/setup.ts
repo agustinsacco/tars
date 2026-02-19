@@ -232,12 +232,29 @@ export async function setup() {
             when: (answers) => answers.geminiModel === 'custom'
         },
         {
-            type: 'input',
-            name: 'heartbeatInterval',
-            message: 'Heartbeat interval (seconds):',
+            type: 'list',
+            name: 'heartbeatMinutes',
+            message: 'Heartbeat Interval (How often Tars checks in):',
+            choices: [
+                { name: '30 Minutes (Recommended)', value: 30 },
+                { name: '1 Hour', value: 60 },
+                { name: '2 Hours', value: 120 },
+                { name: '4 Hours', value: 240 },
+                { name: 'Custom', value: 'custom' }
+            ],
             default: existingConfig.heartbeatIntervalSec
-                ? String(existingConfig.heartbeatIntervalSec)
-                : '60'
+                ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
+                : 30
+        },
+        {
+            type: 'number',
+            name: 'customHeartbeat',
+            message: 'Enter heartbeat interval in minutes (Minimum 30):',
+            when: (answers) => answers.heartbeatMinutes === 'custom',
+            validate: (input) => {
+                if (input < 30) return 'Minimum heartbeat interval is 30 minutes.';
+                return true;
+            }
         }
     ]);
 
@@ -335,16 +352,22 @@ export async function setup() {
     // Save Tars configuration
     const saveSpinner = ora('Saving configuration...').start();
     const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
+
+    // Convert minutes to seconds
+    const minutes = config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes;
+    const intervalSec = minutes * 60;
+
     const configData = {
         discordToken,
         geminiModel: finalModel,
-        heartbeatIntervalSec: parseInt(config.heartbeatInterval, 10)
+        heartbeatIntervalSec: intervalSec
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
 
-    // Symlink built-in tasks extension (to ISOLATED env)
+    // Copy built-in tasks extension (to ISOLATED env)
+    // We use copy instead of symlink to satisfy workspace safety rules
     const extSpinner = ora('Installing tasks extension...').start();
     try {
         const linkTarget = path.join(geminiDir, 'extensions', 'tars-tasks');
@@ -353,13 +376,14 @@ export async function setup() {
             '../../../extensions/tasks'
         );
 
+        // Remove existing (symlink or dir)
         try {
-            await fs.unlink(linkTarget);
+            await fs.rm(linkTarget, { recursive: true, force: true });
         } catch {
             /* ignore */
         }
 
-        await fs.symlink(extensionSrc, linkTarget, 'dir');
+        await fs.cp(extensionSrc, linkTarget, { recursive: true });
         extSpinner.succeed('Tasks extension installed.');
     } catch (err: any) {
         extSpinner.warn(`Extension install failed: ${err.message}`);
