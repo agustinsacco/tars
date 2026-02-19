@@ -51,6 +51,40 @@ function installSystemPrompt(config: Config): void {
 }
 
 /**
+ * Install the initial GEMINI.md template if it doesn't exist.
+ * This acts as the base memory for the agent.
+ */
+function installMemoryTemplate(config: Config): void {
+    const targetPath = path.join(config.homeDir, '.gemini', 'GEMINI.md');
+
+    // DON'T overwrite if it already exists - this is the user's persistent memory!
+    if (fs.existsSync(targetPath)) return;
+
+    let searchDir = __dirname;
+    let srcTemplate = '';
+
+    for (let i = 0; i < 5; i++) {
+        const candidate = path.join(searchDir, 'context', 'GEMINI.md');
+        const srcCandidate = path.join(searchDir, '..', 'context', 'GEMINI.md');
+
+        if (fs.existsSync(candidate)) {
+            srcTemplate = candidate;
+            break;
+        } else if (fs.existsSync(srcCandidate)) {
+            srcTemplate = srcCandidate;
+            break;
+        }
+        searchDir = path.dirname(searchDir);
+    }
+
+    if (srcTemplate) {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(srcTemplate, targetPath);
+        logger.info(`🧠 Initial memory template installed: ${targetPath}`);
+    }
+}
+
+/**
  * Install built-in skills into the Tars runtime directory.
  */
 /**
@@ -250,6 +284,7 @@ async function main() {
 
         // 2. Install system prompt, skills, extensions and settings
         installSystemPrompt(config);
+        installMemoryTemplate(config);
         installSkills(config);
         installExtensions(config);
         installDefaultSettings(config);

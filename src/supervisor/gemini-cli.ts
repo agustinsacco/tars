@@ -51,6 +51,7 @@ export class GeminiCli extends EventEmitter {
             const env = {
                 ...process.env,
                 HOME: this.config.homeDir,
+                TARS_HOME: this.config.homeDir,
                 GEMINI_CLI_HOME: this.config.homeDir,
                 GEMINI_SYSTEM_MD: this.config.systemPromptPath,
                 PWD: this.config.homeDir

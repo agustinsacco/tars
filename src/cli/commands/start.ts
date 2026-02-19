@@ -46,7 +46,9 @@ export async function start(): Promise<void> {
                     env: {
                         NODE_ENV: 'production',
                         LOG_LEVEL: 'debug',
-                        TARS_SUPERVISOR_MODE: 'true'
+                        TARS_SUPERVISOR_MODE: 'true',
+                        TARS_HOME: tarsHome,
+                        REAL_HOME: os.homedir()
                     }
                 },
                 (err, apps) => {
