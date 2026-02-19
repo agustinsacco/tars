@@ -3,6 +3,7 @@ import inquirer from 'inquirer';
 import ora from 'ora';
 import { execSync, spawnSync } from 'child_process';
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import os from 'os';
 import { Client, GatewayIntentBits } from 'discord.js';
@@ -383,11 +384,26 @@ export async function setup() {
 
         await fs.cp(extensionSrc, linkTarget, { recursive: true });
 
-        // Hydrate dependencies since node_modules are excluded from the package
-        extSpinner.text = 'Installing extension dependencies...';
-        execSync('npm install --production', { cwd: linkTarget, stdio: 'ignore' });
+        // Hydrate dependencies
+        extSpinner.text = `Installing dependencies for tars-tasks...`;
 
-        extSpinner.succeed('Tasks extension installed.');
+        try {
+            execSync('npm ci --production', {
+                cwd: linkTarget,
+                stdio: 'pipe'  // Capture output to throw on error
+            });
+
+            // Verify node_modules exists
+            if (!fsSync.existsSync(path.join(linkTarget, 'node_modules'))) {
+                throw new Error('npm install finished but node_modules is missing');
+            }
+        } catch (installError: any) {
+            // Log the actual stdout/stderr if available
+            const output = installError.stdout?.toString() || installError.stderr?.toString() || installError.message;
+            throw new Error(`Dependency install failed: ${output}`);
+        }
+
+        extSpinner.succeed(`tars-tasks extension installed.`);
     } catch (err: any) {
         extSpinner.warn(`Extension install failed: ${err.message}`);
     }
