@@ -1,6 +1,6 @@
 {
     "name": "@saccolabs/tars",
-    "version": "1.0.15",
+    "version": "1.0.16",
     "description": "Tars — Your personal AI assistant",
     "publishConfig": {
         "access": "public"
@@ -13,7 +13,7 @@
     "scripts": {
         "build": "npm run build:src && npm run build:extensions",
         "build:src": "tsc && chmod +x dist/cli/index.js",
-        "build:extensions": "true",
+        "build:extensions": "find extensions -maxdepth 2 -name package.json -exec dirname {} \\; | xargs -I {} sh -c \"cd {} && npm install && (npm run build || true)\"",
         "docs:dev": "npm run dev --prefix website",
         "docs:build": "npm run build --prefix website",
         "dev": "tsx watch src/supervisor/main.ts",

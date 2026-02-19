@@ -150,7 +150,6 @@ function installExtensions(config: Config): void {
     }
 
     const builtInExtensions = fs.readdirSync(repoExtensionsDir);
-
     for (const extName of builtInExtensions) {
         const srcPath = path.resolve(repoExtensionsDir, extName);
         if (!fs.statSync(srcPath).isDirectory()) continue;
@@ -166,34 +165,46 @@ function installExtensions(config: Config): void {
                 if (stats.isSymbolicLink()) {
                     const realPath = fs.realpathSync(finalDestPath);
                     if (realPath === srcPath) {
-                        needsLink = false; // Already linked correctly
+                        needsLink = false;
                     }
                 }
             }
-        } catch (e) {
-            // Broken link or other error, proceed to re-link
-        }
+        } catch (e) { }
 
         if (needsLink) {
             try {
-                // Remove existing file/link if present to prevent EEXIST
-                if (fs.existsSync(finalDestPath) || fs.lstatSync(finalDestPath).isSymbolicLink()) {
+                if (fs.existsSync(finalDestPath) || (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())) {
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
-
                 fs.symlinkSync(srcPath, finalDestPath, 'dir');
                 logger.info(`🔌 Linked extension: ${finalExtName} -> ${srcPath}`);
             } catch (error) {
                 logger.error(`❌ Failed to link extension ${finalExtName}: ${error}`);
             }
         }
+    }
 
-        // Ensure enabled
-        if (!enablement[finalExtName]) {
-            enablement[finalExtName] = {
-                overrides: [path.join(config.homeDir, '*')]
-            };
+    // 3. Scan installation directory for ALL extensions (including manually added ones)
+    const allInstalledExtensions = fs.readdirSync(targetExtensionsDir);
+    for (const extName of allInstalledExtensions) {
+        const extPath = path.join(targetExtensionsDir, extName);
+        if (extName === 'extension-enablement.json') continue;
+        if (!fs.statSync(extPath).isDirectory()) continue;
+
+        // Resolve real path (critical for symlinks to satisfy Gemini workspace safety)
+        const realPath = fs.realpathSync(extPath);
+
+        // Ensure enabled with permissive overrides
+        if (!enablement[extName]) {
+            enablement[extName] = { overrides: [] };
         }
+
+        const overrides = new Set(enablement[extName].overrides || []);
+        overrides.add(path.join(config.homeDir, '*'));
+        overrides.add(path.join(realPath, '*'));
+
+        enablement[extName].overrides = Array.from(overrides);
+        logger.debug(`🔧 Configured safety overrides for ${extName}: ${enablement[extName].overrides.join(', ')}`);
     }
 
     fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));
