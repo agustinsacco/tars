@@ -13,6 +13,7 @@ export async function restart() {
         const latest = execSync('npm view @saccolabs/tars version', { encoding: 'utf-8' }).trim();
 
         if (latest && latest !== pkg.version) {
+            console.log(chalk.blue(`ℹ️ Latest version on npm: ${latest}`));
             console.log(chalk.green(`✨ Update available: ${latest} (Current: ${pkg.version})`));
             console.log(chalk.cyan('📦 Upgrading Tars...'));
 
