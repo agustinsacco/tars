@@ -46,19 +46,21 @@ export class GeminiCli extends EventEmitter {
             const childDescription = `Gemini CLI (Session: ${sessionId || 'new'})`;
 
             // Re-homing environment for subprocess
+            // Pin CWD to homeDir (~/.tars) so the Gemini CLI doesn't discover
+            // stray GEMINI.md files in whatever directory the user ran `tars start` from.
             const env = {
                 ...process.env,
                 HOME: this.config.homeDir,
                 GEMINI_CLI_HOME: this.config.homeDir,
                 GEMINI_SYSTEM_MD: this.config.systemPromptPath,
-                PWD: process.cwd()
+                PWD: this.config.homeDir
             };
 
             logger.info(`🚀 [GeminiCli] Spawning: gemini ${args.join(' ')}`);
 
             const child = spawn('gemini', args, {
                 env,
-                cwd: process.cwd(),
+                cwd: this.config.homeDir,
                 stdio: ['ignore', 'pipe', 'pipe']
             });
 
@@ -347,9 +349,9 @@ export class GeminiCli extends EventEmitter {
 
     private getSessionFilePath(sessionId: string): string | null {
         try {
-            // The Gemini CLI calculates the project hash based on the current working directory (repo root)
-            // when it detects a git repo or project context.
-            const projectDir = process.cwd();
+            // The Gemini CLI calculates the project hash based on the CWD.
+            // Since we pin CWD to homeDir, the hash must match.
+            const projectDir = this.config.homeDir;
             const projectHash = crypto.createHash('sha256').update(projectDir).digest('hex');
             const chatsDir = path.join(this.config.homeDir, '.gemini', 'tmp', projectHash, 'chats');
 
