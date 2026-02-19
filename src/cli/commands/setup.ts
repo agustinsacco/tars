@@ -213,14 +213,12 @@ export async function setup() {
             message: 'Select Gemini Model:',
             choices: [
                 { name: 'Auto (Highly Recommended)', value: 'auto' },
-                { name: 'Gemini 2.0 Flash (Fastest)', value: 'gemini-2.0-flash' },
+                { name: 'Gemini 2.0 Flash (Stable, Fast)', value: 'gemini-2.0-flash' },
+                { name: 'Gemini 2.0 Pro (Stable, Powerful)', value: 'gemini-2.0-pro-exp-02-05' },
                 { name: 'Gemini 2.0 Flash Lite (Ultra-fast)', value: 'gemini-2.0-flash-lite' },
-                {
-                    name: 'Gemini 2.0 Pro (Most Powerful, Preview)',
-                    value: 'gemini-2.0-pro-exp-02-05'
-                },
-                { name: 'Gemini 1.5 Pro (Balanced)', value: 'gemini-1.5-pro' },
-                { name: 'Gemini 1.5 Flash (Efficient)', value: 'gemini-1.5-flash' },
+                { name: 'Gemini 3.0 Flash Preview (New!)', value: 'gemini-3.0-flash-preview' },
+                { name: 'Gemini 3.0 Pro Preview (New!)', value: 'gemini-3.0-pro-preview' },
+                { name: 'Gemini 1.5 Pro (Legacy)', value: 'gemini-1.5-pro' },
                 { name: 'Custom (Advanced)', value: 'custom' }
             ],
             default: existingConfig.geminiModel || 'auto'
