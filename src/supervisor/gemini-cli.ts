@@ -335,8 +335,20 @@ export class GeminiCli extends EventEmitter {
                 });
             };
 
-            if (session.messages) session.messages = cleanMessages(session.messages);
-            if (session.history) session.history = cleanMessages(session.history);
+            if (session.messages) {
+                session.messages = cleanMessages(session.messages);
+                if (session.messages.length > 100) {
+                    logger.info(`✂️ Pruning oldest ${session.messages.length - 100} messages from session.messages`);
+                    session.messages = session.messages.slice(-100);
+                }
+            }
+            if (session.history) {
+                session.history = cleanMessages(session.history);
+                if (session.history.length > 100) {
+                    logger.info(`✂️ Pruning oldest ${session.history.length - 100} messages from session.history`);
+                    session.history = session.history.slice(-100);
+                }
+            }
 
             fs.writeFileSync(filePath, JSON.stringify(session, null, 2));
             const newStats = fs.statSync(filePath);

@@ -66,6 +66,11 @@ export class Supervisor {
                 },
                 sessionIdToUse || undefined
             );
+
+            // Always try to compact after interaction to prevent context bloat
+            if (sessionIdToUse) {
+                await this.gemini.compactSession(sessionIdToUse);
+            }
         } catch (error: any) {
             // Auto-recovery for invalid sessions (e.g. after project path changes)
             if (error.message && error.message.includes('code 42')) {
@@ -96,6 +101,12 @@ export class Supervisor {
             this.isProcessing = true;
             const sessionId = this.sessionManager.load();
             const result = await this.gemini.runSync(prompt, sessionId || undefined);
+
+            // After execution, prune the heartbeat from the session history to prevent bloat
+            if (sessionId) {
+                await this.gemini.pruneLastTurn(sessionId);
+            }
+
             return result;
         } catch (error: any) {
             // Auto-recovery for invalid sessions (e.g. after update or project path change)
