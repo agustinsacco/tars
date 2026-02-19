@@ -2,27 +2,31 @@ import pm2 from 'pm2';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
 
-export async function stop() {
-    console.log(chalk.cyan('🛑 Stopping Tars supervisor...'));
+export function stop(): Promise<void> {
+    return new Promise((resolve, reject) => {
+        console.log(chalk.cyan('🛑 Stopping Tars supervisor...'));
 
-    pm2.connect((err) => {
-        if (err) {
-            console.error(chalk.red('❌ Failed to connect to PM2'), err);
-            // Fallback to pkill even if PM2 fails
-            forceKill();
-            process.exit(0);
-        }
-
-        // Use delete instead of stop to completely remove from PM2 list
-        pm2.delete('tars-supervisor', (err) => {
-            pm2.disconnect();
+        pm2.connect((err) => {
             if (err) {
-                console.log(chalk.yellow('⚠️ Tars was not managed by PM2.'));
-            } else {
-                console.log(chalk.green('✅ PM2 process removed.'));
+                console.error(chalk.red('❌ Failed to connect to PM2'), err);
+                // Fallback to pkill even if PM2 fails
+                forceKill();
+                resolve();
+                return;
             }
 
-            forceKill();
+            // Use delete instead of stop to completely remove from PM2 list
+            pm2.delete('tars-supervisor', (err) => {
+                pm2.disconnect();
+                if (err) {
+                    console.log(chalk.yellow('⚠️ Tars was not managed by PM2.'));
+                } else {
+                    console.log(chalk.green('✅ PM2 process removed.'));
+                }
+
+                forceKill();
+                resolve();
+            });
         });
     });
 }
