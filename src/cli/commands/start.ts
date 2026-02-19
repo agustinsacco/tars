@@ -49,7 +49,8 @@ export async function start(): Promise<void> {
                         TARS_SUPERVISOR_MODE: 'true',
                         TARS_HOME: tarsHome,
                         REAL_HOME: os.homedir()
-                    }
+                    },
+                    node_args: ['--no-warnings']
                 },
                 (err, apps) => {
                     pm2.disconnect();

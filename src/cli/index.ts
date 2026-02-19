@@ -5,12 +5,9 @@ import { start } from './commands/start.js';
 import { stop } from './commands/stop.js';
 import { restart } from './commands/restart.js';
 import { status } from './commands/status.js';
-import { exportBrain } from './commands/export.js';
-import { importBrain } from './commands/import.js';
 import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
 import { secret } from './commands/secret.js';
-import { memory } from './commands/memory.js';
 import { uninstall } from './commands/uninstall.js';
 
 import { versionString } from '../utils/version.js';
@@ -39,13 +36,19 @@ program
     .command('export')
     .description('Export your brain (memories, tasks, extensions)')
     .option('-o, --output <path>', 'Output path for the archive')
-    .action(exportBrain);
+    .action(async (options) => {
+        const { exportBrain } = await import('./commands/export.js');
+        return exportBrain(options);
+    });
 
 program
     .command('import')
     .description('Import a brain from an archive')
     .argument('<path>', 'Path to the brain archive (.tar.gz)')
-    .action(importBrain);
+    .action(async (path) => {
+        const { importBrain } = await import('./commands/import.js');
+        return importBrain(path);
+    });
 
 program.command('logs').description('View real-time logs from the Tars supervisor').action(logs);
 
@@ -67,7 +70,10 @@ program
     .description('Search or sync your brain knowledge')
     .argument('<action>', 'Action to perform (search, sync)')
     .argument('[query...]', 'Search query')
-    .action((action, queryArgs) => memory(action, ...queryArgs));
+    .action(async (action, queryArgs) => {
+        const { memory } = await import('./commands/memory.js');
+        return memory(action, ...queryArgs);
+    });
 
 program.command('uninstall').description('Uninstall Tars and remove all data').action(uninstall);
 
