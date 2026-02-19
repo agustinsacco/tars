@@ -382,6 +382,11 @@ export async function setup() {
         }
 
         await fs.cp(extensionSrc, linkTarget, { recursive: true });
+
+        // Hydrate dependencies since node_modules are excluded from the package
+        extSpinner.text = 'Installing extension dependencies...';
+        execSync('npm install --production', { cwd: linkTarget, stdio: 'ignore' });
+
         extSpinner.succeed('Tasks extension installed.');
     } catch (err: any) {
         extSpinner.warn(`Extension install failed: ${err.message}`);
