@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { setup } from './commands/setup.js';
 import { start } from './commands/start.js';
 import { stop } from './commands/stop.js';
+import { restart } from './commands/restart.js';
 import { status } from './commands/status.js';
 import { exportBrain } from './commands/export.js';
 import { importBrain } from './commands/import.js';
@@ -26,6 +27,11 @@ program
 program.command('start').description('Start Tars supervisor in the background').action(start);
 
 program.command('stop').description('Stop the Tars supervisor').action(stop);
+
+program
+    .command('restart')
+    .description('Check for updates and restart Tars')
+    .action(restart);
 
 program.command('status').description('Check the status of Tars supervisor').action(status);
 

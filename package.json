@@ -1,6 +1,6 @@
 {
     "name": "@saccolabs/tars",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "description": "Tars — Your personal AI assistant",
     "publishConfig": {
         "access": "public"
