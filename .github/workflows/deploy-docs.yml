@@ -5,7 +5,7 @@ on:
         branches:
             - main
         paths:
-            - 'website/**'
+            - 'site/**'
             - '.github/workflows/deploy-docs.yml'
 
 jobs:
@@ -27,7 +27,7 @@ jobs:
             - name: Build and Push Docker Image
               uses: docker/build-push-action@v5
               with:
-                  context: ./website
+                  context: ./site
                   push: true
                   tags: |
                       saccodigital/tars-docs:latest

@@ -44,7 +44,7 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 
 ## Documentation
 
-Full documentation is available in the `website/` directory or at the deployed site.
+Full documentation is available in the `site/` directory or at the deployed site.
 
 - **Development**: `npm run docs:dev`
 - **Build**: `npm run docs:build`

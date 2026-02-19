@@ -38,11 +38,11 @@ To update and release a new version of the `@saccolabs/tars` package:
 ### 📚 Documentation
 
 - **Stack**: Astro 5 + React + Tailwind CSS v4.
-- **Source**: `website/src/pages/` containing markdown (`.md`) content.
+- **Source**: `site/src/pages/` containing markdown (`.md`) content.
 - **Theme**: "Terminal Console" — Dark mode (#050505), JetBrains Mono, minimal.
 - **Commands**:
     - `npm run docs:dev`: Start local dev server (http://localhost:4321).
-    - `npm run docs:build`: Build static site to `website/dist/`.
+    - `npm run docs:build`: Build static site to `site/dist/`.
 - **Deployment**: Automatic via GitHub Actions on push to `main`.
 
 ### 🛠️ Operational Skills

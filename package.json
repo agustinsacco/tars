@@ -14,8 +14,8 @@
         "build": "npm run build:src && npm run build:extensions",
         "build:src": "tsc && chmod +x dist/cli/index.js",
         "build:extensions": "find extensions -maxdepth 2 -name package.json -exec dirname {} \\; | xargs -I {} sh -c \"cd {} && npm install && (npm run build || true)\"",
-        "docs:dev": "npm run dev --prefix website",
-        "docs:build": "npm run build --prefix website",
+        "docs:dev": "npm run dev --prefix site",
+        "docs:build": "npm run build --prefix site",
         "dev": "tsx watch src/supervisor/main.ts",
         "start": "node dist/supervisor/main.js",
         "test": "vitest run",
@@ -31,7 +31,7 @@
         "!extensions/**/node_modules/",
         "context/",
         "README.md",
-        "!website/"
+        "!site/"
     ],
     "dependencies": {
         "chalk": "^5.0.0",
