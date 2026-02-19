@@ -67,6 +67,13 @@ export class Supervisor {
                 sessionIdToUse || undefined
             );
         } catch (error: any) {
+            // Auto-recovery for invalid sessions (e.g. after project path changes)
+            if (error.message && error.message.includes('code 42')) {
+                logger.warn('⚠️ Session invalid (code 42). Clearing session state and retrying...');
+                this.sessionManager.clear();
+                return this.run(content, onEvent);
+            }
+
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
         } finally {
