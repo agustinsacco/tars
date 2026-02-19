@@ -23,7 +23,22 @@ The supervisor starts the Heartbeat, connects to Discord, and begins processing 
 
 ### Safety Check
 
-The supervisor sets `TARS_ACTIVATED=true` in its environment. If you accidentally run the supervisor directly (`npm run start`), it checks for this variable and refuses to start without it. This prevents configuration deadlocks.
+The supervisor sets `TARS_ACTIVATED=true` in its environment. If you accidentally run the supervisor directly (`npm run start`), it checks for this environment variable and terminates immediately.
+
+## tars restart
+
+Checks for updates and restarts the supervisor service.
+
+```bash
+tars restart
+```
+
+This command performs an auto-update:
+
+1. Checks the npm registry for the latest version of `@saccolabs/tars`.
+2. If a newer version is found, it installs it globally.
+3. Stops the running supervisor.
+4. Starts the supervisor again (using the new version if updated).
 
 ## tars stop
 

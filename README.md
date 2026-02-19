@@ -85,6 +85,7 @@ tars setup
 ### Commands
 
 - `tars start`: Launch the Tars supervisor.
+- `tars restart`: Check for updates and restart the supervisor.
 - `tars status`: View system health and brain statistics.
 - `tars export`: Compress the brain and configuration for portability.
 - `tars import <path>`: Restore a brain with automatic path re-homing.
