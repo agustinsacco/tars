@@ -298,25 +298,39 @@ export async function setup() {
     // ── Write Gemini CLI settings.json ─────────────────────
     const settingsSpinner = ora('Configuring Gemini CLI settings...').start();
     try {
-        const geminiSettings = {
-            model: {
-                compressionThreshold: 0.2,
-                summarizeToolOutput: {
-                    run_shell_command: { tokenBudget: 2000 }
+        const settingsTemplatePath = path.resolve(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../context/config/settings.json-template'
+        );
+
+        let geminiSettings: any = {};
+        try {
+            const templateData = await fs.readFile(settingsTemplatePath, 'utf-8');
+            geminiSettings = JSON.parse(templateData);
+        } catch {
+            // Fallback
+            geminiSettings = {
+                model: {
+                    compressionThreshold: 0.2,
+                    summarizeToolOutput: {
+                        run_shell_command: { tokenBudget: 2000 }
+                    }
+                },
+                experimental: {
+                    enableAgents: true
                 }
-            },
-            security: {
-                auth: {
-                    selectedType: 'oauth-personal'
-                }
-            }
-        };
+            };
+        }
+
+        if (!geminiSettings.security) geminiSettings.security = {};
+        if (!geminiSettings.security.auth) geminiSettings.security.auth = {};
+        geminiSettings.security.auth.selectedType = 'oauth-personal';
 
         await fs.writeFile(
             path.join(geminiDir, 'settings.json'),
             JSON.stringify(geminiSettings, null, 2)
         );
-        settingsSpinner.succeed('Gemini CLI settings configured (compression @ 20%).');
+        settingsSpinner.succeed('Gemini CLI settings configured from template.');
     } catch (err: any) {
         settingsSpinner.warn(`Could not write settings: ${err.message}`);
     }

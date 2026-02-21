@@ -156,6 +156,61 @@ function installSkills(config: Config): void {
 }
 
 /**
+ * Install and sync built-in agents into the Tars runtime directory.
+ */
+function installAgents(config: Config): void {
+    let searchDir = __dirname;
+    let agentsSrc = '';
+
+    for (let i = 0; i < 5; i++) {
+        const candidate = path.join(searchDir, 'context', 'agents');
+        const srcCandidate = path.join(searchDir, '..', 'context', 'agents');
+
+        if (fs.existsSync(candidate)) {
+            agentsSrc = candidate;
+            break;
+        } else if (fs.existsSync(srcCandidate)) {
+            agentsSrc = srcCandidate;
+            break;
+        }
+        const rootCandidate = path.join(searchDir, '..', '..', 'context', 'agents');
+        if (fs.existsSync(rootCandidate)) {
+            agentsSrc = rootCandidate;
+            break;
+        }
+
+        searchDir = path.dirname(searchDir);
+    }
+
+    if (!agentsSrc) {
+        logger.warn('⚠️ Could not locate built-in agents directory');
+        return;
+    }
+
+    const agentsDest = path.join(config.homeDir, '.gemini', 'agents');
+
+    try {
+        if (!fs.existsSync(agentsDest)) {
+            fs.mkdirSync(agentsDest, { recursive: true });
+        }
+
+        const builtInAgents = fs.readdirSync(agentsSrc);
+
+        for (const agentName of builtInAgents) {
+            const srcAgentPath = path.join(agentsSrc, agentName);
+            const destAgentPath = path.join(agentsDest, agentName);
+
+            if (!fs.statSync(srcAgentPath).isFile() || !agentName.endsWith('.md')) continue;
+
+            fs.copyFileSync(srcAgentPath, destAgentPath);
+            logger.info(`🤖 Agent synced: ${agentName}`);
+        }
+    } catch (error) {
+        logger.error(`❌ Failed to sync agents: ${error}`);
+    }
+}
+
+/**
  * Automatically install/link extensions and enable them.
  * Verifies symlinks are valid and re-links if broken.
  */
@@ -203,7 +258,7 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (needsLink) {
             try {
@@ -278,6 +333,76 @@ function installDefaultSettings(config: Config): void {
 }
 
 /**
+ * Ensure existing settings.json has required settings (like experimental and agents)
+ */
+function patchSettings(config: Config): void {
+    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+    if (!fs.existsSync(targetSettings)) return;
+
+    const settingsTemplate = path.join(
+        __dirname,
+        '..',
+        '..',
+        'context',
+        'config',
+        'settings.json-template'
+    );
+
+    try {
+        const raw = fs.readFileSync(targetSettings, 'utf-8');
+        const settings = JSON.parse(raw);
+        let modified = false;
+
+        if (fs.existsSync(settingsTemplate)) {
+            const template = JSON.parse(fs.readFileSync(settingsTemplate, 'utf-8'));
+
+            // Shallow merge for experimental
+            if (template.experimental && !settings.experimental) {
+                settings.experimental = template.experimental;
+                modified = true;
+            } else if (template.experimental) {
+                for (const [key, value] of Object.entries(template.experimental)) {
+                    if (settings.experimental[key] === undefined) {
+                        settings.experimental[key] = value;
+                        modified = true;
+                    }
+                }
+            }
+
+            // Shallow merge for agents
+            if (template.agents && !settings.agents) {
+                settings.agents = template.agents;
+                modified = true;
+            } else if (template.agents) {
+                for (const [key, value] of Object.entries(template.agents)) {
+                    if (settings.agents[key] === undefined) {
+                        settings.agents[key] = value;
+                        modified = true;
+                    }
+                }
+            }
+        } else {
+            // Fallback
+            if (!settings.experimental) {
+                settings.experimental = {};
+                modified = true;
+            }
+            if (settings.experimental.enableAgents !== true) {
+                settings.experimental.enableAgents = true;
+                modified = true;
+            }
+        }
+
+        if (modified) {
+            fs.writeFileSync(targetSettings, JSON.stringify(settings, null, 2));
+            logger.info('⚙️ Patched settings.json from template.');
+        }
+    } catch (e: any) {
+        logger.warn(`⚠️ Failed to patch settings.json: ${e.message}`);
+    }
+}
+
+/**
  * Tars Main Entry Point
  */
 async function main() {
@@ -291,8 +416,10 @@ async function main() {
         installSystemPrompt(config);
         installMemoryTemplate(config);
         installSkills(config);
+        installAgents(config);
         installExtensions(config);
         installDefaultSettings(config);
+        patchSettings(config);
 
         // 3. Initialize Core Services
         const gemini = new GeminiCli(config);

@@ -73,11 +73,11 @@ export class GeminiCli extends EventEmitter {
             let hasResolved = false;
 
             // --- Timeout Logic ---
-            // 1. Total Safety Timeout (5m) - Absolute max for any task
-            // 2. Idleness Timeout (120s) - Reset every time we get data
+            // 1. Total Safety Timeout (10m) - Absolute max for any task
+            // 2. Idleness Timeout (5m) - Reset every time we get data
             let idleTimeout: NodeJS.Timeout;
-            const TOTAL_TIMEOUT = 300000;
-            const IDLE_TIMEOUT = 120000;
+            const TOTAL_TIMEOUT = 600000;
+            const IDLE_TIMEOUT = 300000;
 
             const resetIdleTimeout = () => {
                 clearTimeout(idleTimeout);
