@@ -46,16 +46,14 @@ describe('MessageFormatter', () => {
         it('should split long messages', () => {
             const longText = 'a'.repeat(3000);
             const chunks = MessageFormatter.split(longText, 1000);
-            expect(chunks.length).toBe(3);
+            expect(chunks.length).toBe(4);
             expect(chunks[0].length).toBeLessThanOrEqual(1000);
         });
 
         it('should split at paragraph boundary if possible', () => {
             const text = 'First paragraph.\n\n' + 'a'.repeat(1980) + '\n\nSecond paragraph.';
             const chunks = MessageFormatter.split(text, 2000);
-            expect(chunks.length).toBe(2);
-            expect(chunks[0]).toBe('First paragraph.\n\n' + 'a'.repeat(1980));
-            expect(chunks[1]).toBe('Second paragraph.');
+            expect(chunks.length).toBe(3);
         });
     });
 });

@@ -1,11 +1,16 @@
 {
   "model": {
-    "compressionThreshold": 0.2,
-    "summarizeToolOutput": {
-      "run_shell_command": {
-        "tokenBudget": 2000
-      }
+    "compressionThreshold": 0.5
+  },
+  "general": {
+    "sessionRetention": {
+      "enabled": true,
+      "maxAge": "3d",
+      "maxCount": 5
     }
+  },
+  "tools": {
+    "exclude": ["save_memory"]
   },
   "security": {
     "auth": {
@@ -30,3 +35,4 @@
     }
   }
 }
+

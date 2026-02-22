@@ -20,15 +20,14 @@ describe('Supervisor', () => {
             run: vi.fn().mockImplementation(async (content, onEvent) => {
                 onEvent({ type: 'done' });
             }),
-            runSync: vi.fn().mockResolvedValue('task output'),
-            pruneLastTurn: vi.fn(),
-            compactSession: vi.fn()
+            runSync: vi.fn().mockResolvedValue('task output')
         };
         mockSessionManager = {
             load: vi.fn().mockResolvedValue('existing-session'),
             save: vi.fn().mockResolvedValue(undefined),
             updateUsage: vi.fn().mockResolvedValue(undefined),
-            clear: vi.fn().mockResolvedValue(undefined)
+            clear: vi.fn().mockResolvedValue(undefined),
+            touchActivity: vi.fn().mockResolvedValue(undefined)
         };
         supervisor = new Supervisor(mockGemini as any, mockSessionManager as any);
     });
@@ -56,10 +55,16 @@ describe('Supervisor', () => {
         expect(mockGemini.run).toHaveBeenCalledWith('hello', expect.any(Function), undefined);
     });
 
-    it('should execute tasks synchronously', async () => {
+    it('should execute tasks in ephemeral sessions (no --resume)', async () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
-        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session');
+        // Should not pass session ID — ephemeral session
+        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt');
+    });
+
+    it('should track user activity on run', async () => {
+        await supervisor.run('hello', vi.fn());
+        expect(mockSessionManager.touchActivity).toHaveBeenCalled();
     });
 
     it('should learn session ID from gemini events', async () => {

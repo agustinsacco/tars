@@ -134,7 +134,7 @@ export class DiscordBot {
                     if (fullResponse.trim()) {
                         const formatted = MessageFormatter.format(fullResponse);
 
-                        if (formatted.length > 1900) {
+                        if (formatted.length > 8000) {
                             const filePath = this.processor.saveResponse(fullResponse, 'md');
                             await message.reply({
                                 content: `📄 **Response too long** (${formatted.length} chars). See attached file:`,

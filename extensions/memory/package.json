@@ -1,0 +1,17 @@
+{
+    "name": "tars-memory",
+    "version": "1.0.0",
+    "description": "Memory management MCP server for Tars",
+    "type": "module",
+    "scripts": {
+        "build": "tsc",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.0.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.10.2",
+        "typescript": "^5.7.2"
+    }
+}

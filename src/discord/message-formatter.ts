@@ -316,6 +316,7 @@ export class MessageFormatter {
      * Respects semantic boundaries: headers, code blocks, paragraphs
      */
     static split(text: string, maxLength: number = this.MAX_MESSAGE_LENGTH): string[] {
+        if (!text) return [];
         if (text.length <= maxLength) return [text];
 
         const chunks: string[] = [];
@@ -327,11 +328,38 @@ export class MessageFormatter {
                 break;
             }
 
-            // Find the best semantic split point
-            const splitIndex = this.findSemanticSplitPoint(remaining, maxLength);
+            // Find best split point, leaving buffer for markdown closures
+            let splitIndex = this.findSemanticSplitPoint(remaining, maxLength - 20);
 
-            chunks.push(remaining.substring(0, splitIndex).trim());
-            remaining = remaining.substring(splitIndex).trim();
+            // If the semantic split failed to find a good spot (e.g., returned the max length)
+            // and we are trying to split a continuous block of text (like 3000 'a's),
+            // just hard cut it. Our findSemanticSplitPoint ensures it won't be > maxLength - 20.
+
+            let chunk = remaining.substring(0, splitIndex);
+
+            // Check if we are inside a code block by counting backticks
+            let inCodeBlock = false;
+            let currentLang = '';
+            const tickRegex = /```([a-zA-Z0-9]*)/g;
+            let match;
+            while ((match = tickRegex.exec(chunk)) !== null) {
+                if (!inCodeBlock) {
+                    inCodeBlock = true;
+                    currentLang = match[1] || '';
+                } else {
+                    inCodeBlock = false;
+                    currentLang = '';
+                }
+            }
+
+            if (inCodeBlock) {
+                chunks.push(chunk.trimEnd() + '\n```');
+                remaining =
+                    '```' + currentLang + '\n' + remaining.substring(splitIndex).trimStart();
+            } else {
+                chunks.push(chunk.trimEnd());
+                remaining = remaining.substring(splitIndex).trimStart();
+            }
         }
 
         return chunks;
@@ -395,8 +423,15 @@ export class MessageFormatter {
             return splitIndex + 2;
         }
 
-        // 6. Last resort: hard cut at maxLength
-        return maxLength;
+        // 6. Try to split at space
+        splitIndex = text.lastIndexOf(' ', maxLength);
+        if (splitIndex > -1) {
+            // If a space was found at all, use it as a fallback
+            return splitIndex + 1;
+        }
+
+        // 7. Last resort: hard cut at maxLength
+        return Math.min(maxLength, text.length);
     }
 
     /**

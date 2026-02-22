@@ -16,6 +16,7 @@ export interface SessionData {
     lastInteractionAt: string;
     lastInputTokens: number;
     totalNetTokens: number;
+    lastUserInteractionAt?: string;
 }
 
 /**
@@ -24,9 +25,11 @@ export interface SessionData {
 export class SessionManager {
     private readonly sessionFilePath: string;
     private sessionData: SessionData | null = null;
+    private readonly idleTimeoutMs: number;
 
-    constructor(sessionFilePath: string) {
+    constructor(sessionFilePath: string, idleTimeoutMs: number = 2 * 60 * 60 * 1000) {
         this.sessionFilePath = sessionFilePath;
+        this.idleTimeoutMs = idleTimeoutMs;
     }
 
     /**
@@ -51,6 +54,19 @@ export class SessionManager {
             this.sessionData = parsed as SessionData;
             if (this.sessionData.totalNetTokens === undefined) {
                 this.sessionData.totalNetTokens = this.sessionData.totalInputTokens || 0;
+            }
+
+            // Check idle timeout — if exceeded, clear and force a new session
+            if (this.sessionData.lastUserInteractionAt) {
+                const lastActivity = new Date(this.sessionData.lastUserInteractionAt).getTime();
+                const elapsed = Date.now() - lastActivity;
+                if (elapsed > this.idleTimeoutMs) {
+                    logger.info(
+                        `[SessionManager] Session idle for ${Math.round(elapsed / 60000)}m (threshold: ${Math.round(this.idleTimeoutMs / 60000)}m). Expiring session.`
+                    );
+                    await this.clear();
+                    return null;
+                }
             }
 
             return this.sessionData.sessionId;
@@ -144,6 +160,15 @@ export class SessionManager {
     }
 
     /**
+     * Force invalidate the session (e.g. after a memory update).
+     * The next interaction will start a fresh session.
+     */
+    async forceInvalidate(): Promise<void> {
+        logger.info('[SessionManager] Force-invalidating session (memory changed)');
+        await this.clear();
+    }
+
+    /**
      * Check if a session exists
      */
     async exists(): Promise<boolean> {
@@ -153,5 +178,29 @@ export class SessionManager {
         } catch {
             return false;
         }
+    }
+
+    /**
+     * Record user activity timestamp (for heartbeat idle suppression)
+     */
+    async touchActivity(): Promise<void> {
+        if (!this.sessionData) return;
+        this.sessionData.lastUserInteractionAt = new Date().toISOString();
+        try {
+            await fs.promises.writeFile(
+                this.sessionFilePath,
+                JSON.stringify(this.sessionData, null, 2)
+            );
+        } catch (e) {
+            logger.error(`[SessionManager] Failed to touch activity: ${e}`);
+        }
+    }
+
+    /**
+     * Get the last user interaction timestamp
+     */
+    getLastUserInteraction(): Date | null {
+        if (!this.sessionData?.lastUserInteractionAt) return null;
+        return new Date(this.sessionData.lastUserInteractionAt);
     }
 }

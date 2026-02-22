@@ -7,7 +7,8 @@ import { MemoryManager } from '../memory/memory-manager.js';
 
 /**
  * Tars Supervisor - Core Orchestrator
- * Simplified to handle session management and Gemini CLI execution.
+ * Handles session management and Gemini CLI execution.
+ * Context compression is delegated to the Gemini CLI's built-in compressionThreshold.
  */
 export class Supervisor {
     private readonly config: Config;
@@ -34,12 +35,18 @@ export class Supervisor {
             `🤖 Supervisor processing request: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
         );
 
+        // Track whether memory-mutating tools were used this turn
+        let memoryMutated = false;
+
         try {
             // Get or create session
             let sessionIdToUse = sessionId || (await this.sessionManager.load());
 
             // Lock the supervisor
             this.isProcessing = true;
+
+            // Track user activity for idle suppression
+            await this.sessionManager.touchActivity();
 
             // Run Gemini CLI
             await this.gemini.run(
@@ -52,6 +59,18 @@ export class Supervisor {
                             this.sessionManager
                                 .save(sessionIdToUse)
                                 .catch((e) => logger.error(`Failed to save session: ${e}`));
+                        }
+                    }
+
+                    // Detect memory-mutating MCP tool calls
+                    if (event.type === 'tool_call' && event.toolName) {
+                        const toolName = event.toolName;
+                        if (
+                            toolName.includes('memory_store_fact') ||
+                            toolName.includes('memory_delete_fact')
+                        ) {
+                            logger.info(`[Supervisor] Memory mutation detected: ${toolName}`);
+                            memoryMutated = true;
                         }
                     }
 
@@ -73,9 +92,11 @@ export class Supervisor {
                 sessionIdToUse || undefined
             );
 
-            // Always try to compact after interaction to prevent context bloat
-            if (sessionIdToUse) {
-                await this.gemini.compactSession(sessionIdToUse);
+            // If a memory-mutating tool was used, invalidate the session so the
+            // next turn starts fresh and picks up the updated facts
+            if (memoryMutated) {
+                logger.info('[Supervisor] Memory was mutated this turn — invalidating session');
+                await this.sessionManager.forceInvalidate();
             }
         } catch (error: any) {
             // Auto-recovery for invalid sessions (e.g. after project path changes)
@@ -93,7 +114,8 @@ export class Supervisor {
     }
 
     /**
-     * Specialized execution for background tasks
+     * Specialized execution for background tasks.
+     * Runs in ephemeral sessions (no --resume) to avoid bloating the main conversation.
      */
     public async executeTask(prompt: string): Promise<string> {
         if (this.isProcessing) {
@@ -105,27 +127,10 @@ export class Supervisor {
 
         try {
             this.isProcessing = true;
-            const sessionId = await this.sessionManager.load();
-            const result = await this.gemini.runSync(prompt, sessionId || undefined);
-
-            // After execution, prune the heartbeat from the session history to prevent bloat
-            if (sessionId) {
-                await this.gemini.pruneLastTurn(sessionId);
-                // Also compact the session to keep it healthy during long idle periods
-                await this.gemini.compactSession(sessionId);
-            }
-
+            // Run without session ID — ephemeral session that won't bloat main context
+            const result = await this.gemini.runSync(prompt);
             return result;
         } catch (error: any) {
-            // Auto-recovery for invalid sessions (e.g. after update or project path change)
-            if (error.message && error.message.includes('code 42')) {
-                logger.warn(
-                    '⚠️ Background task session invalid (code 42). Clearing session and retrying...'
-                );
-                await this.sessionManager.clear();
-                this.isProcessing = false;
-                return this.executeTask(prompt);
-            }
             logger.error(`❌ Background task failed: ${error.message}`);
             throw error;
         } finally {
@@ -133,15 +138,6 @@ export class Supervisor {
         }
     }
 
-    /**
-     * Prunes the last turn from the current session.
-     */
-    public async pruneLastTurn(): Promise<void> {
-        const sessionId = await this.sessionManager.load();
-        if (sessionId) {
-            await this.gemini.pruneLastTurn(sessionId);
-        }
-    }
     /**
      * Checks if the supervisor is currently processing a request
      */

@@ -1,0 +1,14 @@
+{
+    "name": "tars-memory",
+    "version": "1.0.0",
+    "description": "Memory management for Tars — core facts and daily notes",
+    "mcpServers": {
+        "memory": {
+            "command": "node",
+            "args": ["${extensionPath}/dist/server.js"],
+            "env": {
+                "TARS_HOME": "~/.tars"
+            }
+        }
+    }
+}

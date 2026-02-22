@@ -243,7 +243,8 @@ function installExtensions(config: Config): void {
         const srcPath = path.resolve(repoExtensionsDir, extName);
         if (!fs.statSync(srcPath).isDirectory()) continue;
 
-        const finalExtName = extName === 'tasks' ? 'tars-tasks' : extName;
+        const finalExtName =
+            extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
         const finalDestPath = path.join(targetExtensionsDir, finalExtName);
 
         // Check if symlink exists and is valid
@@ -356,30 +357,30 @@ function patchSettings(config: Config): void {
         if (fs.existsSync(settingsTemplate)) {
             const template = JSON.parse(fs.readFileSync(settingsTemplate, 'utf-8'));
 
-            // Shallow merge for experimental
-            if (template.experimental && !settings.experimental) {
-                settings.experimental = template.experimental;
-                modified = true;
-            } else if (template.experimental) {
-                for (const [key, value] of Object.entries(template.experimental)) {
-                    if (settings.experimental[key] === undefined) {
-                        settings.experimental[key] = value;
-                        modified = true;
+            // Shallow merge for each top-level section
+            const sections = ['experimental', 'agents', 'model', 'general'];
+            for (const section of sections) {
+                if (template[section] && !settings[section]) {
+                    settings[section] = template[section];
+                    modified = true;
+                } else if (template[section]) {
+                    for (const [key, value] of Object.entries(template[section])) {
+                        if (settings[section][key] === undefined) {
+                            settings[section][key] = value;
+                            modified = true;
+                        }
                     }
                 }
             }
 
-            // Shallow merge for agents
-            if (template.agents && !settings.agents) {
-                settings.agents = template.agents;
+            // Force-update compressionThreshold if it was set too aggressively
+            if (
+                settings.model?.compressionThreshold !== undefined &&
+                settings.model.compressionThreshold < 0.5
+            ) {
+                settings.model.compressionThreshold = 0.5;
                 modified = true;
-            } else if (template.agents) {
-                for (const [key, value] of Object.entries(template.agents)) {
-                    if (settings.agents[key] === undefined) {
-                        settings.agents[key] = value;
-                        modified = true;
-                    }
-                }
+                logger.info('⚙️ Updated compressionThreshold to 0.5 (was too aggressive)');
             }
         } else {
             // Fallback
@@ -427,7 +428,7 @@ async function main() {
         const supervisor = new Supervisor(gemini, sessionManager);
 
         // 4. Initialize Heartbeat (Background Tasks)
-        const heartbeat = new HeartbeatService(supervisor, config);
+        const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
 
         // 5. Initialize Interface (Discord)
         const discordBot = new DiscordBot(supervisor, config);
