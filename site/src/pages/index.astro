@@ -24,15 +24,15 @@ import { Terminal, Cpu, Brain, Puzzle, Zap, Clock } from 'lucide-react';
         </div>
 
         <p class="text-zinc-400 text-sm leading-relaxed mb-4 max-w-2xl">
-          A local-first, autonomous AI assistant powered by Google's Gemini models. Tars runs efficiently on your machine, prioritizing data privacy and minimizing operational costs while adapting to your specific infrastructure.
+          Your Autonomous AI Worker. Tars is a powerful, locally-hosted intelligence layer powered by Gemini. You can deploy Tars as a Personal Assistant to manage your day, a Security Analyzer to watch your logs, or a DevOps Engineer to manage your servers—or run multiple instances to do all three at once.
         </p>
 
         <div class="flex items-center gap-3 mb-10">
-          <a href="/getting-started/installation" class="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-4 py-2 rounded hover:bg-blue-500/20 transition-colors">
+          <a href="/getting-started/what-is-tars" class="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-4 py-2 rounded hover:bg-blue-500/20 transition-colors">
             Get Started →
           </a>
-          <a href="/architecture/supervisor" class="text-xs text-zinc-500 border border-zinc-800 px-4 py-2 rounded hover:text-zinc-300 hover:border-zinc-700 transition-colors">
-            Architecture
+          <a href="/use-cases/personal-assistant" class="text-xs text-zinc-500 border border-zinc-800 px-4 py-2 rounded hover:text-zinc-300 hover:border-zinc-700 transition-colors">
+            Explore Use Cases
           </a>
         </div>
 
@@ -40,61 +40,61 @@ import { Terminal, Cpu, Brain, Puzzle, Zap, Clock } from 'lucide-react';
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
           <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
             <div class="flex items-center gap-2 mb-2">
-              <Terminal className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Bare-Metal Runtime</h3>
+              <Zap className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Personal Assistant</h3>
             </div>
             <p class="text-xs text-zinc-500 leading-relaxed">
-              Native Node.js execution for direct system integration and minimal resource usage. Operates without heavy containerization overhead.
+              Tars manages daily tasks, remembers your preferences perfectly via an episodic memory system, and helps you draft code or emails straight from Discord.
             </p>
           </div>
 
           <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
             <div class="flex items-center gap-2 mb-2">
-              <Clock className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Autonomous Heartbeat</h3>
+              <Terminal className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Server & Host Manager</h3>
             </div>
             <p class="text-xs text-zinc-500 leading-relaxed">
-              Background service with cron-based task scheduling and self-correcting health checks via the SILENT_ACK protocol.
+              Deploy Tars on a server to act as a sysadmin. It can update software, monitor system health, and fix issues autonomously via background heartbeats.
             </p>
           </div>
 
           <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
             <div class="flex items-center gap-2 mb-2">
               <Brain className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Persistent Memory</h3>
+              <h3 class="text-sm font-bold text-zinc-200">Security Analyzer</h3>
             </div>
             <p class="text-xs text-zinc-500 leading-relaxed">
-              SQLite FTS5 knowledge store with BM25 ranking. Indexes skills, session transcripts, and working memory.
-            </p>
-          </div>
-
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Puzzle className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">MCP Extensions</h3>
-            </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Model Context Protocol servers that provide tool-level capabilities. Tars can create, install, and manage its own extensions.
+              Give Tars access to your firewall or auth logs. It can automatically detect anomalies, write incident summaries, and alert you instantly via direct message.
             </p>
           </div>
 
           <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
             <div class="flex items-center gap-2 mb-2">
               <Cpu className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Supervisor Architecture</h3>
+              <h3 class="text-sm font-bold text-zinc-200">Multiple Instances</h3>
             </div>
             <p class="text-xs text-zinc-500 leading-relaxed">
-              Session orchestration with token tracking, context compaction, and dead-letter pruning for long-running operations.
+              Why settle for one? You can install and bind multiple Tars instances to different Discord bots, giving each one a specific job title and specialized permissions.
             </p>
           </div>
 
           <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
             <div class="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Discord Interface</h3>
+              <Puzzle className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">MCP Tooling</h3>
             </div>
             <p class="text-xs text-zinc-500 leading-relaxed">
-              Communicate via DM or server channels. Supports file attachments, code block formatting, and interactive long-running task updates.
+              Compatible with the Model Context Protocol. You can write custom extensions to connect Tars to absolutely any internal API or database.
+            </p>
+          </div>
+
+          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
+            <div class="flex items-center gap-2 mb-2">
+              <Clock className="w-4 h-4 text-blue-400" />
+              <h3 class="text-sm font-bold text-zinc-200">Always On</h3>
+            </div>
+            <p class="text-xs text-zinc-500 leading-relaxed">
+              Tars doesn't wait for you to prompt it. It runs on a continuous background loop, scheduling its own tasks and checking in when work is complete.
             </p>
           </div>
         </div>

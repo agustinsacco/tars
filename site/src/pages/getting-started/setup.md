@@ -46,59 +46,25 @@ Available models: Auto (recommended), Gemini 2.0 Flash, Gemini 2.0 Flash Lite, G
 
 ## Step 4: Environment Provisioning
 
-The wizard creates the Tars home directory structure:
+The wizard will quietly build the Tars home directory (`~/.tars/`) on your machine. This folder acts as your bot's brain. It holds its persistent memory, its task list, and its connection secrets.
 
-```
-~/.tars/
-├── .gemini/             # Isolated Gemini CLI home
-│   ├── extensions/      # MCP extension symlinks
-│   ├── skills/          # Built-in + user skills
-│   ├── tmp/             # Gemini session temp files
-│   ├── history/         # Past session data
-│   ├── GEMINI.md        # Working memory (brain)
-│   ├── settings.json    # Gemini CLI settings
-│   ├── oauth_creds.json # Mirrored auth credentials
-│   └── system.md        # System prompt
-├── data/
-│   ├── tasks.json       # Scheduled tasks
-│   ├── session.json     # Active session state
-│   ├── knowledge.db     # SQLite FTS5 knowledge store
-│   ├── uploads/         # Discord attachment downloads
-│   └── tmp/             # Temporary response files
-├── logs/                # PM2 log output
-├── config.json          # Tars configuration
-└── .env                 # Encrypted secrets
+## Starting Tars
+
+Once the setup wizard finishes, you are ready to turn on the bot:
+```bash
+tars start
 ```
 
-### Auto-Bootstrapping on Start
+If the bot connects successfully, you will see it come online in your Discord server.
+Send it a message in Discord saying `$ping` and it will reply, confirming that it has full access to the machine.
 
-When `tars start` runs, the supervisor automatically executes these bootstrapping functions before starting the heartbeat:
+## Stopping Tars
 
-- **installSystemPrompt** — Copies the latest `system.md` from the package
-- **installSkills** — Syncs built-in skills while preserving user-created ones
-- **installExtensions** — Validates and re-links extension symlinks
-- **installDefaultSettings** — Ensures `settings.json` exists with compression config
-
-This means Tars self-heals on every startup — broken symlinks are repaired, missing files are restored.
-
-### Gemini CLI Settings
-
-The wizard configures `settings.json` with:
-
-```json
-{
-    "model": {
-        "compressionThreshold": 0.2,
-        "summarizeToolOutput": {
-            "run_shell_command": { "tokenBudget": 2000 }
-        }
-    },
-    "security": {
-        "auth": {
-            "selectedType": "oauth-personal"
-        }
-    }
-}
+To turn the bot off, run:
+```bash
+tars stop
 ```
 
-The `compressionThreshold: 0.2` triggers context compaction at 20% capacity, keeping sessions lean.
+## Next Steps
+
+Now that Tars is running, you can explore the [Use Cases](/use-cases/personal-assistant) to see what it's capable of!

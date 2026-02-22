@@ -1,48 +1,37 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Installation
-description: Prerequisites and global installation of Tars.
+description: Getting Tars installed on your machine.
 section: Get Started
 ---
 
+Installing Tars takes less than two minutes.
+
 ## Prerequisites
 
-- **Node.js** ≥ 22.0.0 (required for native SQLite and ES module support)
-- **Gemini CLI** — the Google AI command-line interface
+1. **Node.js** (Version 22.0.0 or higher)
+2. **Gemini CLI** (The official Google AI terminal package)
 
-Install Gemini CLI if you haven't already:
-
+First, make sure Node is installed. Then, install the Gemini CLI:
 ```bash
 npm install -g @google/gemini-cli
 ```
 
 ## Install Tars
 
-Install globally via npm:
-
+Once the prerequisites are ready, install Tars globally:
 ```bash
 npm install -g @saccolabs/tars
 ```
 
-This installs the `tars` CLI binary, which acts as a wrapper around PM2 for process management.
-
-## What Gets Installed
-
-The npm package includes:
-
-| Component       | Description                                                                 |
-| --------------- | --------------------------------------------------------------------------- |
-| `tars` CLI      | Entry point for all commands (`start`, `stop`, `setup`, etc.)               |
-| System Prompt   | Custom persona prompt installed to `~/.tars/.gemini/system.md`              |
-| Built-in Skills | `tars-ops`, `create-extension`, `create-skill` in `~/.tars/.gemini/skills/` |
-| MCP Extensions  | `tars-tasks` symlinked to `~/.tars/.gemini/extensions/`                     |
-
 ## Verify Installation
 
+Check that the installation succeeded by checking the version number:
 ```bash
 tars --version
 ```
 
-## Next Steps
+If it prints the version number successfully, you are ready to configure Tars and connect it to Discord.
 
-Run the [Setup Wizard](/getting-started/setup) to configure authentication and connect your Discord bot.
+**Next Step:** Proceed to the [Setup Wizard](/getting-started/setup).
+

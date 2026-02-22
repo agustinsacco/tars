@@ -1,8 +1,8 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: MCP Extensions
+title: Tools & Extensions
 description: How extensions provide tool-level capabilities to Tars through the Model Context Protocol.
-section: Extensibility
+section: Capabilities
 ---
 
 ## Overview

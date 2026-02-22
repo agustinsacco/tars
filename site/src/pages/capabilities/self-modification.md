@@ -2,22 +2,22 @@
 layout: ../../layouts/DocLayout.astro
 title: Self-Modification
 description: How Tars evolves its own capabilities through memory, skills, and extensions.
-section: Extensibility
+section: Capabilities
 ---
 
 ## Overview
 
 One of Tars' defining features is its ability to modify and extend itself. Through the combination of writable memory, skill creation, and extension development, Tars forms a feedback loop that enhances its capabilities over time.
 
-## GEMINI.md: The Living Brain
+## Memory: The Living Brain
 
-The `GEMINI.md` file is not just a static configuration — it's a document the AI actively reads and writes during conversations. When Tars learns something new about the user or a project, it updates this file.
+Tars uses an Episodic Session architecture combined with a dedicated MCP Memory server (`tars-memory`). This is not a static configuration file—Tars actively reads and writes to this database during conversations.
 
 Examples of self-modification:
 
-- Recording user preferences (code style, preferred tools)
+- Recording user preferences (code style, preferred tools) into core facts
 - Noting project context (repo structure, deployment targets)
-- Tracking operational state (ongoing tasks, blockers)
+- Tracking operational state (ongoing tasks, blockers) inside daily log notes
 
 ## Skill Generation
 
@@ -44,7 +44,7 @@ Tars can create entirely new MCP extensions:
 ```
 User Request → AI Processes → Learns Pattern
       ↓                            ↓
-  Responds                  Updates GEMINI.md
+  Responds                  Updates Memory Facts
                               Creates Skill
                             Builds Extension
       ↓                            ↓
@@ -55,7 +55,8 @@ This loop means Tars becomes more capable over time, tailored specifically to th
 
 ## Safety
 
-- GEMINI.md changes are transparent — it's a plain markdown file you can review
+- Memory changes are transparent — it's written to plain JSON and Markdown files
 - Skills are human-readable markdown documents
 - Extensions are TypeScript source code you can audit
-- All modifications happen in `~/.tars/`, isolated from system files
+- All modifications happen in `~/.tars/`, isolated from critical system files unless you explicitly grant permissions
+

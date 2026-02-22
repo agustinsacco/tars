@@ -2,7 +2,7 @@
 layout: ../../layouts/DocLayout.astro
 title: Heartbeat Service
 description: The autonomous background loop that drives task execution and self-correction.
-section: Autonomous Systems
+section: Architecture (Advanced)
 ---
 
 ## Overview

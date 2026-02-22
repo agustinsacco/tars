@@ -1,8 +1,8 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Task Scheduling
+title: Automation & Tasks
 description: Cron-based and date-based task scheduling with automatic retry.
-section: Autonomous Systems
+section: Capabilities
 ---
 
 ## Overview

@@ -12,45 +12,39 @@ const NAV_SECTIONS: NavSection[] = [
     {
         category: 'Get Started',
         items: [
-            { title: 'Introduction', href: '/' },
+            { title: 'Home', href: '/' },
+            { title: 'What is Tars?', href: '/getting-started/what-is-tars' },
             { title: 'Installation', href: '/getting-started/installation' },
             { title: 'Setup Wizard', href: '/getting-started/setup' },
             { title: 'Discord Integration', href: '/getting-started/discord' }
         ]
     },
     {
-        category: 'Architecture',
+        category: 'Use Cases',
         items: [
-            { title: 'Supervisor', href: '/architecture/supervisor' },
-            { title: 'Gemini CLI Wrapper', href: '/architecture/gemini-cli' },
-            { title: 'Session Management', href: '/architecture/sessions' },
+            { title: 'Personal Assistant', href: '/use-cases/personal-assistant' },
+            { title: 'Server & Host Manager', href: '/use-cases/host-manager' },
+            { title: 'Security Analyzer', href: '/use-cases/security-analyzer' },
+            { title: 'DevOps Engineer', href: '/use-cases/devops-engineer' },
+            { title: 'Multiple Instances', href: '/use-cases/multiple-instances' }
+        ]
+    },
+    {
+        category: 'Capabilities',
+        items: [
+            { title: 'Memory & Context', href: '/capabilities/memory' },
+            { title: 'Automation & Tasks', href: '/capabilities/automation' },
+            { title: 'Tools & Extensions', href: '/capabilities/extensions' },
+            { title: 'Self-Modification', href: '/capabilities/self-modification' }
+        ]
+    },
+    {
+        category: 'Architecture (Advanced)',
+        items: [
+            { title: 'Supervisor Orchestration', href: '/architecture/supervisor' },
+            { title: 'Heartbeat Protocol', href: '/architecture/heartbeat' },
+            { title: 'Gemini CLI Base', href: '/architecture/gemini-cli' },
             { title: 'Configuration', href: '/architecture/configuration' }
-        ]
-    },
-    {
-        category: 'Autonomous Systems',
-        items: [
-            { title: 'Heartbeat Service', href: '/systems/heartbeat' },
-            { title: 'Task Scheduling', href: '/systems/tasks' },
-            { title: 'Memory & Knowledge', href: '/systems/memory' }
-        ]
-    },
-    {
-        category: 'Extensibility',
-        items: [
-            { title: 'MCP Extensions', href: '/extensions/overview' },
-            { title: 'tars-tasks Extension', href: '/extensions/tars-tasks' },
-            { title: 'Skills System', href: '/extensions/skills' },
-            { title: 'Self-Modification', href: '/extensions/self-modification' }
-        ]
-    },
-    {
-        category: 'CLI Reference',
-        items: [
-            { title: 'Process Management', href: '/cli/process' },
-            { title: 'Secrets Management', href: '/cli/secrets' },
-            { title: 'Memory CLI', href: '/cli/memory' },
-            { title: 'Brain Portability', href: '/cli/portability' }
         ]
     }
 ];
@@ -84,11 +78,10 @@ export function Sidebar({ currentPath }: SidebarProps) {
                                             href={item.href}
                                             className={`
                         block px-2 py-1.5 text-[13px] rounded-sm transition-colors
-                        ${
-                            isActive
-                                ? 'text-blue-400 bg-blue-500/5 border-l-2 border-blue-400 pl-[calc(0.5rem-2px)]'
-                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 border-l-2 border-transparent pl-[calc(0.5rem-2px)]'
-                        }
+                        ${isActive
+                                                    ? 'text-blue-400 bg-blue-500/5 border-l-2 border-blue-400 pl-[calc(0.5rem-2px)]'
+                                                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 border-l-2 border-transparent pl-[calc(0.5rem-2px)]'
+                                                }
                       `}
                                         >
                                             {item.title}
