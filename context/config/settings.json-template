@@ -16,8 +16,7 @@
     "enableAgents": true,
     "codebaseInvestigatorSettings": {
       "enabled": true,
-      "maxNumTurns": 20,
-      "model": "auto"
+      "maxNumTurns": 20
     }
   },
   "agents": {
@@ -26,9 +25,6 @@
         "enabled": true,
         "runConfig": {
           "maxTurns": 20
-        },
-        "modelConfig": {
-          "model": "auto"
         }
       }
     }
