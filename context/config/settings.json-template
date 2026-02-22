@@ -17,7 +17,7 @@
     "codebaseInvestigatorSettings": {
       "enabled": true,
       "maxNumTurns": 20,
-      "model": "gemini-2.0-flash-exp"
+      "model": "auto"
     }
   },
   "agents": {
@@ -28,7 +28,7 @@
           "maxTurns": 20
         },
         "modelConfig": {
-          "model": "gemini-2.0-flash-exp"
+          "model": "auto"
         }
       }
     }
