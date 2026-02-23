@@ -24,7 +24,7 @@ const NAV_SECTIONS: NavSection[] = [
         items: [
             { title: 'Personal Assistant', href: '/use-cases/personal-assistant' },
             { title: 'Host Manager', href: '/use-cases/host-manager' },
-            { title: 'Security Auditor', href: '/use-cases/security-analyzer' },
+            { title: 'Security Auditor', href: '/use-cases/security-auditor' },
             { title: 'DevOps Engineer', href: '/use-cases/devops-engineer' },
             { title: 'Multi-Instance', href: '/use-cases/multiple-instances' }
         ]

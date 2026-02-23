@@ -9,33 +9,14 @@ import os from 'os';
 import { Client, GatewayIntentBits } from 'discord.js';
 
 import { existsSync } from 'fs';
+import { TarsOAuthService } from '../../auth/oauth-service.js';
 
 /**
- * Check if gemini CLI is installed and user is authenticated
+ * Check if the isolated tars environment is authenticated
  */
-function checkGeminiAuth(): { installed: boolean; loggedIn: boolean } {
-    try {
-        // First check if gemini is installed
-        execSync('which gemini', { encoding: 'utf-8' });
-
-        // Check for credentials file directly (faster/reliable)
-        const credsPath = path.join(os.homedir(), '.gemini', 'oauth_creds.json');
-        if (existsSync(credsPath)) {
-            return { installed: true, loggedIn: true };
-        }
-
-        // Fallback to CLI command if file check fails
-        const result = execSync('gemini auth print-access-token 2>&1', {
-            encoding: 'utf-8',
-            timeout: 3000
-        });
-        if (result && !result.includes('error') && !result.includes('not logged in')) {
-            return { installed: true, loggedIn: true };
-        }
-        return { installed: true, loggedIn: false };
-    } catch (err: any) {
-        return { installed: false, loggedIn: false };
-    }
+async function checkTarsAuth(tarsHome: string): Promise<boolean> {
+    const oauthService = new TarsOAuthService(tarsHome);
+    return await oauthService.isAuthenticated();
 }
 
 /**
@@ -56,14 +37,10 @@ export async function setup() {
         process.exit(1);
     }
 
-    // Check Gemini CLI
-    const geminiStatus = checkGeminiAuth();
-    if (!geminiStatus.installed) {
-        spinner.fail('Gemini CLI not found. Install with: npm i -g @google/gemini-cli');
-        process.exit(1);
-    }
+    const tarsHome = path.join(os.homedir(), '.tars');
+    const isAuthed = await checkTarsAuth(tarsHome);
 
-    spinner.succeed(`Prerequisites met (Node ${nodeVersion}, Gemini CLI installed)`);
+    spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
 
     // ── Step 1: Google OAuth ───────────────────────────────
     console.log(chalk.bold('\nStep 1/4: Google Authentication'));
@@ -71,7 +48,7 @@ export async function setup() {
 
     let performAuth = false;
 
-    if (geminiStatus.loggedIn) {
+    if (isAuthed) {
         console.log(chalk.green('  ✓ Already authenticated with Google.'));
         const { reAuth } = await inquirer.prompt([
             {
@@ -87,7 +64,7 @@ export async function setup() {
             {
                 type: 'confirm',
                 name: 'authNow',
-                message: 'Tars requires Google OAuth. Open browser to authenticate?',
+                message: 'Tars requires Google OAuth. Continue with authentication?',
                 default: true
             }
         ]);
@@ -96,39 +73,32 @@ export async function setup() {
 
     if (performAuth) {
         console.log(chalk.cyan('\n  Running Google Authentication...'));
-        console.log(chalk.dim('  1. A browser window will open.'));
-        console.log(chalk.dim('  2. Sign in with your Google account.'));
-        console.log(chalk.dim('  3. Return here when done.'));
+        console.log(chalk.dim('  1. Copy the URL provided below into Chrome.'));
+        console.log(chalk.dim('  2. Sign in and copy the authorization code.'));
+        console.log(chalk.dim('  3. Paste the code back here.'));
         console.log(chalk.dim('  -----------------------------------'));
 
         try {
-            // Run auth login. We use spawnSync to let it take over IO.
-            spawnSync('gemini', ['auth', 'login'], {
-                stdio: 'inherit',
-                shell: true
-            });
+            const oauthService = new TarsOAuthService(tarsHome);
+            await oauthService.login();
 
-            // Re-check auth after the process exits
-            const freshStatus = checkGeminiAuth();
-            if (freshStatus.loggedIn) {
+            // Re-check auth after login
+            const freshStatus = await oauthService.isAuthenticated();
+            if (freshStatus) {
                 console.log(chalk.green('  ✓ Authentication successful!'));
             } else {
                 console.log(chalk.yellow('  ⚠ Warning: Could not verify authentication.'));
-                console.log(
-                    chalk.yellow('  You may need to run `gemini auth login` manually after setup.')
-                );
             }
-        } catch (err) {
-            console.error(chalk.red('  Failed to run auth command.'));
+        } catch (err: any) {
+            console.error(chalk.red(`  Failed to authenticate: ${err.message}`));
         }
-    } else if (!geminiStatus.loggedIn) {
+    } else if (!isAuthed) {
         console.log(
-            chalk.yellow('  Skipped. Run `gemini auth login` manually before starting Tars.')
+            chalk.yellow('  Skipped. Tars will not be able to communicate with Gemini without auth.')
         );
     }
 
     // ── Step 2: Discord Bot ───────────────────────────────
-    const tarsHome = path.join(os.homedir(), '.tars');
     let existingConfig: any = {};
     try {
         const data = await fs.readFile(path.join(tarsHome, 'config.json'), 'utf-8');
@@ -213,7 +183,13 @@ export async function setup() {
             name: 'geminiModel',
             message: 'Select Gemini Model:',
             choices: [
-                { name: 'Auto (Recommended)', value: 'auto' },
+                { name: 'Auto (Recommended - High IQ)', value: 'auto' },
+                { name: 'Auto (Gemini 2.5 Path)', value: 'auto-gemini-2.5' },
+                { name: 'Gemini 2.0 Flash (Fastest)', value: 'gemini-2.0-flash' },
+                { name: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
+                { name: 'Gemini 2.5 Pro (Balanced)', value: 'gemini-2.5-pro' },
+                { name: 'Gemini 3 Flash (Preview)', value: 'gemini-3-flash-preview' },
+                { name: 'Gemini 3 Pro (Preview)', value: 'gemini-3-pro-preview' },
                 { name: 'Custom (Advanced)', value: 'custom' }
             ],
             default: existingConfig.geminiModel || 'auto'
@@ -268,32 +244,9 @@ export async function setup() {
 
     installSpinner.succeed('Directories created (~/.tars/.gemini/)');
 
-    // ── Copy Auth Credentials (Portability) ────────────────
-    const authSpinner = ora('Migrating auth credentials...').start();
-    try {
-        const globalGemini = path.join(os.homedir(), '.gemini');
-        const filesToCopy = [
-            'oauth_creds.json',
-            'google_accounts.json',
-            'installation_id',
-            'trustedFolders.json',
-            'state.json'
-        ];
-
-        for (const file of filesToCopy) {
-            try {
-                const src = path.join(globalGemini, file);
-                const dest = path.join(geminiDir, file);
-                const data = await fs.readFile(src);
-                await fs.writeFile(dest, data);
-            } catch (err) {
-                /* ignore missing files */
-            }
-        }
-        authSpinner.succeed('Auth credentials mirrored to Tars.');
-    } catch (err) {
-        authSpinner.warn('Could not mirror auth. You may need to run `gemini auth login` again.');
-    }
+    // ── Auth Credentials (Handled natively) ────────────────
+    // Credentials are now created or verified directly in ~/.tars/.gemini/
+    // during the setup process, so no migration from host is needed.
 
     // ── Write Gemini CLI settings.json ─────────────────────
     const settingsSpinner = ora('Configuring Gemini CLI settings...').start();
@@ -335,26 +288,6 @@ export async function setup() {
         settingsSpinner.warn(`Could not write settings: ${err.message}`);
     }
 
-    // ── Initialize GEMINI.md (Brain) ───────────────────────
-    const brainSpinner = ora('Initializing Brain (GEMINI.md)...').start();
-    try {
-        const contextSrc = path.resolve(
-            path.dirname(new URL(import.meta.url).pathname),
-            '../../../context/GEMINI.md'
-        );
-        const brainDest = path.join(geminiDir, 'GEMINI.md');
-
-        // Only copy if not exists (preserve user memory)
-        try {
-            await fs.access(brainDest);
-            brainSpinner.info('Brain already exists (skipping overwrite).');
-        } catch {
-            await fs.copyFile(contextSrc, brainDest);
-            brainSpinner.succeed('Brain initialized with Tars personality.');
-        }
-    } catch (err: any) {
-        brainSpinner.warn(`Could not init GEMINI.md: ${err.message}`);
-    }
 
     // Save Tars configuration
     const saveSpinner = ora('Saving configuration...').start();

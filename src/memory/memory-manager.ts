@@ -27,13 +27,18 @@ export class MemoryManager {
             logger.info('🔄 Starting full memory sync...');
             logger.debug(`📁 HomeDir: ${this.config.homeDir}`);
 
-            // 1. Sync GEMINI.md
-            const geminiPath = path.join(this.config.homeDir, '.gemini', 'GEMINI.md');
+            // 1. Sync Active Memory (Facts & Preferences)
+            const memoryDir = path.join(this.config.homeDir, 'data', 'memory');
+            const factsPath = path.join(memoryDir, 'facts.json');
             try {
-                const content = await fsPromises.readFile(geminiPath, 'utf-8');
-                await this.knowledgeStore.indexFile('GEMINI.md', content);
+                const content = await fsPromises.readFile(factsPath, 'utf-8');
+                const parsed = JSON.parse(content);
+                const factsText = Object.values(parsed.facts || {})
+                    .map((f: any) => `${f.key}: ${f.value}`)
+                    .join('\n');
+                await this.knowledgeStore.indexFile('active_memory/facts.txt', factsText);
             } catch (e: any) {
-                if (e.code !== 'ENOENT') logger.warn(`Failed to sync GEMINI.md: ${e.message}`);
+                if (e.code !== 'ENOENT') logger.warn(`Failed to sync memory facts: ${e.message}`);
             }
 
             // 2. Sync Skills

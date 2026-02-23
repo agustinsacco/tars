@@ -1,47 +1,40 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Memory & Context
-description: How Tars manages its token window and remembers things forever.
+title: Persistent Memory
+description: How Tars manages context and long-term knowledge retrieval.
 section: Capabilities
 ---
 
-Tars solves the "infinite context window" problem by using an **Episodic Session** architecture combined with a dedicated **Memory Management** extension.
+Tars implements an **Episodic Session** architecture paired with a dedicated memory system. This approach ensures high performance by maintaining concise context windows while preserving critical knowledge across sessions.
 
-Instead of keeping one giant, never-ending chat log that eventually slows down and crashes, Tars continuously starts fresh sessions while preserving the important things you've told it.
+### Episodic Sessions
+To prevent context bloat and performance degradation, Tars manages short-lived conversation segments:
 
-## Episodic Sessions
+- **Active Sessions:** While you are actively interacting, Tars maintains full continuity of the conversation.
+- **Auto-Refresh:** After 2 hours of inactivity, the session is archived. Your next interaction starts a fresh session, ensuring a clean and efficient context window.
+- **Hot-Reloading:** When you instruct Tars to "remember" a key fact, the current session is re-initialized to incorporate the new information into its core instructions immediately.
 
-When you speak to Tars, you are interacting within a "Session".
+### Knowledge Tiers
+Tars categorizes information into two distinct tiers via the `tars-memory` extension:
 
-- **Active Window**: While you are actively talking to Tars, your session stays alive. It remembers exactly what was said 10 minutes ago, allowing you to iterate on code or have a flowing conversation.
-- **Idle Expiry**: If you stop talking to Tars for 2 hours, the session expires. The next time you message Tars, it will secretly start a brand new session with zero baggage. This means you always start your day with a lightning-fast, cheap, empty context window.
-- **Memory Invalidation**: If you explicitly tell Tars to "remember" something, the current session is immediately flagged as stale. As soon as you send your next message, Tars will reboot its session so it can load your newly saved fact into its core instructions.
-
-## The Memory System
-
-To survive these frequent session wipes, Tars uses the built-in `tars-memory` MCP extension. It divides its memory into two distinct tiers:
-
-### 1. Core Facts (`facts.json`)
-Core facts are injected directly into Tars's system prompt every time a session boots up. This is used for critical context that Tars should *always* know.
+#### 1. Core Facts
+Critical preferences and static context that Tars must always know. These are injected directly into every new session's system prompt.
 
 ```text
-User: "Remember that my preferred framework is React with Tailwind v4."
-Tars: "✅ I have stored this fact."
+User: "The production database uses PostgreSQL, but staging uses SQLite."
+Tars: "✅ Fact stored. I'll maintain this context across all future sessions."
 ```
-Behind the scenes, Tars calls the `memory_store_fact` tool. Because this requires immediate awareness, the session is invalidated, and your next prompt will boot up with "React with Tailwind v4" hardcoded into its brain.
 
-### 2. Daily Notes (`notes/YYYY-MM-DD.md`)
-For less critical information (like meeting summaries, error logs, or ideas), Tars uses Daily Notes.
+#### 2. Historical Notes
+Higher-volume data like meeting logs, incident summaries, or technical notes. These are stored as timestamped markdown files. To save tokens, these are not injected into the prompt but are retrievable via the `memory_search` tool when relevant to a specific task.
 
 ```text
-User: "Write down that the bug in the auth service was caused by a trailing slash."
-Tars: "✅ I have added this to my daily notes."
+User: "Record the root cause of today's Nginx failure for future reference."
+Tars: "✅ Added to historical notes."
 ```
-Tars calls `memory_add_note`. This information is *not* injected into the system prompt to save tokens. Instead, it is written to a markdown file timestamped with today's date. If Tars ever needs to recall how it fixed that bug, it can use the `memory_search` tool to look through its historical daily notes.
 
-## Storage Locations
+### Data Portability
+Your agent's knowledge resides entirely on your local machine. You can view, edit, or back up these files at any time:
+- **Core Facts:** `~/.tars/data/memory/facts.json`
+- **History:** `~/.tars/data/memory/notes/`
 
-If you ever need to manually edit or backup your AI's brain, you can find the raw files here:
-
-- **Facts:** `~/.tars/data/memory/facts.json`
-- **Notes:** `~/.tars/data/memory/notes/`

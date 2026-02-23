@@ -1,32 +1,35 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: DevOps Engineer
-description: Connecting Tars to your Git and deployment pipelines.
+description: Automate deployment pipelines and infrastructure management.
 section: Use Cases
 ---
 
-You can deploy Tars on your build server or inside a development environment to act as an autonomous **DevOps Engineer**.
+Deploy Tars within your development environment or build servers to act as an autonomous **DevOps Engineer**. It bridges the gap between high-level orchestration and low-level system execution.
 
-## Capabilities
+### Capabilities
 
-### Pipeline Debugging
-When a CI/CD pipeline fails, developers usually have to hunt through hundreds of lines of obscure build output. By connecting a Tars instance to the same machine running your runners (e.g., GitHub Actions self-hosted runner, GitLab Runner):
+#### Pipeline Troubleshooting
+Instead of manually parsing verbose CI/CD logs, allow Tars to analyze failures directly on the build runner:
 
 ```text
-User: "The latest build on 'main' failed. Find the workspace, read the test logs, figure out what broke, and write a patch to fix it."
+User: "The production build failed. Analyze the logs, identify the regression, and propose a patch."
 ```
 
-Tars will locate the workspace, parse the raw test output, identify the failing unit test, and generate the TypeScript patch to resolve the issue before you even open your IDE.
+Tars can locate the workspace, parse test output, identify the root cause, and generate a fix—drastically reducing time-to-recovery (MTTR).
 
-### Release Management
-Tars can be instructed to manage releases autonomously:
+#### Automated Release Orchestration
+Tars can handle the repetitive manual checks required for stable releases:
+
 ```text
-User: "Check our Git history since the last release tag. Write a concise, professional changelog based on the commit messages, and then run the deploy script."
+User: "Synthesize a changelog from the recent git commits and execute the deployment script to staging."
 ```
-Tars will synthesize the raw `git log` output into a human-readable release note, and then execute the shell script required to push the code to production.
 
-### Database Operations
-With Model Context Protocol (MCP) extensions, Tars can connect to PostgreSQL, Redis, or MongoDB without having raw credentials in its prompt. You can ask Tars to:
-- Run complex SQL migrations.
-- Verify schema integrity after an update.
-- Scrub sensitive data from a production dump and move it to staging.
+Tars reviews your git history, writes professional release notes, and manages the execution of your deployment scripts.
+
+#### Intelligent Infrastructure Management
+By leveraging **MCP Extensions**, Tars can interact securely with your databases and cloud providers. This enables complex operations via natural language:
+- **Database Migrations:** Execute SQL migrations and verify schema integrity.
+- **Environment Parity:** Audit configurations across staging and production to detect drift.
+- **Data Scrubbing:** Sanitize production data dumps for use in lower environments.
+

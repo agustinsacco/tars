@@ -48,9 +48,10 @@ export async function start(): Promise<void> {
                         LOG_LEVEL: 'debug',
                         TARS_SUPERVISOR_MODE: 'true',
                         TARS_HOME: tarsHome,
-                        REAL_HOME: os.homedir()
+                        REAL_HOME: os.homedir(),
+                        NODE_NO_WARNINGS: '1'
                     },
-                    node_args: ['--no-warnings']
+                    node_args: ['--no-warnings', '--disable-warning=ExperimentalWarning']
                 },
                 (err, apps) => {
                     pm2.disconnect();

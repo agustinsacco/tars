@@ -81,20 +81,22 @@ export class SessionManager {
      */
     async save(sessionId: string): Promise<void> {
         try {
-            // Initialize new session data if not exists
-            if (!this.sessionData || this.sessionData.sessionId !== sessionId) {
-                this.sessionData = {
-                    sessionId,
-                    createdAt: new Date().toISOString(),
-                    totalInputTokens: 0,
-                    totalOutputTokens: 0,
-                    totalCachedTokens: 0,
-                    interactionCount: 0,
-                    lastInteractionAt: new Date().toISOString(),
-                    lastInputTokens: 0,
-                    totalNetTokens: 0
-                };
+            // Only save if it's a new session or we don't have session data yet
+            if (this.sessionData && this.sessionData.sessionId === sessionId) {
+                return;
             }
+
+            this.sessionData = {
+                sessionId,
+                createdAt: new Date().toISOString(),
+                totalInputTokens: 0,
+                totalOutputTokens: 0,
+                totalCachedTokens: 0,
+                interactionCount: 0,
+                lastInteractionAt: new Date().toISOString(),
+                lastInputTokens: 0,
+                totalNetTokens: 0
+            };
 
             const dir = path.dirname(this.sessionFilePath);
             await fs.promises.mkdir(dir, { recursive: true });
@@ -102,9 +104,9 @@ export class SessionManager {
                 this.sessionFilePath,
                 JSON.stringify(this.sessionData, null, 2)
             );
-            logger.info(`[SessionManager] Session saved: ${sessionId}`);
+            logger.info(`[SessionManager] New session initialized: ${sessionId}`);
         } catch (e) {
-            logger.error(`[SessionManager] Failed to save session: ${e}`);
+            logger.error(`[SessionManager] Failed to initialize session: ${e}`);
         }
     }
 

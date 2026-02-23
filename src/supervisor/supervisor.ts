@@ -1,4 +1,4 @@
-import { GeminiCli } from './gemini-cli.js';
+import { GeminiEngine } from './gemini-engine.js';
 import { SessionManager } from './session-manager.js';
 import { GeminiOutputHandler } from '../types/index.js';
 import logger from '../utils/logger.js';
@@ -7,8 +7,7 @@ import { MemoryManager } from '../memory/memory-manager.js';
 
 /**
  * Tars Supervisor - Core Orchestrator
- * Handles session management and Gemini CLI execution.
- * Context compression is delegated to the Gemini CLI's built-in compressionThreshold.
+ * Handles session management and Gemini Engine execution.
  */
 export class Supervisor {
     private readonly config: Config;
@@ -16,7 +15,7 @@ export class Supervisor {
     private isProcessing: boolean = false;
 
     constructor(
-        private readonly gemini: GeminiCli,
+        private readonly gemini: GeminiEngine,
         private readonly sessionManager: SessionManager
     ) {
         this.config = Config.getInstance();
@@ -53,13 +52,11 @@ export class Supervisor {
                 content,
                 (event) => {
                     // Learn session ID from Gemini CLI if it was newly generated
-                    if (event.sessionId) {
+                    if (event.sessionId && !sessionIdToUse) {
                         sessionIdToUse = event.sessionId;
-                        if (sessionIdToUse) {
-                            this.sessionManager
-                                .save(sessionIdToUse)
-                                .catch((e) => logger.error(`Failed to save session: ${e}`));
-                        }
+                        this.sessionManager
+                            .save(sessionIdToUse)
+                            .catch((e) => logger.error(`Failed to save session: ${e}`));
                     }
 
                     // Detect memory-mutating MCP tool calls
@@ -81,13 +78,8 @@ export class Supervisor {
                                 .updateUsage(event.usageStats)
                                 .catch((e) => logger.error(`Failed to update usage: ${e}`));
                         }
-                        if (sessionIdToUse) {
-                            this.sessionManager
-                                .save(sessionIdToUse)
-                                .catch((e) => logger.error(`Failed to save session: ${e}`));
-                        }
                     }
-                    onEvent(event);
+                    onEvent(event as any);
                 },
                 sessionIdToUse || undefined
             );

@@ -1,8 +1,9 @@
 import { Config } from '../config/config.js';
-import { GeminiCli } from './gemini-cli.js';
+import { GeminiEngine } from './gemini-engine.js';
 import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
+import { CronService } from './cron-service.js';
 import { DiscordBot } from '../discord/discord-bot.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
@@ -50,39 +51,6 @@ function installSystemPrompt(config: Config): void {
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
 }
 
-/**
- * Install the initial GEMINI.md template if it doesn't exist.
- * This acts as the base memory for the agent.
- */
-function installMemoryTemplate(config: Config): void {
-    const targetPath = path.join(config.homeDir, '.gemini', 'GEMINI.md');
-
-    // DON'T overwrite if it already exists - this is the user's persistent memory!
-    if (fs.existsSync(targetPath)) return;
-
-    let searchDir = __dirname;
-    let srcTemplate = '';
-
-    for (let i = 0; i < 5; i++) {
-        const candidate = path.join(searchDir, 'context', 'GEMINI.md');
-        const srcCandidate = path.join(searchDir, '..', 'context', 'GEMINI.md');
-
-        if (fs.existsSync(candidate)) {
-            srcTemplate = candidate;
-            break;
-        } else if (fs.existsSync(srcCandidate)) {
-            srcTemplate = srcCandidate;
-            break;
-        }
-        searchDir = path.dirname(searchDir);
-    }
-
-    if (srcTemplate) {
-        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-        fs.copyFileSync(srcTemplate, targetPath);
-        logger.info(`🧠 Initial memory template installed: ${targetPath}`);
-    }
-}
 
 /**
  * Install built-in skills into the Tars runtime directory.
@@ -259,7 +227,7 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (needsLink) {
             try {
@@ -415,7 +383,6 @@ async function main() {
 
         // 2. Install system prompt, skills, extensions and settings
         installSystemPrompt(config);
-        installMemoryTemplate(config);
         installSkills(config);
         installAgents(config);
         installExtensions(config);
@@ -423,12 +390,15 @@ async function main() {
         patchSettings(config);
 
         // 3. Initialize Core Services
-        const gemini = new GeminiCli(config);
+        const gemini = new GeminiEngine(config);
+        await gemini.initialize();
+
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 
-        // 4. Initialize Heartbeat (Background Tasks)
+        // 4. Initialize Background Services
         const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
+        const cron = new CronService(supervisor, config);
 
         // 5. Initialize Interface (Discord)
         const discordBot = new DiscordBot(supervisor, config);
@@ -436,6 +406,7 @@ async function main() {
         // Start Services
         await discordBot.start();
         await heartbeat.start();
+        await cron.start();
 
         logger.info('✨ Tars successfully initialized and running.');
 
@@ -443,6 +414,7 @@ async function main() {
         process.on('SIGINT', async () => {
             logger.info('🛑 Shutting down...');
             heartbeat.stop();
+            cron.stop();
             process.exit(0);
         });
     } catch (error: any) {

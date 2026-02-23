@@ -8,7 +8,7 @@ import { AttachmentProcessor } from '../utils/attachment-processor.js';
 import { SessionManager } from './session-manager.js';
 
 /**
- * HeartbeatService - Manages background task execution via file polling
+ * HeartbeatService - Manages background maintenance and autonomous health checks.
  */
 export class HeartbeatService {
     private interval: NodeJS.Timeout | null = null;
@@ -36,7 +36,7 @@ export class HeartbeatService {
         // Run initial memory sync at startup
         await this.syncMemoryIfNeeded();
 
-        // Start interval immediately, but first tick waits for interval
+        // Start interval
         this.interval = setInterval(() => this.tick(), intervalMs);
     }
 
@@ -57,22 +57,7 @@ export class HeartbeatService {
             this.processor.cleanup();
             await this.syncMemoryIfNeeded();
 
-            // 2. Load Tasks
-            const tasks = await this.loadTasks();
-            const now = new Date();
-            const dueTasks = tasks.filter((t) => t.enabled && new Date(t.nextRun) <= now);
-
-            // 3. Scheduled tasks always run regardless of idle state
-            if (dueTasks.length > 0) {
-                logger.info(`💓 Found ${dueTasks.length} due tasks`);
-                for (const task of dueTasks) {
-                    await this.runTask(task);
-                }
-                await this.saveTasks(tasks);
-                return;
-            }
-
-            // 4. Autonomous check only if user was recently active
+            // 2. Autonomous check only if user was recently active
             if (this.isUserIdle()) {
                 logger.debug('💤 Skipping autonomous check — user idle');
                 return;
@@ -86,19 +71,13 @@ export class HeartbeatService {
         }
     }
 
-    /**
-     * Check if the user has been idle beyond the threshold
-     */
     private isUserIdle(): boolean {
         if (!this.sessionManager) return false;
         const lastActivity = this.sessionManager.getLastUserInteraction();
-        if (!lastActivity) return true; // No activity recorded = idle
+        if (!lastActivity) return true;
         return Date.now() - lastActivity.getTime() > HeartbeatService.IDLE_THRESHOLD_MS;
     }
 
-    /**
-     * Rate-limited memory sync — only runs once per hour
-     */
     private async syncMemoryIfNeeded(): Promise<void> {
         const now = Date.now();
         if (now - this.lastSyncTime < HeartbeatService.SYNC_INTERVAL_MS) return;
@@ -112,79 +91,21 @@ export class HeartbeatService {
     }
 
     private async autonomousCheck(): Promise<void> {
-        const prompt = `Self-Correction and Autonomous Heartbeat:\nReview your current objectives in GEMINI.md and any pending tasks.\nIf everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'.\nIf you detect an issue, a missed deadline, or a high-priority task that needs starting, provide a short internal reasoning and then describe the action you are taking.`;
+        const prompt = `Self-Correction and Autonomous Heartbeat:
+Review your current objectives using the 'tars-memory' tools (specifically 'memory_list_facts') and check for any pending tasks.
+If everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'.
+If you detect an issue, a missed deadline, or a high-priority task that needs starting, provide a short internal reasoning and then describe the action you are taking.`;
 
         try {
             const response = await this.supervisor.executeTask(prompt);
 
             if (response.includes('SILENT_ACK')) {
-                // Heartbeat OK — ephemeral session, no pruning needed
                 return;
             }
 
-            // If the AI didn't say SILENT_ACK, it wants to do something!
             logger.info(`🤖 Tars Heartbeat initiated action: ${response.substring(0, 100)}...`);
         } catch (error: any) {
             logger.error(`❌ Autonomous check failed: ${error.message}`);
         }
-    }
-
-    private async runTask(task: Task): Promise<void> {
-        logger.info(`🚀 Running task: ${task.title} (${task.id})`);
-
-        try {
-            const result = await this.supervisor.executeTask(task.prompt);
-            logger.info(`✅ Task ${task.id} completed. Result length: ${result.length}`);
-
-            task.lastRun = new Date().toISOString();
-            task.failedCount = 0;
-        } catch (error: any) {
-            logger.error(`❌ Task ${task.id} failed: ${error.message}`);
-            task.failedCount++;
-        } finally {
-            // Calculate next run
-            task.nextRun = this.calculateNextRun(task.schedule);
-            task.updatedAt = new Date().toISOString();
-        }
-    }
-
-    private calculateNextRun(schedule: string): string {
-        try {
-            // 1. Try parsing as a cron expression (using the new 5.x API)
-            const interval = CronExpressionParser.parse(schedule);
-            const next = interval.next();
-            const iso = next.toISOString();
-            if (!iso) {
-                throw new Error('Could not calculate next run from cron.');
-            }
-            return iso;
-        } catch (err) {
-            // 2. If not cron, try parsing as a specific ISO date
-            const date = new Date(schedule);
-            if (!isNaN(date.getTime()) && schedule.includes('-')) {
-                return date.toISOString();
-            }
-
-            // 3. Absolute Fallback: Run in 24 hours if the schedule is totally unparseable
-            logger.warn(`⚠️ Unrecognized schedule format: "${schedule}". Falling back to 24h.`);
-            return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        }
-    }
-
-    private async loadTasks(): Promise<Task[]> {
-        try {
-            const data = await fs.readFile(this.config.taskFilePath, 'utf-8');
-            return JSON.parse(data);
-        } catch (error: any) {
-            if (error.code === 'ENOENT') {
-                return [];
-            }
-            throw error;
-        }
-    }
-
-    private async saveTasks(tasks: Task[]): Promise<void> {
-        const data = JSON.stringify(tasks, null, 2);
-        await fs.writeFile(this.config.taskFilePath, data, 'utf-8');
     }
 }

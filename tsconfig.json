@@ -8,8 +8,16 @@
         "strict": true,
         "esModuleInterop": true,
         "declaration": true,
-        "sourceMap": true
+        "sourceMap": true,
+        "skipLibCheck": true
     },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "dist", "tests", "extensions"]
+    "include": [
+        "src/**/*"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "tests",
+        "extensions"
+    ]
 }
