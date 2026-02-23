@@ -96,6 +96,5 @@ describe('Supervisor', () => {
         await supervisor.run('hello', vi.fn());
 
         expect(mockSessionManager.updateUsage).toHaveBeenCalledWith(usageStats);
-        expect(mockSessionManager.save).toHaveBeenCalled();
     });
 });

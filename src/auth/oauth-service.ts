@@ -1,9 +1,4 @@
-import {
-    getOauthClient,
-    AuthType,
-    Config,
-    Storage
-} from '@google/gemini-cli-core';
+import { getOauthClient, AuthType, Config, Storage } from '@google/gemini-cli-core';
 import logger from '../utils/logger.js';
 import path from 'path';
 import fs from 'fs/promises';
@@ -16,7 +11,7 @@ import os from 'os';
  * it operates exclusively within the ~/.tars isolated environment.
  */
 export class TarsOAuthService {
-    constructor(private readonly homeDir: string) { }
+    constructor(private readonly homeDir: string) {}
 
     /**
      * Executes the OAuth login flow.

@@ -22,7 +22,7 @@ Tars is an autonomous AI assistant built with a **Supervisor-Orchestrator** mode
 - **Stack**: TypeScript, ES Modules, Node.js 22+.
 - **Git**: Strictly follow **Conventional Commits** (`feat:`, `fix:`, `doc:`, `refactor:`, `chore:`). Use `feat:` for most changes as per project rules.
 - **Extension System**: Uses **Model Context Protocol (MCP)**. Repository extensions in `extensions/` are symlinked to `~/.gemini/extensions/` during bootstrapping.
-- **Memory**: The agent maintains the workspace via `TARS.md` and personal history via `GEMINI.md`.
+- **Memory**: Tars has transitioned away from a flat `GEMINI.md` for daily operations. It uses the `tars-memory` MCP extension for durable facts and daily notes. The `GEMINI.md` in the repo is strictly for **Developer Context** (teaching the AI agent how to work on Tars itself).
 - **Self-Management**: Use the `tars-ops` skill for all CLI interactions (secrets, configuration, memory sync). NEVER use `npm run start` to modify configuration as it causes recursive deadlocks.
 
 ### 📦 Versioning & Release
@@ -54,13 +54,17 @@ To update and release a new version of the `@saccolabs/tars` package:
 
 When building features or troubleshooting, follow this checklist:
 
-1.  **Supervisor Logs**: Run `tars logs` (or `pm2 logs tars-supervisor`) to see the main application flow and tool execution status.
-2.  **Raw CLI Output**: Check `/tmp/gemini-debug-*.log`. The `GeminiCli` streams all raw output to these timestamped files, which is invaluable for debugging JSON parsing errors or model hallucinations.
-3.  **Session Integrity**: Review `~/.tars/data/session.json`. If context usage is higher than expected, check if `pruneLastTurn` is being called correctly (especially for heartbeats).
-4.  **Task State**: Check `~/.tars/data/tasks.json` to verify cron schedules and last/next run timestamps.
-5.  **Dev Mode**: Use `npm run dev` to run the supervisor in the foreground with `tsx watch` for immediate feedback during development.
+1.  **Supervisor Logs**: Run `tars logs` (or `pm2 logs tars-supervisor --raw`) to see the main application flow.
+2.  **Native Debug CLI**: Use the internal debug script to test the model's tool calling and persona without Discord:
+    `TARS_SUPERVISOR_MODE=true npx tsx src/scripts/debug-cli.ts "your prompt here"`
+    This provides raw JSON events for every content chunk, tool call, and thought.
+3.  **API Error Reports**: Detailed Google API errors (404s, 429s) are saved to `/tmp/gemini-client-error-*.json`.
+4.  **Session Integrity**: Review `~/.tars/data/session.json`. Tars uses **Session Swapping** in `GeminiEngine.ts` to isolate context between users/tasks.
+5.  **Memory Store**: Durable facts are stored in `~/.tars/data/memory/facts.json`.
+6.  **Dev Mode**: Use `npm run dev` to run the supervisor in the foreground with `tsx watch` for immediate feedback during development.
 
 ### ⚠️ Critical Gotchas
 
-- **Shell Escaping**: Always ensure prompts are quoted with `'` and internal quotes are escaped when spawning the shell in `GeminiCli.ts`. Failure to do so breaks multi-line prompts.
+- **Session Swapping**: `GeminiEngine.ts` hot-swaps sessions. If you change a session mid-run, you must call `startChat` to re-initialize the core client with the correct history.
+- **Node Warnings**: Experimental SQLite warnings are silenced globally via `NODE_NO_WARNINGS=1` in `tars start`.
 - **MCP Enablement**: New extensions must be added to `~/.gemini/extensions/extension-enablement.json`. The `installExtensions` function in `main.ts` handles this automatically for repository-managed extensions.

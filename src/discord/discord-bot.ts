@@ -146,6 +146,8 @@ export class DiscordBot {
                                 await message.reply(chunk);
                             }
                         }
+                    } else {
+                        logger.warn('Gemini returned an empty response.');
                     }
                 }
             });

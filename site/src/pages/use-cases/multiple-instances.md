@@ -16,14 +16,17 @@ Setting up a second instance requires pointing Tars to a different "home" direct
 ### Example: Deploying a "SecOps" Agent alongside a "DevOps" Agent
 
 1. **Bootstrap the DevOps Agent (Default)**
+
 ```bash
 # This uses the default ~/.tars directory
 tars setup
 tars start
 ```
-*At this point, you have "DevOps-Bot" running on Discord.*
+
+_At this point, you have "DevOps-Bot" running on Discord._
 
 2. **Bootstrap the SecOps Agent (Custom Path)**
+
 ```bash
 # Redirect Tars to build a new environment in ~/.tars-secops
 export TARS_HOME=~/.tars-secops
@@ -31,27 +34,32 @@ tars setup
 ```
 
 3. **Configure the new Agent**
-When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot". Then, edit the system prompt specifically for this agent:
+   When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot". Then, edit the system prompt specifically for this agent:
 
 ```bash
 nano ~/.tars-secops/.gemini/system.md
 ```
-*(Teach it to be paranoid and focused purely on security logs)*
+
+_(Teach it to be paranoid and focused purely on security logs)_
 
 4. **Start the second Agent**
+
 ```bash
 export TARS_HOME=~/.tars-secops
 tars start
 ```
 
 ## Management
+
 You now have two entirely distinct AI workers operating on the exact same server.
+
 - They have different Discord accounts.
 - They have completely isolated Memory (`~/.tars/data/memory` vs `~/.tars-secops/data/memory`).
 - They schedule separate cron tasks.
 - They have different personalities dictated by their unique `system.md` prompts.
 
 To manage them, just supply the `TARS_HOME` variable before running the CLI:
+
 ```bash
 TARS_HOME=~/.tars-secops tars logs
 TARS_HOME=~/.tars tars stop

@@ -3,7 +3,8 @@ import {
     GeminiClient,
     GeminiEventType,
     AuthType,
-    SimpleExtensionLoader,
+    promptIdContext,
+    Scheduler,
     type ServerGeminiStreamEvent
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
@@ -88,18 +89,12 @@ export class GeminiEngine extends EventEmitter {
 
             const authType = getAuthTypeFromEnv() || AuthType.LOGIN_WITH_GOOGLE;
 
-            // Discover and load extensions (MCP servers like memory and tasks)
-            const extensions = await this.discoverExtensions();
-            if (extensions.length > 0) {
-                logger.info(`🔌 Loaded ${extensions.length} extensions into Gemini Engine.`);
-            }
-
             this.coreConfig = new CoreConfig({
                 sessionId: uuidv4(),
                 targetDir: this.tarsConfig.homeDir,
                 cwd: this.tarsConfig.homeDir,
                 model: this.tarsConfig.geminiModel,
-                debugMode: false,
+                debugMode: true,
                 approvalMode: 'yolo' as any, // Tars runs autonomously
                 enableHooks: true,
                 mcpEnabled: true,
@@ -107,8 +102,7 @@ export class GeminiEngine extends EventEmitter {
                 enableAgents: true, // Enable agents support
                 skillsSupport: true,
                 adminSkillsEnabled: true,
-                noBrowser: true,
-                extensionLoader: new SimpleExtensionLoader(extensions)
+                noBrowser: true
             });
 
             await this.coreConfig.refreshAuth(authType);
@@ -154,16 +148,109 @@ export class GeminiEngine extends EventEmitter {
                 this.currentSessionId = sid;
             }
 
-            const stream = this.client.sendMessageStream(
-                [{ text: prompt }],
-                new AbortController().signal,
-                'tars-request' // Proper promptId
-            );
+            let currentRequestParts: any[] = [{ text: prompt }];
+            let turnCount = 0;
+            const maxTurns = 10;
+            const abortController = new AbortController();
 
-            for await (const event of stream) {
-                const normalized = this.normalizeEvent(event, sid);
-                if (normalized) {
-                    onEvent(normalized);
+            while (turnCount < maxTurns) {
+                turnCount++;
+                const toolRequests: any[] = [];
+                let hasRealContent = false;
+
+                const stream = await promptIdContext.run(sid, () => {
+                    return this.client.sendMessageStream(
+                        currentRequestParts,
+                        abortController.signal,
+                        'tars-request' // Proper promptId
+                    );
+                });
+
+                let finalUsageStats: any = undefined;
+                for await (const event of stream) {
+                    logger.debug(
+                        `📨 Raw Gemini Event [Turn ${turnCount}]: ${JSON.stringify(event).substring(0, 200)}...`
+                    );
+
+                    if (event.type === GeminiEventType.ToolCallRequest) {
+                        toolRequests.push(event.value);
+                    }
+
+                    if (event.type === GeminiEventType.Finished) {
+                        finalUsageStats = event.value.usageMetadata;
+                        continue; // Don't emit done yet
+                    }
+
+                    const normalized = this.normalizeEvent(event, sid);
+                    if (normalized) {
+                        if (normalized.type === 'text' && normalized.content) {
+                            hasRealContent = true;
+                        }
+                        onEvent(normalized);
+                    }
+                }
+
+                if (toolRequests.length === 0) {
+                    logger.debug(`✅ Interaction complete after ${turnCount} turns.`);
+                    // Emit final done event
+                    onEvent({
+                        type: 'done',
+                        usageStats: finalUsageStats
+                            ? {
+                                  inputTokens: finalUsageStats.promptTokenCount || 0,
+                                  outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                                  cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                              }
+                            : undefined,
+                        sessionId: sid
+                    });
+                    break;
+                }
+
+                logger.debug(`🛠️ Executing ${toolRequests.length} tool calls...`);
+
+                // Execute tools using Scheduler
+                const scheduler = new Scheduler({
+                    config: this.coreConfig,
+                    messageBus: this.coreConfig.getMessageBus(),
+                    getPreferredEditor: () => undefined,
+                    schedulerId: sid
+                });
+
+                const completedCalls = await scheduler.schedule(
+                    toolRequests,
+                    abortController.signal
+                );
+
+                // Emit tool responses so the Supervisor can log them
+                for (const call of completedCalls) {
+                    const normalized = this.normalizeEvent(
+                        {
+                            type: GeminiEventType.ToolCallResponse,
+                            value: call
+                        } as any,
+                        sid
+                    );
+                    if (normalized) onEvent(normalized);
+                }
+
+                // Record results in chat recording service for persistence/memory
+                const model = this.tarsConfig.geminiModel;
+                this.client.getChat().recordCompletedToolCalls(model, completedCalls);
+
+                // Prepare next request with tool results
+                currentRequestParts = completedCalls
+                    .map((call) => {
+                        // Extract the functionResponse part
+                        return call.response.responseParts.find(
+                            (p) => 'functionResponse' in (p as any)
+                        ) as any;
+                    })
+                    .filter(Boolean);
+
+                if (currentRequestParts.length === 0) {
+                    logger.warn('⚠️ No tool responses generated after execution.');
+                    break;
                 }
             }
         } catch (error: any) {
@@ -195,7 +282,10 @@ export class GeminiEngine extends EventEmitter {
     /**
      * Maps native core events to Tars-compatible event format.
      */
-    private normalizeEvent(event: ServerGeminiStreamEvent, sessionId: string): GeminiEngineEvent | null {
+    private normalizeEvent(
+        event: ServerGeminiStreamEvent,
+        sessionId: string
+    ): GeminiEngineEvent | null {
         switch (event.type) {
             case GeminiEventType.Content:
                 return {
@@ -248,84 +338,26 @@ export class GeminiEngine extends EventEmitter {
             case GeminiEventType.Finished:
                 return {
                     type: 'done',
-                    usageStats: event.value.usageMetadata ? {
-                        inputTokens: event.value.usageMetadata.promptTokenCount || 0,
-                        outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
-                        cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
-                    } : undefined,
+                    usageStats: event.value.usageMetadata
+                        ? {
+                              inputTokens: event.value.usageMetadata.promptTokenCount || 0,
+                              outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
+                              cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
+                          }
+                        : undefined,
+                    sessionId
+                };
+
+            case GeminiEventType.Error:
+                return {
+                    type: 'error',
+                    error: event.value instanceof Error ? event.value.message : String(event.value),
                     sessionId
                 };
 
             default:
                 return null;
         }
-    }
-
-    /**
-     * Discovers and loads extensions from the ~/.tars/.gemini/extensions directory.
-     * This brings in MCP servers, tools, and custom behaviors.
-     */
-    private async discoverExtensions(): Promise<any[]> {
-        const extensionsDir = path.join(this.tarsConfig.homeDir, '.gemini', 'extensions');
-        const enablementFile = path.join(extensionsDir, 'extension-enablement.json');
-
-        if (!fs.existsSync(extensionsDir)) return [];
-
-        let enablement: Record<string, any> = {};
-        if (fs.existsSync(enablementFile)) {
-            try {
-                enablement = JSON.parse(fs.readFileSync(enablementFile, 'utf-8'));
-            } catch (e) {
-                logger.warn(`⚠️ Could not parse extension-enablement.json: ${e}`);
-            }
-        }
-
-        const extensions: any[] = [];
-        const subdirs = fs.readdirSync(extensionsDir);
-
-        for (const subdir of subdirs) {
-            const extPath = path.join(extensionsDir, subdir);
-            if (!fs.statSync(extPath).isDirectory()) continue;
-
-            const configPath = fs.existsSync(path.join(extPath, 'gemini-extension.json'))
-                ? path.join(extPath, 'gemini-extension.json')
-                : path.join(extPath, 'extension.json');
-
-            if (!fs.existsSync(configPath)) continue;
-
-            try {
-                const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-
-                // Basic hydration (reimplements a small part of ExtensionManager logic)
-                const hydrate = (obj: any): any => {
-                    const str = JSON.stringify(obj);
-                    const hydrated = str
-                        .replace(/\${extensionPath}/g, extPath)
-                        .replace(/\${workspacePath}/g, this.tarsConfig.homeDir);
-                    return JSON.parse(hydrated);
-                };
-
-                const hydratedConfig = hydrate(config);
-
-                // Build the GeminiCLIExtension object
-                extensions.push({
-                    name: hydratedConfig.name,
-                    version: hydratedConfig.version || '1.0.0',
-                    path: extPath,
-                    isActive: enablement[hydratedConfig.name] !== undefined,
-                    mcpServers: hydratedConfig.mcpServers || {},
-                    excludeTools: hydratedConfig.excludeTools || [],
-                    contextFiles: hydratedConfig.contextFiles || [],
-                    skills: hydratedConfig.skills || [],
-                    agents: hydratedConfig.agents || [],
-                    id: hydratedConfig.name
-                });
-            } catch (e: any) {
-                logger.warn(`⚠️ Failed to load extension from ${subdir}: ${e.message}`);
-            }
-        }
-
-        return extensions;
     }
 
     /**
@@ -340,14 +372,20 @@ export class GeminiEngine extends EventEmitter {
             const crypto = await import('node:crypto');
             const projectHash = crypto.createHash('md5').update(projectRoot).digest('hex');
 
-            const chatsDir = path.join(this.tarsConfig.homeDir, '.gemini', 'tmp', projectHash, 'chats');
+            const chatsDir = path.join(
+                this.tarsConfig.homeDir,
+                '.gemini',
+                'tmp',
+                projectHash,
+                'chats'
+            );
             if (!fs.existsSync(chatsDir)) return null;
 
             const files = fs.readdirSync(chatsDir);
             // File pattern: session-YYYY-MM-DDTHH-MM-8CHARS.json
             // We search for matches containing our session ID prefix
             const shortId = sessionId.slice(0, 8);
-            const sessionFile = files.find(f => f.includes(`-${shortId}.json`));
+            const sessionFile = files.find((f) => f.includes(`-${shortId}.json`));
 
             if (!sessionFile) return null;
 

@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HeartbeatService } from '../../supervisor/heartbeat-service.js';
+import { CronService } from '../../supervisor/cron-service.js';
 import { Supervisor } from '../../supervisor/supervisor.js';
 import { Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
 
 vi.mock('fs/promises');
 
-describe('HeartbeatService', () => {
-    let service: HeartbeatService;
+describe('CronService', () => {
+    let service: CronService;
     let mockSupervisor: any;
     let mockConfig: any;
 
@@ -21,7 +21,7 @@ describe('HeartbeatService', () => {
             heartbeatIntervalMs: 1000,
             taskFilePath: '/tmp/tasks.json'
         };
-        service = new HeartbeatService(mockSupervisor as any, mockConfig as any);
+        service = new CronService(mockSupervisor as any, mockConfig as any);
     });
 
     describe('calculateNextRun', () => {

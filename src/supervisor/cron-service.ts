@@ -17,7 +17,7 @@ export class CronService {
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config
-    ) { }
+    ) {}
 
     public async start(): Promise<void> {
         logger.info(`⏰ Cron service started (Precision: ${CronService.POLL_INTERVAL_MS / 1000}s)`);
@@ -91,7 +91,9 @@ export class CronService {
                 return date.toISOString();
             }
 
-            logger.warn(`⚠️ [CRON] Unrecognized schedule format: "${schedule}". Falling back to 24h.`);
+            logger.warn(
+                `⚠️ [CRON] Unrecognized schedule format: "${schedule}". Falling back to 24h.`
+            );
             return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         }
     }

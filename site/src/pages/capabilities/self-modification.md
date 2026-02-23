@@ -59,4 +59,3 @@ This loop means Tars becomes more capable over time, tailored specifically to th
 - Skills are human-readable markdown documents
 - Extensions are TypeScript source code you can audit
 - All modifications happen in `~/.tars/`, isolated from critical system files unless you explicitly grant permissions
-

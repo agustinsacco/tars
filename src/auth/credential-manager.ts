@@ -4,7 +4,7 @@ import path from 'path';
 import logger from '../utils/logger.js';
 
 export class TarsCredentialManager {
-    constructor(private readonly homeDir: string) { }
+    constructor(private readonly homeDir: string) {}
 
     /**
      * Resolves the authentication type to use.
@@ -43,11 +43,7 @@ export class TarsCredentialManager {
      */
     public async clearAll(): Promise<void> {
         const geminiDir = path.join(this.homeDir, '.gemini');
-        const filesToClear = [
-            'oauth_creds.json',
-            'google_accounts.json',
-            'state.json'
-        ];
+        const filesToClear = ['oauth_creds.json', 'google_accounts.json', 'state.json'];
 
         for (const file of filesToClear) {
             try {

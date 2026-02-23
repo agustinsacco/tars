@@ -94,7 +94,9 @@ export async function setup() {
         }
     } else if (!isAuthed) {
         console.log(
-            chalk.yellow('  Skipped. Tars will not be able to communicate with Gemini without auth.')
+            chalk.yellow(
+                '  Skipped. Tars will not be able to communicate with Gemini without auth.'
+            )
         );
     }
 
@@ -287,7 +289,6 @@ export async function setup() {
     } catch (err: any) {
         settingsSpinner.warn(`Could not write settings: ${err.message}`);
     }
-
 
     // Save Tars configuration
     const saveSpinner = ora('Saving configuration...').start();

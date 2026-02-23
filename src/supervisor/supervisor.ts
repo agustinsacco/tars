@@ -30,6 +30,10 @@ export class Supervisor {
         onEvent: GeminiOutputHandler,
         sessionId?: string
     ): Promise<void> {
+        if (this.isProcessing) {
+            throw new Error('Supervisor is busy. Please wait for the current response to finish.');
+        }
+
         logger.info(
             `🤖 Supervisor processing request: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
         );
@@ -38,11 +42,11 @@ export class Supervisor {
         let memoryMutated = false;
 
         try {
-            // Get or create session
-            let sessionIdToUse = sessionId || (await this.sessionManager.load());
-
             // Lock the supervisor
             this.isProcessing = true;
+
+            // Get or create session
+            let sessionIdToUse = sessionId || (await this.sessionManager.load());
 
             // Track user activity for idle suppression
             await this.sessionManager.touchActivity();
@@ -59,8 +63,13 @@ export class Supervisor {
                             .catch((e) => logger.error(`Failed to save session: ${e}`));
                     }
 
-                    // Detect memory-mutating MCP tool calls
+                    // Log all tool calls for observability
                     if (event.type === 'tool_call' && event.toolName) {
+                        logger.info(
+                            `[Supervisor] 🛠️ Tool Call: ${event.toolName}(${JSON.stringify(event.toolArgs)})`
+                        );
+
+                        // Detect memory-mutating MCP tool calls
                         const toolName = event.toolName;
                         if (
                             toolName.includes('memory_store_fact') ||
@@ -69,6 +78,14 @@ export class Supervisor {
                             logger.info(`[Supervisor] Memory mutation detected: ${toolName}`);
                             memoryMutated = true;
                         }
+                    }
+
+                    // Log tool responses
+                    if (event.type === 'tool_response' && event.toolName) {
+                        const preview = event.content?.substring(0, 100);
+                        logger.info(
+                            `[Supervisor] ✅ Tool Response: ${event.toolName} -> ${preview}...`
+                        );
                     }
 
                     // Extract data for session tracking
@@ -91,13 +108,6 @@ export class Supervisor {
                 await this.sessionManager.forceInvalidate();
             }
         } catch (error: any) {
-            // Auto-recovery for invalid sessions (e.g. after project path changes)
-            if (error.message && error.message.includes('code 42')) {
-                logger.warn('⚠️ Session invalid (code 42). Clearing session state and retrying...');
-                await this.sessionManager.clear();
-                return this.run(content, onEvent);
-            }
-
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
         } finally {

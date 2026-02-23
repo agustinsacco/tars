@@ -51,7 +51,6 @@ function installSystemPrompt(config: Config): void {
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
 }
 
-
 /**
  * Install built-in skills into the Tars runtime directory.
  */
@@ -227,7 +226,7 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) { }
+        } catch (e) {}
 
         if (needsLink) {
             try {

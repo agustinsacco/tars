@@ -11,13 +11,6 @@
         "sourceMap": true,
         "skipLibCheck": true
     },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist",
-        "tests",
-        "extensions"
-    ]
+    "include": ["src/**/*"],
+    "exclude": ["node_modules", "dist", "tests", "extensions"]
 }
