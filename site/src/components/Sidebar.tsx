@@ -13,9 +13,9 @@ const NAV_SECTIONS: NavSection[] = [
         category: 'Get Started',
         items: [
             { title: 'Home', href: '/' },
-            { title: 'What is Tars?', href: '/getting-started/what-is-tars' },
+            { title: 'Introduction', href: '/getting-started/what-is-tars' },
             { title: 'Installation', href: '/getting-started/installation' },
-            { title: 'Setup Wizard', href: '/getting-started/setup' },
+            { title: 'Quick Start', href: '/getting-started/setup' },
             { title: 'Discord Integration', href: '/getting-started/discord' }
         ]
     },
@@ -23,31 +23,32 @@ const NAV_SECTIONS: NavSection[] = [
         category: 'Use Cases',
         items: [
             { title: 'Personal Assistant', href: '/use-cases/personal-assistant' },
-            { title: 'Server & Host Manager', href: '/use-cases/host-manager' },
-            { title: 'Security Analyzer', href: '/use-cases/security-analyzer' },
+            { title: 'Host Manager', href: '/use-cases/host-manager' },
+            { title: 'Security Auditor', href: '/use-cases/security-analyzer' },
             { title: 'DevOps Engineer', href: '/use-cases/devops-engineer' },
-            { title: 'Multiple Instances', href: '/use-cases/multiple-instances' }
+            { title: 'Multi-Instance', href: '/use-cases/multiple-instances' }
         ]
     },
     {
         category: 'Capabilities',
         items: [
-            { title: 'Memory & Context', href: '/capabilities/memory' },
-            { title: 'Automation & Tasks', href: '/capabilities/automation' },
-            { title: 'Tools & Extensions', href: '/capabilities/extensions' },
+            { title: 'Persistent Memory', href: '/capabilities/memory' },
+            { title: 'Scheduled Tasks', href: '/capabilities/automation' },
+            { title: 'MCP Extensions', href: '/capabilities/extensions' },
             { title: 'Self-Modification', href: '/capabilities/self-modification' }
         ]
     },
     {
-        category: 'Architecture (Advanced)',
+        category: 'Architecture',
         items: [
-            { title: 'Supervisor Orchestration', href: '/architecture/supervisor' },
+            { title: 'Supervisor Engine', href: '/architecture/supervisor' },
             { title: 'Heartbeat Protocol', href: '/architecture/heartbeat' },
-            { title: 'Gemini CLI Base', href: '/architecture/gemini-cli' },
+            { title: 'Core Intelligence', href: '/architecture/gemini-cli' },
             { title: 'Configuration', href: '/architecture/configuration' }
         ]
     }
 ];
+
 
 interface SidebarProps {
     currentPath: string;

@@ -1,67 +1,47 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Discord Integration
-description: How Tars communicates through Discord — triggers, attachments, and message formatting.
+description: Interact with Tars through your own secure command center.
 section: Get Started
 ---
 
-## Overview
+Discord serves as the primary interface for Tars. It provides a secure, cross-platform environment to monitor and control your infrastructure from any device.
 
-Discord is Tars' primary communication interface. The `DiscordBot` class wraps the `discord.js` library and connects to the Supervisor for all AI interactions.
+### Message Triggers
 
-## Message Triggers
+Tars monitors your Discord channels and responds to specific triggers:
 
-Tars responds to three types of triggers:
+| Trigger        | Use Case            | Example                             |
+| -------------- | ------------------- | ----------------------------------- |
+| **Direct Message** | Private Commands    | *(No prefix needed)*                |
+| **@Mention**   | Public Multi-tasking | `@Tars check the server status`     |
+| **!tars** Prefix | Channel Commands    | `!tars summarize recent logs`       |
 
-| Trigger        | Context     | Example                             |
-| -------------- | ----------- | ----------------------------------- |
-| `!tars` prefix | Any channel | `!tars summarize this project`      |
-| @mention       | Any channel | `@Tars check the deployment status` |
-| Direct Message | DM channel  | Any message (no prefix needed)      |
+### File Attachments
 
-The prefix and mention text are stripped before passing the prompt to the Supervisor.
+You can send files directly to Tars in Discord. Tars will download the attachment, analyze its content, and include it in the conversation context. This is ideal for:
+- Analyzing log files
+- Explaining code snippets
+- Processing images or documents
 
-## Attachment Processing
+*Note: Uploaded files are automatically purged from the local cache after 24 hours.*
 
-When a user sends a file attachment, the `AttachmentProcessor`:
+### Bot Permissions
 
-1. **Downloads** the file to `~/.tars/data/uploads/` with the original filename
-2. **Injects context** into the prompt: `[User attached file (image/png): /path/to/file]`
-3. **Cleans up** uploads after 24 hours automatically
+To function correctly, your Discord bot requires the following **Gateway Intents** enabled in the [Developer Portal](https://discord.com/developers/applications):
+- **Guild Messages**
+- **Message Content** (Privileged)
+- **Direct Messages**
 
-Supported attachments include images, documents, code files, and any other Discord-supported format.
+The `tars setup` wizard will verify these permissions automatically during configuration.
 
-## Response Handling
+### Inviting the Bot
 
-### Normal responses (< 1900 chars)
-
-Messages are formatted and split into Discord-friendly chunks, preserving code blocks and formatting.
-
-### Long responses (> 1900 chars)
-
-The response is saved as a `.md` file in `~/.tars/data/tmp/` and uploaded as an attachment with a summary message.
-
-### Typing Indicator
-
-While processing, Tars sends a typing indicator every 9 seconds to keep the status active in Discord (Discord's typing status expires after 10s).
-
-## Required Bot Permissions
-
-Your Discord bot needs these intents enabled in the [Developer Portal](https://discord.com/developers/applications):
-
-- **Guilds** — Access to server information
-- **Guild Messages** — Read messages in channels
-- **Message Content** — Access message text (Privileged Intent)
-- **Direct Messages** — Receive DMs
-
-The `tars setup` wizard validates these intents during token verification. If **Message Content Intent** is missing, you'll see a specific error with instructions to enable it.
-
-## Invite Your Bot
-
-After setup, generate an invite link:
+Once configured, generate a secure invite link to add Tars to your server:
 
 ```bash
 tars discord
 ```
 
-This opens the Discord OAuth2 URL in your browser with the correct permissions pre-selected.
+This command opens a browser tab with the required permissions pre-configured for your bot.
+

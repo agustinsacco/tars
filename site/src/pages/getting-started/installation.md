@@ -1,37 +1,29 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Installation
-description: Getting Tars installed on your machine.
+description: Install Tars in under a minute.
 section: Get Started
 ---
 
-Installing Tars takes less than two minutes.
+Install Tars globally via npm to get started:
 
-## Prerequisites
-
-1. **Node.js** (Version 22.0.0 or higher)
-2. **Gemini CLI** (The official Google AI terminal package)
-
-First, make sure Node is installed. Then, install the Gemini CLI:
-```bash
-npm install -g @google/gemini-cli
-```
-
-## Install Tars
-
-Once the prerequisites are ready, install Tars globally:
 ```bash
 npm install -g @saccolabs/tars
 ```
 
-## Verify Installation
+### Dependencies
+Tars requires **Node.js 22+** and the **Gemini CLI**. If you don't have the Gemini CLI, install it first:
 
-Check that the installation succeeded by checking the version number:
+```bash
+npm install -g @google/gemini-cli
+```
+
+### Verification
+Confirm the installation was successful:
+
 ```bash
 tars --version
 ```
 
-If it prints the version number successfully, you are ready to configure Tars and connect it to Discord.
-
-**Next Step:** Proceed to the [Setup Wizard](/getting-started/setup).
+Once installed, proceed to the [Setup Wizard](/getting-started/setup).
 

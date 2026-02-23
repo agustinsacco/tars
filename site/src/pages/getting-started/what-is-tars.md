@@ -1,22 +1,22 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: What is Tars?
-description: A non-technical introduction to your personal AI worker.
+description: An autonomous intelligence layer for your personal infrastructure.
 section: Get Started
 ---
 
-Tars is an **Autonomous AI Worker** that lives on your computer instead of the cloud. It is designed to act as your Personal Assistant, Server Admin, or Security Analyst.
+Tars is an **Autonomous AI Worker** designed to run on your local hardware. Unlike cloud-based assistants, Tars operates directly on your machine, giving it the ability to execute commands, manage files, and orchestrate tasks within your own network.
 
-### How You Talk to It
-You don't talk to Tars through a web browser. Instead, you connect Tars to **Discord**.
-You send Tars a direct message on Discord, and Tars responds instantly. This means you can control your laptop, server, or entire infrastructure from anywhere in the world using the Discord app on your smartphone.
+### Control via Discord
+Tars uses Discord as its primary interface. This provides a secure, cross-platform command center that works on your desktop and mobile devices without requiring complex VPNs or web portals.
 
-### How It Thinks
-Tars is powered by Google's **Gemini** AI. When you ask Tars a question, it uses Gemini to understand what you want.
-Because it's running directly on your computer (known as "bare-metal"), Tars is far more capable than tools like ChatGPT:
-- **It can type terminal commands.** If you ask "What are my CPU temperatures?", Tars runs the bash command automatically and tells you the answer.
-- **It schedules its own tasks.** You can say "Remind me to call John in 3 hours" or "Check the server logs every Friday at midnight."
-- **It remembers everything.** Tars records your preferences in a persistent memory file so you never have to repeat yourself.
+### Local-First Intelligence
+Powered by **Google Gemini**, Tars bridges the gap between high-level reasoning and low-level system execution:
 
-### Why Run It Locally?
-Running an AI worker locally gives it complete, unfettered access to your files, code, and network in a way that cloud-based assistants cannot securely match. It means your private data never leaves your infrastructure, and you have ultimate control over what the AI can see and do.
+- **Native Execution:** Tars can run bash commands, script workflows, and manage system resources directly.
+- **Background Autonomy:** It doesn't wait for your prompt. Tars runs on a continuous heartbeat to execute scheduled tasks and monitor system health.
+- **Episodic Memory:** Every interaction and decision is stored locally, allowing Tars to learn your preferences and improve over time.
+
+### Why Tars?
+Cloud assistants are sandboxed. Tars is integrated. By running locally, Tars has the context of your files, your tools, and your network, enabling a level of automation that cloud APIs cannot reach.
+

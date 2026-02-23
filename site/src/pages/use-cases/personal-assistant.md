@@ -1,33 +1,31 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Personal Assistant
-description: The default setup for Tars, acting as your daily helper.
+description: Orchestrate your daily workflows and personal tasks.
 section: Use Cases
 ---
 
-By default, Tars is designed to be your **Personal Assistant**. Because you communicate with Tars via Discord, it is always available whether you are at your laptop, or on the go using your phone.
+By default, Tars acts as a high-fidelity **Personal Assistant**. Since it lives in Discord, your assistant is available from your desktop, tablet, or smartphone without additional configuration.
 
-## Capabilities
+### Persistent Memory
+Tars remembers every fact, preference, and instruction you provide. If you specify a preference for a specific tech stack, deployment strategy, or even your local time zone, Tars records these as **Core Facts**. Every future interaction applies this context automatically, so you never have to repeat yourself.
 
-### Episodic Memory
-Tars remembers the facts you tell it forever. If you mention that you prefer `TypeScript` over `Python`, or that you use `yarn` instead of `npm`, Tars stores these as **Core Facts**. Every subsequent conversation will take these preferences into account, saving you from having to repeat yourself.
-
-### Background Reminders & Tasks
-Because Tars runs continuously (via a 5-minute heartbeat), it doesn't just respond to prompts—it can initiate them.
+### Autonomous Task Execution
+Unlike traditional chatbots, Tars doesn't wait for you to start the conversation. Its internal heartbeat allows it to manage time-sensitive operations autonomously:
 
 ```text
-User: "Remind me in 2 hours to check on the deployment."
-Tars: "✅ Scheduled task. I will message you in 2 hours."
+User: "Remind me in 2 hours to check the staging logs."
+Tars: "✅ Scheduled. I'll message you once the time has elapsed."
 ```
 
-Tars will set a cron job for itself, and 2 hours later, you will receive an unprompted Discord message from Tars.
+Tars manages its own schedule and will proactively message you in Discord when the task is complete.
 
-### Coding & File Management
-Tars runs with the same permissions as your user account. Since it operates in a full bash shell, it can:
-- Clone repositories
-- Draft new `.ts` or `.json` files
-- Run scripts (like `npm run dev`)
-- Read crash logs and provide a summary of what went wrong
+### Integrated Computing
+Tars operates with the same permissions as your local user account. This gives it the power to:
+- **Manage Code:** Clone repositories, draft patches, and run build scripts.
+- **System Automation:** Create calendar entries, draft emails, or organize local files.
+- **Incident Analysis:** Monitor logs and provide high-level summaries of system errors.
 
-### Seamless Handoff
-Start debugging an issue on your smartphone while on the train via the Discord app. By the time you get home and sit at your computer, Tars has already pulled the repository, written the patch, and is waiting for your approval to push the code.
+### Mobile Command Center
+Start a complex debugging session on your phone while commuting. Tars can pull the relevant logs, identify the bug, and prepare a fix. By the time you reach your desk, the solution is ready for your final review.
+

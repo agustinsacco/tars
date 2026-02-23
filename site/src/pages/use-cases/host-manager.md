@@ -1,35 +1,42 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Server & Host Manager
-description: Give Tars the keys to a server and let it handle the sysadmin work.
+title: Host Manager
+description: Automate systems administration on Linux hosts and homelabs.
 section: Use Cases
 ---
 
-Because Tars is a lightweight Node.js wrapper with full shell access, it makes an excellent automated systems administrator when deployed directly on a Linux host (bare-metal, VPS, or homelab).
+Tars is an ideal automated systems administrator when deployed directly on a Linux host, VPS, or homelab. Its native shell access allows it to manage system resources as if you were logged in via SSH.
 
-## Setup
-Install Tars globally on your server:
+### Deployment
+Install Tars on your target host to begin:
+
 ```bash
 npm install -g @saccolabs/tars
+tars setup
 ```
 
-During `tars setup`, provide a dedicated Discord Bot Token (e.g., "Web-Server-Bot"). 
+We recommend using a specific Discord Bot name (e.g., `Prod-Server-Bot`) to distinguish it from your personal instances.
 
-## Capabilities
+### Capabilities
 
-### Autonomous Updates
-Instruct Tars to keep your server up to date via its background heartbeat.
+#### Scheduled Maintenance
+Automate routine updates and system checks. Tars can oversee complex upgrade paths and provide high-level summaries of the changes:
+
 ```text
-User: "Every Sunday at 3am, run apt-get update and apt-get upgrade. Send me a summary of what packages were updated."
+User: "Every Sunday at 3 AM, update system packages and report any service restarts."
 ```
-Tars will autonomously spin up on Sunday, run the bash commands, analyze the massive wall of update text, and send you a neat 3-bullet-point summary in Discord on Monday morning.
 
-### Incident Remediation
-If an application crashes, Tars is already on the machine. You can message your bot directly from Discord:
+Tars will execute the maintenance, analyze the output, and send a concise status report to your Discord channel.
+
+#### Remediation & Recovery
+When a service fails, Tars is already on-site. You can diagnose and fix issues without opening a terminal:
+
 ```text
-User: "Why is the Nginx site down? Look at the error logs and restart the service."
+User: "The web server is returning 502s. Check the logs and restore service."
 ```
-Tars will execute `systemctl status nginx`, read the logs in `/var/log/nginx/`, recognize a syntax error in the config file, fix the syntax error via a patch, and restart the service—all while you're sitting in a coffee shop using your phone.
 
-### Host Monitoring
-Write a custom **Skill (SKILL.md)** that teaches Tars how to parse your specific Docker logs or `htop` output. When Tars wakes up on its heartbeat, it will review these metrics and alert you proactively if memory usage spikes past 90%.
+Tars can inspect `systemctl` statuses, read log files, identify configuration errors, and apply patches autonomously.
+
+#### Proactive Monitoring
+By combining the **Heartbeat** with custom **MCP Extensions**, Tars can monitor specific metrics (CPU, Memory, Disk) and alert you before a threshold is breached. It doesn't just send an alert—it can include a proposed fix based on the current system state.
+
