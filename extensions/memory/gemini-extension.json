@@ -5,10 +5,9 @@
     "mcpServers": {
         "memory": {
             "command": "node",
-            "args": ["${extensionPath}/dist/server.js"],
-            "env": {
-                "TARS_HOME": "~/.tars"
-            }
+            "args": [
+                "${extensionPath}/dist/server.js"
+            ]
         }
     }
 }

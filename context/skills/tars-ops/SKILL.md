@@ -36,17 +36,12 @@ tars secret remove <KEY>
 
 Most configuration changes (like heartbeat intervals) require a supervisor restart.
 
-````bash
+**CRITICAL RULE: NEVER RESTART TARS YOURSELF.**
+If you run `tars restart`, `tars stop`, or `pm2 restart`, you will forcefully terminate your own active process and become unable to respond or recover state. If a restart is required (e.g. after a config change), you must instruct the **USER** to run the command:
+
 ```bash
-# In development (restart)
-npm run dev
-
-# Or using the global CLI
-tars stop && tars start
-````
-
-````
-
+tars restart
+```
 ### Knowledge Management
 
 Use the `memory` command to search or manually trigger a sync of the long-term knowledge base.
