@@ -15,7 +15,7 @@ import { Config } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { Supervisor } from '../supervisor/supervisor.js';
 import { MessageFormatter } from './message-formatter.js';
-import { GeminiEvent } from '../types/index.js';
+import { GeminiEvent, AttachmentContext } from '../types/index.js';
 import { AttachmentProcessor } from '../utils/attachment-processor.js';
 
 /**
@@ -87,12 +87,19 @@ export class DiscordBot {
         );
 
         // Handle Attachments
-        let attachmentContext = '';
+        const attachments: AttachmentContext[] = [];
+        let attachmentContextText = '';
         if (message.attachments.size > 0) {
             for (const [id, attachment] of message.attachments) {
                 try {
                     const filePath = await this.processor.download(attachment);
-                    attachmentContext += `\n[User attached file (${attachment.contentType}): ${filePath}]`;
+                    if (attachment.contentType) {
+                        attachments.push({
+                            path: filePath,
+                            mimeType: attachment.contentType
+                        });
+                    }
+                    attachmentContextText += `\n[User attached file (${attachment.contentType}): ${filePath}]`;
                 } catch (err: any) {
                     logger.error(`Failed to download attachment: ${err.message}`);
                     await message.reply(`⚠️ Failed to download ${attachment.name}: ${err.message}`);
@@ -100,8 +107,8 @@ export class DiscordBot {
             }
         }
 
-        const fullPrompt = `${userPrompt}${attachmentContext}`.trim();
-        if (!fullPrompt) return;
+        const fullPrompt = `${userPrompt}${attachmentContextText}`.trim();
+        if (!fullPrompt && attachments.length === 0) return;
 
         let typingInterval: NodeJS.Timeout | null = null;
 
@@ -121,36 +128,41 @@ export class DiscordBot {
         try {
             let fullResponse = '';
 
-            await this.supervisor.run(fullPrompt, async (event: GeminiEvent | any) => {
-                if (
-                    (event.type === 'text' || event.type === 'message') &&
-                    event.content &&
-                    event.role !== 'user'
-                ) {
-                    fullResponse += event.content;
-                } else if (event.type === 'error') {
-                    await message.reply(`❌ **Error:** ${event.error}`);
-                } else if (event.type === 'done') {
-                    if (fullResponse.trim()) {
-                        const formatted = MessageFormatter.format(fullResponse);
+            await this.supervisor.run(
+                fullPrompt,
+                async (event: GeminiEvent | any) => {
+                    if (
+                        (event.type === 'text' || event.type === 'message') &&
+                        event.content &&
+                        event.role !== 'user'
+                    ) {
+                        fullResponse += event.content;
+                    } else if (event.type === 'error') {
+                        await message.reply(`❌ **Error:** ${event.error}`);
+                    } else if (event.type === 'done') {
+                        if (fullResponse.trim()) {
+                            const formatted = MessageFormatter.format(fullResponse);
 
-                        if (formatted.length > 8000) {
-                            const filePath = this.processor.saveResponse(fullResponse, 'md');
-                            await message.reply({
-                                content: `📄 **Response too long** (${formatted.length} chars). See attached file:`,
-                                files: [filePath]
-                            });
-                        } else {
-                            const chunks = MessageFormatter.split(formatted);
-                            for (const chunk of chunks) {
-                                await message.reply(chunk);
+                            if (formatted.length > 8000) {
+                                const filePath = this.processor.saveResponse(fullResponse, 'md');
+                                await message.reply({
+                                    content: `📄 **Response too long** (${formatted.length} chars). See attached file:`,
+                                    files: [filePath]
+                                });
+                            } else {
+                                const chunks = MessageFormatter.split(formatted);
+                                for (const chunk of chunks) {
+                                    await message.reply(chunk);
+                                }
                             }
+                        } else {
+                            logger.warn('Gemini returned an empty response.');
                         }
-                    } else {
-                        logger.warn('Gemini returned an empty response.');
                     }
-                }
-            });
+                },
+                undefined,
+                attachments
+            );
         } catch (error: any) {
             logger.error(`Discord handling error: ${error.message}`);
             await message.reply(`❌ **Supervisor Error:** ${error.message}`);

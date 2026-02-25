@@ -1,6 +1,6 @@
 import { GeminiEngine } from './gemini-engine.js';
 import { SessionManager } from './session-manager.js';
-import { GeminiOutputHandler } from '../types/index.js';
+import { GeminiOutputHandler, AttachmentContext } from '../types/index.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';
@@ -28,7 +28,8 @@ export class Supervisor {
     public async run(
         content: string,
         onEvent: GeminiOutputHandler,
-        sessionId?: string
+        sessionId?: string,
+        attachments?: AttachmentContext[]
     ): Promise<void> {
         if (this.isProcessing) {
             throw new Error('Supervisor is busy. Please wait for the current response to finish.');
@@ -98,7 +99,8 @@ export class Supervisor {
                     }
                     onEvent(event as any);
                 },
-                sessionIdToUse || undefined
+                sessionIdToUse || undefined,
+                attachments
             );
 
             // If a memory-mutating tool was used, invalidate the session so the

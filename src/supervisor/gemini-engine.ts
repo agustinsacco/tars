@@ -5,7 +5,9 @@ import {
     AuthType,
     promptIdContext,
     Scheduler,
-    type ServerGeminiStreamEvent
+    type ServerGeminiStreamEvent,
+    ApprovalMode,
+    PolicyDecision
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
@@ -13,6 +15,8 @@ import logger from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
+
+import { AttachmentContext } from '../types/index.js';
 
 export interface GeminiEngineEvent {
     type: string;
@@ -29,7 +33,7 @@ export interface GeminiEngineEvent {
     error?: string;
 }
 
-export type GeminiOutputHandler = (event: GeminiEngineEvent) => void;
+export type GeminiEngineOutputHandler = (event: GeminiEngineEvent) => void;
 
 /**
  * Detects the best authentication type based on environment variables.
@@ -94,8 +98,12 @@ export class GeminiEngine extends EventEmitter {
                 targetDir: this.tarsConfig.homeDir,
                 cwd: this.tarsConfig.homeDir,
                 model: this.tarsConfig.geminiModel,
-                debugMode: true,
-                approvalMode: 'yolo' as any, // Tars runs autonomously
+                debugMode: false,
+                approvalMode: ApprovalMode.YOLO,
+                policyEngineConfig: {
+                    defaultDecision: PolicyDecision.ALLOW
+                },
+                interactive: true,
                 enableHooks: true,
                 mcpEnabled: true,
                 extensionsEnabled: true,
@@ -125,8 +133,9 @@ export class GeminiEngine extends EventEmitter {
      */
     public async run(
         prompt: string,
-        onEvent: GeminiOutputHandler,
-        sessionId?: string
+        onEvent: GeminiEngineOutputHandler,
+        sessionId?: string,
+        attachments?: AttachmentContext[]
     ): Promise<void> {
         if (!this.initialized) {
             await this.initialize();
@@ -139,9 +148,11 @@ export class GeminiEngine extends EventEmitter {
             process.env.HOME = this.tarsConfig.homeDir;
             process.env.GEMINI_CLI_HOME = this.tarsConfig.homeDir;
 
-            // Session Swapping Logic
-            if (this.currentSessionId !== sid) {
-                logger.debug(`🔄 Swapping Gemini session to: ${sid}`);
+            // Session Swapping Logic or First Run
+            // We must call startChat at least once to initialize the GeminiChat session,
+            // even if the sessionId matches the coreConfig's initial ID.
+            if (this.currentSessionId !== sid || !this.client.isInitialized()) {
+                logger.debug(`🔄 Initializing/Swapping Gemini session to: ${sid}`);
                 const resumedData = await this.loadResumedSessionData(sid);
                 // @ts-ignore - access private to swap session
                 await this.client.startChat(undefined, resumedData || undefined);
@@ -149,9 +160,33 @@ export class GeminiEngine extends EventEmitter {
             }
 
             let currentRequestParts: any[] = [{ text: prompt }];
+
+            // Handle Multimodal Attachments
+            if (attachments && attachments.length > 0) {
+                for (const attachment of attachments) {
+                    try {
+                        const data = fs.readFileSync(attachment.path).toString('base64');
+                        currentRequestParts.push({
+                            inlineData: {
+                                data,
+                                mimeType: attachment.mimeType
+                            }
+                        });
+                        logger.debug(
+                            `📎 Attached file to prompt: ${attachment.path} (${attachment.mimeType})`
+                        );
+                    } catch (err: any) {
+                        logger.error(
+                            `Failed to read attachment ${attachment.path}: ${err.message}`
+                        );
+                    }
+                }
+            }
+
             let turnCount = 0;
-            const maxTurns = 10;
+            const maxTurns = 50; // Increased to handle complex autonomous tasks
             const abortController = new AbortController();
+            let finalUsageStats: any = undefined;
 
             while (turnCount < maxTurns) {
                 turnCount++;
@@ -166,7 +201,6 @@ export class GeminiEngine extends EventEmitter {
                     );
                 });
 
-                let finalUsageStats: any = undefined;
                 for await (const event of stream) {
                     logger.debug(
                         `📨 Raw Gemini Event [Turn ${turnCount}]: ${JSON.stringify(event).substring(0, 200)}...`
@@ -192,16 +226,18 @@ export class GeminiEngine extends EventEmitter {
 
                 if (toolRequests.length === 0) {
                     logger.debug(`✅ Interaction complete after ${turnCount} turns.`);
-                    // Emit final done event
+                    break;
+                }
+
+                if (turnCount >= maxTurns) {
+                    logger.warn(
+                        `⚠️ Hit maxTurns (${maxTurns}) limit. Force terminating interaction.`
+                    );
                     onEvent({
-                        type: 'done',
-                        usageStats: finalUsageStats
-                            ? {
-                                  inputTokens: finalUsageStats.promptTokenCount || 0,
-                                  outputTokens: finalUsageStats.candidatesTokenCount || 0,
-                                  cachedTokens: finalUsageStats.cachedContentTokenCount || 0
-                              }
-                            : undefined,
+                        type: 'text',
+                        role: 'assistant',
+                        content:
+                            '\n\n⚠️ *Task was complex and reached the maximum turn limit. I have executed as much as I could.*',
                         sessionId: sid
                     });
                     break;
@@ -253,6 +289,19 @@ export class GeminiEngine extends EventEmitter {
                     break;
                 }
             }
+
+            // Always emit final done event when exiting the loop
+            onEvent({
+                type: 'done',
+                usageStats: finalUsageStats
+                    ? {
+                          inputTokens: finalUsageStats.promptTokenCount || 0,
+                          outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                          cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                      }
+                    : undefined,
+                sessionId: sid
+            });
         } catch (error: any) {
             logger.error(`❌ Gemini Engine run error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
@@ -368,34 +417,59 @@ export class GeminiEngine extends EventEmitter {
             // Core history is usually in ~/.gemini/tmp/<hash>/chats/
             // But we isolated HOME to ~/.tars, so it's in ~/.tars/.gemini/...
             const projectRoot = this.tarsConfig.homeDir;
-            // Native core uses project root hash as subdirectory
-            const crypto = await import('node:crypto');
-            const projectHash = crypto.createHash('md5').update(projectRoot).digest('hex');
+            const geminiDir = path.join(this.tarsConfig.homeDir, '.gemini');
+            const tmpDir = path.join(geminiDir, 'tmp');
 
-            const chatsDir = path.join(
-                this.tarsConfig.homeDir,
-                '.gemini',
-                'tmp',
-                projectHash,
-                'chats'
-            );
-            if (!fs.existsSync(chatsDir)) return null;
+            if (!fs.existsSync(tmpDir)) return null;
 
-            const files = fs.readdirSync(chatsDir);
-            // File pattern: session-YYYY-MM-DDTHH-MM-8CHARS.json
-            // We search for matches containing our session ID prefix
+            // 1. Try to find the exact project identifier from projects.json
+            let projectIdentifier: string | null = null;
+            const registryPath = path.join(geminiDir, 'projects.json');
+            if (fs.existsSync(registryPath)) {
+                try {
+                    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+                    projectIdentifier = registry.projects[projectRoot] || null;
+                } catch (e) {
+                    logger.warn(`⚠️ Failed to read projects.json: ${e}`);
+                }
+            }
+
+            // 2. Fallback: MD5 hash (used in some versions)
+            if (!projectIdentifier) {
+                const crypto = await import('node:crypto');
+                projectIdentifier = crypto.createHash('md5').update(projectRoot).digest('hex');
+            }
+
+            // 3. Search for the session file in candidate directories
+            // We search projectIdentifier first, then scan all if not found
+            const searchDirs = [projectIdentifier];
+            try {
+                const allDirs = fs.readdirSync(tmpDir);
+                for (const d of allDirs) {
+                    if (d !== projectIdentifier) searchDirs.push(d);
+                }
+            } catch (e) {}
+
             const shortId = sessionId.slice(0, 8);
-            const sessionFile = files.find((f) => f.includes(`-${shortId}.json`));
+            for (const dir of searchDirs) {
+                if (!dir) continue;
+                const chatsDir = path.join(tmpDir, dir, 'chats');
+                if (!fs.existsSync(chatsDir)) continue;
 
-            if (!sessionFile) return null;
+                const files = fs.readdirSync(chatsDir);
+                const sessionFile = files.find((f) => f.includes(`-${shortId}.json`));
 
-            const filePath = path.join(chatsDir, sessionFile);
-            const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                if (sessionFile) {
+                    const filePath = path.join(chatsDir, sessionFile);
+                    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    return {
+                        conversation: content,
+                        filePath
+                    };
+                }
+            }
 
-            return {
-                conversation: content,
-                filePath
-            };
+            return null;
         } catch (e) {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;

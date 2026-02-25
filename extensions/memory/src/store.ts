@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import fs_sync from 'fs';
 import path from 'path';
 import os from 'os';
 
@@ -120,7 +121,7 @@ export class MemoryStore {
         const results: string[] = [];
         const queryLower = query.toLowerCase();
 
-        // Search facts
+        // 1. Search Long-term Facts
         const file = await this._loadFacts();
         for (const fact of Object.values(file.facts)) {
             if (
@@ -131,7 +132,7 @@ export class MemoryStore {
             }
         }
 
-        // Search notes
+        // 2. Search Daily Notes (Last 30 days)
         try {
             const noteFiles = await fs.readdir(this.notesDir);
             const mdFiles = noteFiles
@@ -139,7 +140,6 @@ export class MemoryStore {
                 .sort()
                 .reverse();
 
-            // Search last 30 days of notes
             for (const noteFile of mdFiles.slice(0, 30)) {
                 const filePath = path.join(this.notesDir, noteFile);
                 const content = await fs.readFile(filePath, 'utf-8');
@@ -147,13 +147,52 @@ export class MemoryStore {
 
                 for (const line of lines) {
                     if (line.toLowerCase().includes(queryLower)) {
-                        results.push(`[Note ${noteFile}] ${line.replace(/^- /, '')}`);
+                        results.push(
+                            `[Note ${noteFile.replace('.md', '')}] ${line.replace(/^- /, '')}`
+                        );
                     }
                 }
             }
         } catch (error: any) {
-            // Notes dir may not exist yet
-            if (error.code !== 'ENOENT') throw error;
+            if (error.code !== 'ENOENT') console.error(`Failed to search notes: ${error}`);
+        }
+
+        // 3. Search Indexed Episodic Memory (Knowledge DB / Past Sessions)
+        const dbPath = path.join(path.dirname(this.dataDir), 'knowledge.db');
+        if (fs_sync.existsSync(dbPath)) {
+            try {
+                const { DatabaseSync } = await import('node:sqlite');
+                const db = new DatabaseSync(dbPath);
+
+                const dbResults = db
+                    .prepare(
+                        `
+                    SELECT f.path, c.content, rank as score
+                    FROM chunks_fts fts
+                    JOIN chunks c ON fts.rowid = c.id
+                    JOIN files f ON c.file_id = f.id
+                    WHERE chunks_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT 5
+                `
+                    )
+                    .all(query) as any[];
+
+                for (const r of dbResults) {
+                    // Prettify the source path (e.g. history/session-XXX.json -> Session history)
+                    let source = r.path;
+                    if (source.startsWith('history/')) {
+                        const dateMatch = source.match(/session-(\d{4}-\d{2}-\d{2})/);
+                        source = dateMatch
+                            ? `Past Session ${dateMatch[1]}`
+                            : 'Past Session history';
+                    }
+                    results.push(`[${source}] ${r.content.trim()}`);
+                }
+                db.close();
+            } catch (error) {
+                console.error(`Failed to search knowledge DB: ${error}`);
+            }
         }
 
         return results;

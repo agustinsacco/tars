@@ -25,6 +25,11 @@ export interface SessionMetadata {
     interactionCount: number;
 }
 
+export interface AttachmentContext {
+    path: string;
+    mimeType: string;
+}
+
 export interface GeminiEvent {
     type:
         | 'tool_call'
