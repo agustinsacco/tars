@@ -3,25 +3,28 @@ import { CronService } from '../../supervisor/cron-service.js';
 import { Supervisor } from '../../supervisor/supervisor.js';
 import { Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
+import { DiscordBot } from '../../discord/discord-bot.js';
 
 vi.mock('fs/promises');
 
 describe('CronService', () => {
     let service: CronService;
-    let mockSupervisor: any;
-    let mockConfig: any;
+    let mockSupervisor: Partial<Supervisor>;
+    let mockConfig: Partial<Config>;
+    let mockDiscordBot: Partial<DiscordBot>;
 
     beforeEach(() => {
         vi.clearAllMocks();
         mockSupervisor = {
-            executeTask: vi.fn().mockResolvedValue('success')
+            executeTask: vi.fn().mockResolvedValue('task completed successfully')
         };
         mockConfig = {
-            homeDir: '/tmp/.tars',
-            heartbeatIntervalMs: 1000,
-            taskFilePath: '/tmp/tasks.json'
+            taskFilePath: '/mock/paths/tasks.json'
         };
-        service = new CronService(mockSupervisor as any, mockConfig as any);
+        mockDiscordBot = {
+            notify: vi.fn().mockResolvedValue(undefined)
+        };
+        service = new CronService(mockSupervisor as any, mockConfig as any, mockDiscordBot as any);
     });
 
     describe('calculateNextRun', () => {

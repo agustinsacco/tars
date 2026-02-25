@@ -19,6 +19,7 @@ export class Config {
 
     // Discord
     public readonly discordToken: string;
+    public discordOwnerId: string | null;
 
     // Gemini
     public readonly geminiModel: string;
@@ -56,6 +57,7 @@ export class Config {
         // 3. Set values (Env vars override JSON config)
         this.discordToken = process.env.DISCORD_TOKEN || jsonConfig.discordToken || '';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
+        this.discordOwnerId = process.env.DISCORD_OWNER_ID || jsonConfig.discordOwnerId || null;
 
         const hbSec =
             process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
@@ -78,5 +80,27 @@ export class Config {
             Config.instance = new Config();
         }
         return Config.instance;
+    }
+
+    /**
+     * Persists runtime changes (like learned discordOwnerId) back to config.json
+     */
+    public saveSettings(): void {
+        try {
+            let currentConfig: any = {};
+            if (fs.existsSync(this.configFilePath)) {
+                currentConfig = JSON.parse(fs.readFileSync(this.configFilePath, 'utf-8'));
+            }
+
+            // Update only fields manageable at runtime
+            if (this.discordOwnerId) {
+                currentConfig.discordOwnerId = this.discordOwnerId;
+            }
+
+            fs.writeFileSync(this.configFilePath, JSON.stringify(currentConfig, null, 2));
+            logger.info('💾 Config updated successfully.');
+        } catch (error: any) {
+            logger.error(`❌ Failed to save config: ${error.message}`);
+        }
     }
 }

@@ -62,18 +62,17 @@ export class DiscordBot {
     }
 
     /**
-     * Send a proactive notification to the last active channel
+     * Send a proactive notification to the primary contact
      */
     public async notify(content: string): Promise<void> {
-        if (!this.lastChannelId || !content.trim()) return;
+        if (!this.config.discordOwnerId || !content.trim()) return;
         try {
-            const channel = await this.client.channels.fetch(this.lastChannelId);
-            if (channel && channel.isTextBased() && 'send' in channel) {
-
+            const user = await this.client.users.fetch(this.config.discordOwnerId);
+            if (user) {
                 const formatted = MessageFormatter.format(content);
                 if (formatted.length > 8000) {
                     const filePath = this.processor.saveResponse(content, 'md');
-                    await (channel as any).send({
+                    await user.send({
                         content: `🔔 **Task Notification** (Response too long, see attached):`,
                         files: [filePath]
                     });
@@ -81,7 +80,7 @@ export class DiscordBot {
                     const chunks = MessageFormatter.split(formatted);
                     for (let i = 0; i < chunks.length; i++) {
                         const prefix = i === 0 ? `🔔 **Task Notification:**\n` : ``;
-                        await (channel as any).send(prefix + chunks[i]);
+                        await user.send(prefix + chunks[i]);
                     }
                 }
             }
@@ -97,6 +96,11 @@ export class DiscordBot {
         this.client.once('clientReady', (c) => {
             logger.info(`🚀 Tars online as ${c.user.tag}`);
             logger.info(`🧠 Gemini Model: ${this.config.geminiModel}`);
+            if (this.config.discordOwnerId) {
+                logger.info(`👤 Primary Contact ID: ${this.config.discordOwnerId}`);
+            } else {
+                logger.warn(`⚠️ No Primary Contact ID set. Will bind to the first user who sends a message.`);
+            }
         });
 
         this.client.on('messageCreate', this.handleMessage.bind(this));
@@ -112,8 +116,13 @@ export class DiscordBot {
         // If null, message wasn't for us. If empty string, check for attachments.
         if (userPrompt === null) return;
 
-        // Save channel ID for proactive notifications
-        this.lastChannelId = message.channelId;
+        // Auto-Bind on first interaction if not set
+        if (!this.config.discordOwnerId) {
+            this.config.discordOwnerId = message.author.id;
+            this.config.saveSettings();
+            logger.info(`🔒 Automatically bound Primary Contact to user: ${message.author.id}`);
+            await message.reply(`🔒 **System Alert:** I have permanently bound my background notification channel to your account. I will send proactive alerts here.`);
+        }
 
         if (!userPrompt && message.attachments.size === 0) return;
 

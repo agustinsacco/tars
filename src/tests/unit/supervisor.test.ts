@@ -20,7 +20,8 @@ describe('Supervisor', () => {
             run: vi.fn().mockImplementation(async (content, onEvent) => {
                 onEvent({ type: 'done' });
             }),
-            runSync: vi.fn().mockResolvedValue('task output')
+            runSync: vi.fn().mockResolvedValue('task output'),
+            injectBackgroundHistory: vi.fn().mockResolvedValue(undefined)
         };
         mockSessionManager = {
             load: vi.fn().mockResolvedValue('existing-session'),

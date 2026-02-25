@@ -9,6 +9,15 @@ async function main() {
     console.log(`🏠 Home Dir: ${config.homeDir}`);
 
     const engine = new GeminiEngine(config);
+
+    // Provide a mocked DiscordBot so the send_discord_message tool is injected
+    engine.setDiscordBot({
+        config: config,
+        notify: async (content: string) => {
+            console.log(`\n\n📢 [MOCK DISCORD NOTIFICATION] -> ${content}\n\n`);
+        }
+    } as any);
+
     await engine.initialize();
 
     const prompt = process.argv[2] || 'write a haiku';

@@ -120,6 +120,7 @@ export class Supervisor {
     /**
      * Specialized execution for background tasks.
      * Runs in ephemeral sessions (no --resume) to avoid bloating the main conversation.
+     * Optionally injects the summary back into the main timeline so Tars remembers what it did.
      */
     public async executeTask(prompt: string): Promise<string> {
         if (this.isProcessing) {
@@ -131,8 +132,18 @@ export class Supervisor {
 
         try {
             this.isProcessing = true;
-            // Run without session ID — ephemeral session that won't bloat main context
+
+            // Check if there is an active session we should inject into later
+            const activeSessionId = await this.sessionManager.load();
+
+            // Run without session ID — ephemeral session that won't bloat main context with raw execution tool calls
             const result = await this.gemini.runSync(prompt);
+
+            // If we have an active session, inject a synthetic summary so the user can ask about it
+            if (activeSessionId) {
+                await this.gemini.injectBackgroundHistory(activeSessionId, prompt, result);
+            }
+
             return result;
         } catch (error: any) {
             logger.error(`❌ Background task failed: ${error.message}`);

@@ -59,7 +59,6 @@ export class CronService {
                 for (const task of dueTasks) {
                     await this.runTask(task);
                 }
-                await this.saveTasks(tasks);
             }
         } catch (error: any) {
             logger.error(`❌ Cron service tick error: ${error.message}`);
@@ -73,42 +72,55 @@ export class CronService {
 
         try {
             // Tasks run in their own ephemeral session within the engine
-            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user or use the ask_user tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
+            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user using the ask_user tool. If you need to alert the user about the result of this task, you MUST use the send_discord_message tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
             const result = await this.supervisor.executeTask(contextualPrompt);
             logger.info(`✅ [CRON] Task ${task.id} completed. Result length: ${result.length}`);
-            // Notify if requested
-            if (task.mode === 'notify') {
-                await this.discordBot.notify(`**${task.title}**\n${result}`);
+
+            // Important: Reload tasks from disk to check if the AI tool deleted its own task during execution
+            const currentTasks = await this.loadTasks();
+            const taskToUpdate = currentTasks.find((t) => t.id === task.id);
+
+            if (!taskToUpdate) {
+                logger.info(`ℹ️ [CRON] Task ${task.id} was deleted during execution. Skipping sync.`);
+                return;
             }
 
-            task.lastRun = new Date().toISOString();
-            task.failedCount = 0;
+            taskToUpdate.lastRun = new Date().toISOString();
+            taskToUpdate.failedCount = 0;
 
             // Check if it's a one-off task (not a cron expression)
             try {
-                CronExpressionParser.parse(task.schedule);
+                CronExpressionParser.parse(taskToUpdate.schedule);
             } catch {
                 // If it fails to parse as cron, it's a one-off (ISO date). Disable it.
-                task.enabled = false;
-                logger.info(`✅ [CRON] One-off task ${task.id} disabled after successful execution.`);
+                taskToUpdate.enabled = false;
+                logger.info(`✅ [CRON] One-off task ${taskToUpdate.id} disabled after successful execution.`);
             }
+
+            if (taskToUpdate.enabled) {
+                taskToUpdate.nextRun = this.calculateNextRun(taskToUpdate.schedule);
+            }
+            taskToUpdate.updatedAt = new Date().toISOString();
+
+            await this.saveTasks(currentTasks);
         } catch (error: any) {
             logger.error(`❌ [CRON] Task ${task.id} failed: ${error.message}`);
-            task.failedCount++;
 
-            if (task.failedCount >= 3) {
-                try {
-                    CronExpressionParser.parse(task.schedule);
-                } catch {
-                    task.enabled = false;
-                    logger.warn(`⚠️ [CRON] One-off task ${task.id} disabled after 3 failures.`);
+            const currentTasks = await this.loadTasks();
+            const taskToUpdate = currentTasks.find((t) => t.id === task.id);
+            if (taskToUpdate) {
+                taskToUpdate.failedCount++;
+                if (taskToUpdate.failedCount >= 3) {
+                    try {
+                        CronExpressionParser.parse(taskToUpdate.schedule);
+                    } catch {
+                        taskToUpdate.enabled = false;
+                        logger.warn(`⚠️ [CRON] One-off task ${taskToUpdate.id} disabled after 3 failures.`);
+                    }
                 }
+                taskToUpdate.updatedAt = new Date().toISOString();
+                await this.saveTasks(currentTasks);
             }
-        } finally {
-            if (task.enabled) {
-                task.nextRun = this.calculateNextRun(task.schedule);
-            }
-            task.updatedAt = new Date().toISOString();
         }
     }
 

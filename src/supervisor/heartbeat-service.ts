@@ -94,7 +94,7 @@ export class HeartbeatService {
         const prompt = `Self-Correction and Autonomous Heartbeat:
 Review your current objectives using the 'tars-memory' tools (specifically 'memory_list_facts') and check for any pending tasks.
 If everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'.
-If you detect an issue, a missed deadline, or a high-priority task that needs starting, provide a short internal reasoning and then describe the action you are taking.`;
+If you detect an issue, a missed deadline, or a high-priority task that needs starting: provide a short internal reasoning, execute the necessary tools, and then use the 'send_discord_message' tool to proactively alert the user of what you are doing.`;
 
         try {
             const response = await this.supervisor.executeTask(prompt);

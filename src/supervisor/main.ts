@@ -420,15 +420,17 @@ async function main() {
         installDefaultSettings(config);
         patchSettings(config);
 
-        // 3. Initialize Core Services
+        // 3. Initialize Core Services (without initializing engine yet)
         const gemini = new GeminiEngine(config);
-        await gemini.initialize();
-
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 
         // 4. Initialize Interface (Discord)
         const discordBot = new DiscordBot(supervisor, config);
+
+        // 5. Inject Interface into Engine and Initialize Core
+        gemini.setDiscordBot(discordBot);
+        await gemini.initialize();
 
         // 5. Initialize Background Services
         const heartbeat = new HeartbeatService(supervisor, config, sessionManager);

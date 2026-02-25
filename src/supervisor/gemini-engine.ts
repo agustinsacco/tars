@@ -20,6 +20,9 @@ import path from 'path';
 
 import { AttachmentContext } from '../types/index.js';
 
+import { DiscordBot } from '../discord/discord-bot.js';
+import { SendDiscordMessageTool } from '../tools/send-discord-message.js';
+
 export interface GeminiEngineEvent {
     type: string;
     role?: 'user' | 'assistant' | 'system';
@@ -65,9 +68,17 @@ export class GeminiEngine extends EventEmitter {
     private client!: GeminiClient;
     private initialized = false;
     private currentSessionId: string | null = null;
+    private discordBot?: DiscordBot;
 
     constructor(private readonly tarsConfig: TarsConfig) {
         super();
+    }
+
+    /**
+     * Provide the DiscordBot instance to the engine so it can build the proactive message tool
+     */
+    public setDiscordBot(discordBot: DiscordBot): void {
+        this.discordBot = discordBot;
     }
 
     /**
@@ -132,6 +143,13 @@ export class GeminiEngine extends EventEmitter {
                     includeTools: true,
                     includeHistory: true
                 });
+            }
+
+            // Inject the proactive notification tool
+            if (this.discordBot) {
+                const sendDiscordTool = new SendDiscordMessageTool(this.discordBot);
+                this.coreConfig.getToolRegistry().registerTool(sendDiscordTool);
+                logger.info('🔌 Registered native tool: send_discord_message');
             }
 
             this.client = this.coreConfig.getGeminiClient();
@@ -595,6 +613,47 @@ export class GeminiEngine extends EventEmitter {
         } catch (e) {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
+        }
+    }
+
+    /**
+     * Injects a synthetic conversational turn into the core CLI history file.
+     * Used to append background/cron task summaries so the engine "remembers" them
+     * in the next interactive session.
+     */
+    public async injectBackgroundHistory(sessionId: string, taskPrompt: string, taskResult: string): Promise<void> {
+        try {
+            const sessionData = await this.loadResumedSessionData(sessionId);
+            if (!sessionData || !sessionData.filePath || !sessionData.conversation) {
+                logger.warn(`⚠️ Could not find session file to inject background history for: ${sessionId}`);
+                return;
+            }
+
+            const history = sessionData.conversation;
+
+            // Core CLI history format relies on 'User ' and 'Model ' tags,
+            // or raw parts. We adhere to the standard format.
+            const userTurn = {
+                role: 'user',
+                parts: [{ text: `[BACKGROUND TASK TRIGGERED]\n${taskPrompt}` }]
+            };
+
+            const modelTurn = {
+                role: 'model',
+                parts: [{ text: `[BACKGROUND TASK COMPLETED autonomously]\n${taskResult}` }]
+            };
+
+            // Assuming history is an array of messages
+            if (Array.isArray(history)) {
+                history.push(userTurn);
+                history.push(modelTurn);
+            }
+
+            // Write back to disk
+            fs.writeFileSync(sessionData.filePath, JSON.stringify(history, null, 2));
+            logger.info(`💾 Injected background execution summary into session history: ${sessionId}`);
+        } catch (e: any) {
+            logger.error(`❌ Failed to inject background history: ${e.message}`);
         }
     }
 }
