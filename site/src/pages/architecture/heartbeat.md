@@ -7,26 +7,23 @@ section: Architecture (Advanced)
 
 ## Overview
 
-The `HeartbeatService` is Tars' autonomous background engine. It runs on a configurable interval (default: 60 seconds) and manages scheduled tasks, memory synchronization, and self-correcting health checks.
+The `HeartbeatService` is Tars' background maintenance engine. It runs on a configurable interval (default: 300 seconds) and manages memory synchronization, filesystem cleanup, and self-correcting health checks.
+
+> **Note:** For precisely timed scheduled tasks (cron), Tars uses a separate **Cron Service** that polls every 60 seconds.
 
 ## The Tick Loop
 
-Each tick follows this sequence:
+Each heartbeat tick follows this sequence:
 
-1. **Cleanup** — `AttachmentProcessor.cleanup()` removes old temp files (1h) and uploads (24h)
-2. **Memory Sync** — `MemoryManager.fullSync()` re-indexes the brain (GEMINI.md, skills, sessions)
-3. **Load Tasks** — Reads `tasks.json` and filters for due tasks
-4. **Execute** — If due tasks exist, run them. Otherwise, perform an autonomous check.
+1. **Cleanup** — `AttachmentProcessor.cleanup()` removes old temp files (1h) and uploads (24h).
+2. **Memory Sync** — `MemoryManager.fullSync()` re-indexes the brain (facts, skills, and past sessions).
+3. **Autonomous Check** — Performs a `SILENT_ACK` heuristic check to see if autonomous action is required.
 
 ```
 tick()
  ├── cleanup()           # Remove stale files
- ├── fullSync()          # Re-index knowledge
- ├── loadTasks()         # Read tasks.json
- ├── due tasks found?
- │   ├── YES → runTask() for each
- │   └── NO  → autonomousCheck()
- └── save updated tasks
+ ├── fullSync()          # Rate-limited re-indexing
+ └── autonomousCheck()   # Heuristic goal assessment
 ```
 
 ## The SILENT_ACK Protocol
@@ -51,7 +48,5 @@ A boolean `isExecuting` flag prevents overlapping ticks. If a tick is still runn
 | Setting            | Default | Environment Variable     |
 | ------------------ | ------- | ------------------------ |
 | Heartbeat Interval | 300s    | `HEARTBEAT_INTERVAL_SEC` |
-
-Adjust via `tars setup` or edit `~/.tars/config.json` directly.
 
 Adjust via `tars setup` or edit `~/.tars/config.json` directly.

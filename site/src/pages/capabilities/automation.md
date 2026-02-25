@@ -7,7 +7,7 @@ section: Capabilities
 
 ## Overview
 
-Tars supports autonomous task execution through a file-based scheduling system. Tasks are defined with cron expressions or ISO dates and executed by the Heartbeat service.
+Tars supports autonomous task execution through a file-based scheduling system. Tasks are defined with cron expressions or ISO dates and executed by the **Cron Service**, which runs on a tight 60-second polling interval for high precision.
 
 ## Task Structure
 
@@ -58,7 +58,7 @@ If a schedule is unparseable (not valid cron or ISO), the task falls back to run
 
 1. **Create** — Via the `tars-tasks` MCP extension or directly editing `tasks.json`
 2. **Schedule** — `nextRun` is calculated from the cron/date schedule
-3. **Execute** — When the heartbeat tick detects `nextRun <= now`, the task prompt is sent to `supervisor.executeTask()`
+3. **Execute** — When the **Cron Service** tick detects `nextRun <= now`, the task prompt is sent to `supervisor.executeTask()`
 4. **Update** — After execution, `lastRun` is set to now, `nextRun` is recalculated, and `failedCount` is reset (or incremented on failure)
 
 ## Error Handling

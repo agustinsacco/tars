@@ -7,13 +7,13 @@ section: Architecture
 
 ## Overview
 
-The `Supervisor` class is Tars' central orchestrator. It manages the `GeminiEngine`, routes Discord messages, and coordinates background tasks through the `HeartbeatService`.
+The `Supervisor` class is Tars' central orchestrator. It manages the `GeminiEngine`, routes Discord messages, and coordinates background operations through the **Heartbeat Service** (maintenance) and the **Cron Service** (scheduled tasks).
 
 ## Key Responsibilities
 
 - **Session Lifecycle** — Coordinating with `GeminiEngine` to maintain and persist sessions.
 - **Message Routing** — Processing Discord prompts and streaming responses back.
-- **Task Execution** — Running scheduled tasks via the `HeartbeatService`.
+- **Task Execution** — Running background operations via `executeTask()` triggered by the Heartbeat and Cron services.
 - **Memory Mutation Detection** — Detecting when tools like `memory_store_fact` are used and invalidating the session to pick up new facts.
 
 ## Core Methods
@@ -37,7 +37,7 @@ await supervisor.run('Check deployment status', async (event) => {
 
 ### `executeTask(prompt)`
 
-Used by the `HeartbeatService` for background task execution. This uses `GeminiEngine.runSync()` which collects the full response in an ephemeral session — preventing background tasks from bloating the user's conversation history.
+Used by the **Heartbeat** and **Cron** services for background execution. This uses `GeminiEngine.runSync()` which collects the full response in an ephemeral session — preventing background tasks from bloating the user's conversation history.
 
 ## Startup Flow
 
