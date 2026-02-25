@@ -50,6 +50,19 @@ export class BrainAuditor {
                 fs.rmSync(anomalyPath, { recursive: true, force: true });
             }
         }
+
+        // Deep check for tilde anomalies in extensions
+        const extDir = path.join(this.tarsHome, '.gemini', 'extensions');
+        if (fs.existsSync(extDir)) {
+            const extensions = fs.readdirSync(extDir);
+            for (const ext of extensions) {
+                const tildeChild = path.join(extDir, ext, '~');
+                if (fs.existsSync(tildeChild)) {
+                    log(`Removing nested extension anomaly: ${ext}/~`);
+                    fs.rmSync(tildeChild, { recursive: true, force: true });
+                }
+            }
+        }
     }
 
     private rehomeExtensions(log: (msg: string) => void): void {
@@ -99,7 +112,7 @@ export class BrainAuditor {
         const metaPath = path.join(this.tarsHome, 'metadata.json');
         const meta = {
             lastAudit: new Date().toISOString(),
-            version: '1.0.39'
+            version: '1.0.46'
         };
         fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
     }
