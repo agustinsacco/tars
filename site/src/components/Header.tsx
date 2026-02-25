@@ -33,7 +33,7 @@ export function Header() {
                     <div className="flex items-center gap-3">
                         <button
                             onClick={toggleMenu}
-                            className="p-1 -ml-1 text-zinc-400 hover:text-zinc-200 lg:hidden transition-colors"
+                            className="p-1 -ml-1 text-zinc-400 hover:text-zinc-200 lg:hidden transition-colors cursor-pointer"
                             aria-label="Toggle Menu"
                         >
                             {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}

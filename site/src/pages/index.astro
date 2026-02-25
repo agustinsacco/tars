@@ -106,15 +106,28 @@ import { Terminal, Cpu, Brain, Puzzle, Zap, Clock } from 'lucide-react';
             <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
             <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
             <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
-            <span class="text-[10px] text-zinc-600 ml-2">terminal</span>
+            <span class="text-[10px] text-zinc-600 ml-2 font-mono tracking-tighter">terminal</span>
           </div>
           <div class="bg-[#0e0e10] p-4">
-            <code class="text-sm text-zinc-300">
+            <code class="text-sm text-zinc-300 font-mono">
               <span class="text-zinc-500">$</span> npm install -g @saccolabs/tars<br/>
               <span class="text-zinc-500">$</span> tars setup<br/>
               <span class="text-zinc-500">$</span> tars start
             </code>
           </div>
+        </div>
+
+        <!-- Next Up CTA -->
+        <div class="mt-16 flex justify-end">
+          <a 
+            href="/getting-started/what-is-tars"
+            class="group flex flex-col items-end gap-2 p-6 border border-zinc-800 rounded-lg hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer no-underline min-w-[240px]"
+          >
+            <span class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Start Here</span>
+            <span class="text-zinc-100 font-bold group-hover:text-blue-400 transition-colors">
+              Introduction to Tars →
+            </span>
+          </a>
         </div>
       </div>
     </main>
