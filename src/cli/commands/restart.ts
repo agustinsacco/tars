@@ -17,8 +17,8 @@ export async function restart() {
             console.log(chalk.green(`✨ Update available: ${latest} (Current: ${pkg.version})`));
             console.log(chalk.cyan('📦 Upgrading Tars...'));
 
-            // Install the latest version globally
-            execSync('npm install -g @saccolabs/tars@latest', { stdio: 'inherit' });
+            // Install the latest version globally with --prefer-online to bypass cache stickiness
+            execSync('npm install -g @saccolabs/tars@latest --prefer-online', { stdio: 'inherit' });
 
             updated = true;
             console.log(chalk.green('✅ Upgrade complete.'));

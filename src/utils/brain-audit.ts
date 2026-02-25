@@ -112,7 +112,7 @@ export class BrainAuditor {
         const metaPath = path.join(this.tarsHome, 'metadata.json');
         const meta = {
             lastAudit: new Date().toISOString(),
-            version: '1.0.46'
+            version: '1.0.48'
         };
         fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
     }
