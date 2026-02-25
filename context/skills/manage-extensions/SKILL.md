@@ -1,69 +1,64 @@
 ---
 name: extension-manager
-description: Enable, disable, list, and install Gemini CLI extensions at runtime.
+description: Enable, disable, list, and install MCP extensions at runtime.
 ---
 
 # manage-extensions Guide Skill
 
-This skill allows Tars to manage Gemini CLI extensions - listing, enabling, disabling, and installing them.
+Use this skill when you need to manage Tars' MCP extensions. Tars integrates extensions from `~/.tars/.gemini/extensions/`.
 
 ## How It Works
 
-Extensions are managed via the `gemini extensions` CLI commands. Because Tars spawns a fresh `gemini chat` process for each interaction, any changes made during one message take effect on the **next message** automatically.
+Tars performs **Extension Discovery** at startup. It scans the extensions directory for `gemini-extension.json` files. Enablement state and safety overrides are persisted in `~/.tars/.gemini/extensions/extension-enablement.json`.
 
-Extension enablement state is persisted in:
-`~/.tars/.gemini/extensions/extension-enablement.json`
+## Operational Tasks
 
-## Commands
+### 1. List Installed Extensions
 
-All commands below should be executed via `run_shell_command`. The `GEMINI_CLI_HOME` environment variable is already set in your shell environment.
-
-### List Extensions
+Check the contents of the extensions directory and the enablement file.
 
 ```bash
-gemini extensions list
+# List all extension directories
+ls -F ~/.tars/.gemini/extensions/
+
+# Check enablement and safety overrides
+cat ~/.tars/.gemini/extensions/extension-enablement.json
 ```
 
-Shows all installed extensions, their enabled/disabled state, and their MCP servers.
+### 2. Enable/Disable an Extension
 
-### Disable an Extension
+Modify `~/.tars/.gemini/extensions/extension-enablement.json`.
+
+To **enable** or reconfigure an extension, add an entry with trusted path overrides:
+
+```json
+{
+    "extension-name": {
+        "overrides": ["/home/user/src/*"]
+    }
+}
+```
+
+To **disable**, simply remove its key from the JSON object.
+
+### 3. Install a New Extension
+
+1. Create a directory in `~/.tars/.gemini/extensions/<name>`.
+2. Add a `gemini-extension.json` manifest.
+3. Add the extension server code (prefer plain JavaScript for runtime extensions).
+4. Register it in `extension-enablement.json`.
+5. Restart Tars.
+
+### 4. Restart Tars
+
+Changes to extensions (installing or modifying manifests) require a system restart to be picked up by the Gemini Core.
 
 ```bash
-gemini extensions disable <name>
+tars stop && tars start
 ```
-
-Disables the extension for the current user scope. It will no longer load on the next interaction.
-
-- `--scope user` - Disable for the user (default).
-- `--scope workspace` - Disable only for the current project.
-
-### Enable an Extension
-
-```bash
-gemini extensions enable <name>
-```
-
-Re-enables a previously disabled extension.
-
-### Install an Extension
-
-```bash
-gemini extensions install <path-or-url>
-```
-
-Installs a new extension from a local directory or remote URL.
-
-### Link an Extension (Development)
-
-```bash
-gemini extensions link <path>
-```
-
-Creates a symlink to a local extension directory. Changes to the source are reflected immediately without reinstalling.
 
 ## Important Notes
 
-1. **Changes are deferred**: Enable/disable only takes effect on the **next** `gemini chat` invocation. Since Tars spawns a fresh process per Discord message, changes apply on the next message.
-2. **State file**: The enablement state is stored in `extension-enablement.json`, not in `settings.json`.
-3. **Scope**: Use `--scope workspace` if you only want to toggle an extension for a specific project context.
-4. **Discovery**: If an extension's MCP server fails to connect at startup, it will show an error in the logs but won't crash the session.
+1. **JS vs TS**: Extensions created at runtime should use **plain JavaScript** with ESM (`type: "module"` in `package.json` or `.js` extension with `import`/`export`) to avoid a compilation step.
+2. **Path Substitution**: Use `${extensionPath}` in your `gemini-extension.json` `args` or `env` to ensure paths resolve correctly regardless of the host's absolute path.
+3. **Safety**: Always include appropriate path patterns in the `overrides` array in `extension-enablement.json` to allow the extension to access your workspace.

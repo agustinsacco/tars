@@ -39,11 +39,12 @@ The YAML frontmatter provides metadata, and the markdown body contains the actua
 
 ## Built-in Skills
 
-| Skill              | Description                                                           |
-| ------------------ | --------------------------------------------------------------------- |
-| `tars-ops`         | Standardized command list for configuration, secrets, and maintenance |
-| `create-extension` | Guide for creating new MCP extension servers                          |
-| `create-skill`     | Guide for creating new skills                                         |
+| Skill               | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `tars-ops`          | Standardized command list for configuration, secrets, and maintenance |
+| `extension-builder` | Guide for creating new MCP extension servers                          |
+| `extension-manager` | Guide for enabling, disabling, and listing extensions                 |
+| `skill-creator`     | Guide for creating new skills                                         |
 
 ## Skill Synchronization
 

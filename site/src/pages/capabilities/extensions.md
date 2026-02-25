@@ -7,14 +7,14 @@ section: Capabilities
 
 ## Overview
 
-Extensions are **MCP (Model Context Protocol) servers** that expose tools to the Gemini CLI. They run as separate processes and communicate via stdio, allowing Tars to interact with external systems, manage data, and extend its own capabilities.
+Extensions are **MCP (Model Context Protocol) servers** that expose tools to Tars. They run as separate processes and communicate via stdio, allowing Tars to interact with external systems, manage files, and extend its own intelligence.
 
 ## How Extensions Work
 
-1. Extension is registered in `~/.tars/.gemini/extensions/`
-2. Gemini CLI discovers the extension via `gemini-extension.json`
-3. When the AI needs a tool, Gemini CLI spawns the extension process
-4. The extension receives a JSON-RPC request and returns a response
+1.  **Engine Initialization**: During startup, `GeminiEngine` scans `~/.tars/.gemini/extensions/` for `gemini-extension.json` files.
+2.  **Manifest Parsing**: The engine converts the manifest into an internal `MCPServerConfig`, resolving `${extensionPath}` tokens to absolute paths.
+3.  **Discovery**: High-level tools from all enabled extensions are merged into the Gemini Core's tool definition list.
+4.  **Execution**: When the AI invokes a tool, the Core library manages the stdio connection to the extension's binary (e.g., `node server.js`).
 
 ## Extension Structure
 
@@ -25,56 +25,47 @@ Each extension is an npm package with a manifest:
 {
     "name": "tars-tasks",
     "version": "1.0.0",
-    "description": "Task scheduling for Tars",
-    "tools": {
-        "command": "node",
-        "args": ["dist/server.js"]
+    "mcpServers": {
+        "main": {
+            "command": "node",
+            "args": ["${extensionPath}/dist/server.js"],
+            "env": { "TARS_HOME": "~/.tars" }
+        }
     }
 }
 ```
 
-## Installation
+## Deployment & Sync
 
-Extensions are installed as **symlinks** from the repository to the Tars home:
+Tars manages extensions through its internal bootstrap process:
 
-```
-~/.tars/.gemini/extensions/tars-tasks → /path/to/tars/extensions/tasks
-```
-
-### Auto-Installation on Startup
-
-The `installExtensions()` function in `main.ts`:
-
-1. Scans the repository's `extensions/` directory
-2. For each extension, checks if a symlink exists in `~/.tars/.gemini/extensions/`
-3. If missing or broken, creates a new symlink
-4. Validates the symlink target still exists
+- **Built-in Extensions**: Source code from the repository's `extensions/` directory is **copied** to `~/.tars/.gemini/extensions/` on startup.
+- **Runtime Extensions**: Created via the `extension-builder` skill directly in the target directory.
 
 ### Extension Enablement
 
-Extensions must be listed in `~/.tars/.gemini/extensions/extension-enablement.json`:
+Extensions must be authorized in `~/.tars/.gemini/extensions/extension-enablement.json`. Tars uses this file to manage security overrides:
 
 ```json
 {
-    "tars-tasks": true
+    "tars-tasks": { "overrides": ["*"] },
+    "tars-memory": { "overrides": ["*"] }
 }
 ```
 
-This file is managed by the bootstrap process.
-
 ## Creating Custom Extensions
 
-Tars can create new MCP extensions through its `create-extension` skill. The AI generates:
+Tars is capable of self-modifying its own toolset via the `extension-builder` skill. The process involves:
 
-- A TypeScript MCP server with tool definitions
-- A `gemini-extension.json` manifest
-- An npm `package.json` with dependencies
-- Automatic symlinking to the extensions directory
+1.  Generating a plain JavaScript MCP server using `@modelcontextprotocol/sdk`.
+2.  Creating the `gemini-extension.json` manifest with relative path tokens.
+3.  Registering the new extension in the enablement configuration.
 
-## Built-in Extensions
+## Core Extensions
 
-| Extension    | Tools | Description                    |
-| ------------ | ----- | ------------------------------ |
-| `tars-tasks` | 5     | Task scheduling and management |
+| Extension     | Tools | Description                                    |
+| ------------- | ----- | ---------------------------------------------- |
+| `tars-tasks`  | 5     | Goal-oriented task scheduling and management   |
+| `tars-memory` | 5     | Fact storage, daily logs, and knowledge search |
 
-See the [tars-tasks Extension](/extensions/tars-tasks) page for details.
+Detailed documentation for each can be found in the [Extensions section](/extensions/tars-tasks).

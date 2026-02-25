@@ -82,11 +82,13 @@ The primary interface for user interaction. It:
 Tars centralizes all data in `~/.tars/` to ensure portability and isolation:
 
 ### `~/.tars/`
+
 - **`config.json`**: Core settings (Discord token, Model ID, Heartbeat interval).
 - **`data/memory/facts.json`**: Long-term facts stored by the `tars-memory` extension.
 - **`logs/`**: Detailed execution logs and tool call history.
 
 ### `~/.tars/.gemini/`
+
 - **`system.md`**: The core personality and operating instructions for the AI.
 - **`extensions/`**: Integrated MCP extensions (e.g., `tars-tasks`, `tars-memory`).
 - **`agents/`**: System-generated sub-agents for specialized tasks.

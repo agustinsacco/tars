@@ -3,11 +3,15 @@ import { GeminiEngine } from '../../supervisor/gemini-engine.js';
 import { Config as TarsConfig } from '../../config/config.js';
 import fs from 'fs';
 import path from 'path';
-import { Config as CoreConfig, SimpleExtensionLoader, MCPServerConfig } from '@google/gemini-cli-core';
+import {
+    Config as CoreConfig,
+    SimpleExtensionLoader,
+    MCPServerConfig
+} from '@google/gemini-cli-core';
 
 vi.mock('fs');
 vi.mock('@google/gemini-cli-core', async () => {
-    const actual = await vi.importActual('@google/gemini-cli-core') as any;
+    const actual = (await vi.importActual('@google/gemini-cli-core')) as any;
     return {
         ...actual,
         Config: vi.fn().mockImplementation(() => ({
@@ -17,7 +21,9 @@ vi.mock('@google/gemini-cli-core', async () => {
             getSessionId: vi.fn().mockReturnValue('mock-session-id')
         })),
         SimpleExtensionLoader: vi.fn(),
-        MCPServerConfig: vi.fn().mockImplementation((cmd, args, env, cwd) => ({ cmd, args, env, cwd }))
+        MCPServerConfig: vi
+            .fn()
+            .mockImplementation((cmd, args, env, cwd) => ({ cmd, args, env, cwd }))
     };
 });
 
@@ -60,9 +66,7 @@ describe('GeminiEngine', () => {
             return false;
         });
 
-        (fs.readdirSync as any).mockReturnValue([
-            { name: extName, isDirectory: () => true }
-        ]);
+        (fs.readdirSync as any).mockReturnValue([{ name: extName, isDirectory: () => true }]);
 
         (fs.readFileSync as any).mockReturnValue(JSON.stringify(mockConfig));
 

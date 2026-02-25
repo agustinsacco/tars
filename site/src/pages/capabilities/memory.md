@@ -30,16 +30,17 @@ Tars: "✅ Fact stored. I'll maintain this context across all future sessions."
 
 #### 2. Historical Notes
 
-Higher-volume data like meeting logs, incident summaries, or technical notes. These are stored as timestamped markdown files. To save tokens, these are not injected into the prompt but are retrievable via the `memory_search` tool when relevant to a specific task.
+Higher-volume daily logs like meeting summaries or technical observations. These are stored as timestamped markdown files and are searchable via the `memory_search` tool.
 
-```text
-User: "Record the root cause of today's Nginx failure for future reference."
-Tars: "✅ Added to historical notes."
-```
+#### 3. Episodic Memory
+
+Tars index transcripts of past conversations into an SQLite-based Full-Text Search (FTS) engine. This allows the agent to recall specific details from previous interactions (e.g. "What did we decide about the API naming last week?") even after the active session has been archived.
 
 ### Data Portability
 
-Your agent's knowledge resides entirely on your local machine. You can view, edit, or back up these files at any time:
+Your agent's knowledge resides entirely on your local machine:
 
 - **Core Facts:** `~/.tars/data/memory/facts.json`
-- **History:** `~/.tars/data/memory/notes/`
+- **Daily Notes:** `~/.tars/data/memory/notes/`
+- **Search Index:** `~/.tars/data/knowledge.db`
+- **Transcripts:** `~/.tars/.gemini/tmp/*/chats/`

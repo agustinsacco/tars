@@ -8,25 +8,32 @@ interface SearchResult {
 }
 
 const ALL_PAGES: SearchResult[] = [
-    { title: 'Introduction', href: '/', section: 'Get Started' },
+    { title: 'Home', href: '/', section: 'Get Started' },
+    { title: 'Introduction', href: '/getting-started/what-is-tars', section: 'Get Started' },
     { title: 'Installation', href: '/getting-started/installation', section: 'Get Started' },
-    { title: 'Setup Wizard', href: '/getting-started/setup', section: 'Get Started' },
+    { title: 'Quick Start', href: '/getting-started/setup', section: 'Get Started' },
     { title: 'Discord Integration', href: '/getting-started/discord', section: 'Get Started' },
-    { title: 'Supervisor', href: '/architecture/supervisor', section: 'Architecture' },
-    { title: 'Gemini CLI Wrapper', href: '/architecture/gemini-cli', section: 'Architecture' },
-    { title: 'Session Management', href: '/architecture/sessions', section: 'Architecture' },
+    { title: 'Supervisor Engine', href: '/architecture/supervisor', section: 'Architecture' },
+    { title: 'Heartbeat Protocol', href: '/architecture/heartbeat', section: 'Architecture' },
+    { title: 'Core Intelligence', href: '/architecture/gemini-cli', section: 'Architecture' },
     { title: 'Configuration', href: '/architecture/configuration', section: 'Architecture' },
-    { title: 'Heartbeat Service', href: '/systems/heartbeat', section: 'Systems' },
-    { title: 'Task Scheduling', href: '/systems/tasks', section: 'Systems' },
-    { title: 'Memory & Knowledge', href: '/systems/memory', section: 'Systems' },
-    { title: 'MCP Extensions', href: '/extensions/overview', section: 'Extensions' },
+    { title: 'Multi-Agent', href: '/capabilities/agents', section: 'Capabilities' },
+    { title: 'Persistent Memory', href: '/capabilities/memory', section: 'Capabilities' },
+    { title: 'Scheduled Tasks', href: '/capabilities/automation', section: 'Capabilities' },
+    { title: 'Skills System', href: '/capabilities/skills', section: 'Capabilities' },
+    { title: 'MCP Extensions', href: '/capabilities/extensions', section: 'Capabilities' },
+    {
+        title: 'Self-Modification',
+        href: '/capabilities/self-modification',
+        section: 'Capabilities'
+    },
     { title: 'tars-tasks Extension', href: '/extensions/tars-tasks', section: 'Extensions' },
-    { title: 'Skills System', href: '/extensions/skills', section: 'Extensions' },
-    { title: 'Self-Modification', href: '/extensions/self-modification', section: 'Extensions' },
-    { title: 'Process Management', href: '/cli/process', section: 'CLI Reference' },
-    { title: 'Secrets Management', href: '/cli/secrets', section: 'CLI Reference' },
-    { title: 'Memory CLI', href: '/cli/memory', section: 'CLI Reference' },
-    { title: 'Brain Portability', href: '/cli/portability', section: 'CLI Reference' }
+    { title: 'tars-memory Extension', href: '/extensions/tars-memory', section: 'Extensions' },
+    { title: 'Personal Assistant', href: '/use-cases/personal-assistant', section: 'Use Cases' },
+    { title: 'Host Manager', href: '/use-cases/host-manager', section: 'Use Cases' },
+    { title: 'Security Auditor', href: '/use-cases/security-auditor', section: 'Use Cases' },
+    { title: 'DevOps Engineer', href: '/use-cases/devops-engineer', section: 'Use Cases' },
+    { title: 'Multi-Instance', href: '/use-cases/multiple-instances', section: 'Use Cases' }
 ];
 
 export function SearchModal() {
@@ -125,13 +132,13 @@ export function SearchTrigger() {
             onClick={() =>
                 window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
             }
-            className="flex items-center justify-between w-64 px-3 py-1.5 text-xs text-zinc-500 bg-zinc-900/50 border border-zinc-800 rounded-md hover:border-zinc-700 hover:text-zinc-400 transition-colors cursor-pointer"
+            className="flex items-center justify-between w-full md:w-64 px-2 md:px-3 py-1.5 text-xs text-zinc-500 bg-zinc-950 md:bg-zinc-900/50 border border-zinc-800 rounded-md hover:border-zinc-700 hover:text-zinc-400 transition-colors cursor-pointer"
         >
             <div className="flex items-center gap-2">
-                <Search className="w-3.5 h-3.5" />
-                <span>Search</span>
+                <Search className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden xs:inline">Search</span>
             </div>
-            <kbd className="text-[10px] bg-zinc-800/50 px-1.5 py-0.5 rounded border border-zinc-700">
+            <kbd className="hidden md:inline text-[10px] bg-zinc-800/50 px-1.5 py-0.5 rounded border border-zinc-700">
                 ⌘K
             </kbd>
         </button>

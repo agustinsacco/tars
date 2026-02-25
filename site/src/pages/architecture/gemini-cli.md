@@ -25,13 +25,13 @@ Tars maintains an isolated environment in `~/.tars/.gemini/`. During initializat
 
 The engine exposes a streaming interface that emits typed events directly from the Core library:
 
-| Event Type   | Description                          |
-| ------------ | ------------------------------------ |
-| `text`       | A chunk of the AI's text response    |
-| `tool_call`  | Tool invocation (MCP extension call) |
-| `tool_response` | Tool execution result             |
-| `error`      | An error from the Core library       |
-| `done`       | Stream complete (includes usage stats)|
+| Event Type      | Description                            |
+| --------------- | -------------------------------------- |
+| `text`          | A chunk of the AI's text response      |
+| `tool_call`     | Tool invocation (MCP extension call)   |
+| `tool_response` | Tool execution result                  |
+| `error`         | An error from the Core library         |
+| `done`          | Stream complete (includes usage stats) |
 
 ### Session Management
 

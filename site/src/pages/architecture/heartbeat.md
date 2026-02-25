@@ -31,25 +31,27 @@ tick()
 
 ## The SILENT_ACK Protocol
 
-When no scheduled tasks are due, the heartbeat sends a special prompt to the AI:
+When no scheduled tasks are due, the heartbeat sends a special prompt to the AI to verify the system's state.
 
-> _"Review your current objectives in GEMINI.md and any pending tasks. If everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'."_
+This interaction happens in an **Ephemeral Session**. It does not use the user's active conversation ID, which means background autonomous checks **never bloat your main context window** or interfere with your chat history.
 
 Two outcomes:
 
-- **SILENT_ACK response** — Everything is fine. The turn is immediately pruned via `pruneLastTurn()` to prevent context bloat.
-- **Any other response** — The AI detected something that needs attention. The action is logged and potentially routed to Discord.
+- **SILENT_ACK response** — Everything is fine. The ephemeral session is discarded.
+- **Any other response** — The AI detected something that needs attention. The action is logged and the Supervisor handles the resulting tool calls or notifications.
 
 This creates a self-correcting feedback loop where the AI periodically reviews its own state and takes initiative when needed.
 
 ## Concurrency Guard
 
-A boolean `isExecuting` flag prevents overlapping ticks. If a tick is still running when the next interval fires, it's silently skipped.
+A boolean `isExecuting` flag prevents overlapping ticks. If a tick is still running when the next interval fires, it's skipped.
 
 ## Configuration
 
-| Setting            | Default                   | Environment Variable     |
-| ------------------ | ------------------------- | ------------------------ |
-| Heartbeat Interval | 300s (setup default: 60s) | `HEARTBEAT_INTERVAL_SEC` |
+| Setting            | Default | Environment Variable     |
+| ------------------ | ------- | ------------------------ |
+| Heartbeat Interval | 300s    | `HEARTBEAT_INTERVAL_SEC` |
+
+Adjust via `tars setup` or edit `~/.tars/config.json` directly.
 
 Adjust via `tars setup` or edit `~/.tars/config.json` directly.

@@ -53,7 +53,12 @@ describe('Supervisor', () => {
 
         // Should NOT save a generated tars- ID anymore
         expect(mockSessionManager.save).not.toHaveBeenCalledWith(expect.stringContaining('tars-'));
-        expect(mockGemini.run).toHaveBeenCalledWith('hello', expect.any(Function), undefined, undefined);
+        expect(mockGemini.run).toHaveBeenCalledWith(
+            'hello',
+            expect.any(Function),
+            undefined,
+            undefined
+        );
     });
 
     it('should execute tasks in ephemeral sessions (no --resume)', async () => {

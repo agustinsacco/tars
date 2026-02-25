@@ -15,7 +15,7 @@ The wizard will guide you through the following steps:
 
 ### 1. Google Authentication
 
-Tars uses the Gemini CLI for intelligence. The wizard will open a browser window for you to sign in with your Google account. This grants Tars access to the Gemini models.
+Tars uses the **Gemini Core engine** for intelligence. The wizard will open a browser window for you to sign in with your Google account. This grants Tars direct access to Gemini models via the official Node.js Core library.
 
 ### 2. Discord Bot Connection
 
