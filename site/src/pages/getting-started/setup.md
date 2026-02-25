@@ -34,6 +34,8 @@ Choose your preferred Gemini model (e.g., `gemini-2.0-flash`) and set the **Hear
 
 Tars will provision its workspace at `~/.tars/`. This directory stores its memory, task list, and configuration.
 
+> **Tip**: If you are migrating from another machine, run `tars import <path>` **before** starting `tars setup` to restore your existing memory and tasks.
+
 ---
 
 ### Lifecycle Commands

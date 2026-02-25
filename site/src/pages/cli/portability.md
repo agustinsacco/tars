@@ -55,9 +55,15 @@ tars import /path/to/tars-brain-2025-01-15T10-30-00.tar.gz
 
 The import process:
 
-1. Extracts the archive to `~/.tars/`
-2. Performs **automatic path re-homing** — updates any absolute paths in configuration files to match the new home directory
-3. Restores all data: config, tasks, session, memory database, GEMINI.md, skills, and extensions
+1.  Extracts the archive to `~/.tars/`.
+2.  Performs **Autonomous Healing** via the Brain Auditor — updates any absolute paths in configuration files and removes legacy anomalies.
+3.  Restores all data: config, tasks, session, memory database, skills, and extensions.
+
+### Extension Re-hydration
+
+If you migrate between different operating systems (e.g., Mac to Linux), the imported extension binaries (`node_modules`) may be incompatible.
+
+To fix this, simply run `tars setup` on the new machine. Tars will detect existing extensions, wipe old binaries, and perform a fresh `npm install` and **automatic rebuild** matching your current architecture.
 
 ### Migration Workflow
 

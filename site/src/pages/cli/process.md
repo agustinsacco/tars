@@ -64,7 +64,9 @@ Shows:
 - Current session ID and uptime
 - Token usage (input, output, cached, net)
 - Interaction count
-- Heartbeat interval and last tick time
+- Heartbeat and **Cron Service** intervals
+- Number of active background tasks monitored
+- Last tick time for both maintenance and task runners
 
 ## tars logs
 
@@ -77,9 +79,10 @@ tars logs
 Equivalent to `pm2 logs tars-supervisor`. Shows all supervisor output including:
 
 - Discord message handling
-- Heartbeat ticks and task execution
+- Heartbeat ticks and **Cron Service task checks**
 - Memory sync operations
 - Gemini CLI interactions
+- Extension hydration and build logs
 - Error traces
 
 ### Debug logs
