@@ -336,7 +336,36 @@ export class GeminiEngine extends EventEmitter {
                     break;
                 }
 
-                logger.debug(`🛠️ Executing ${toolRequests.length} tool calls...`);
+                // Runtime Safety Filter: Prevent self-destructive commands
+                const filteredToolRequests = toolRequests.filter((req) => {
+                    const toolName = req.name;
+                    const commandLine = req.args?.CommandLine || req.args?.command || '';
+
+                    if (
+                        (toolName.includes('run_command') ||
+                            toolName.includes('run_shell_command')) &&
+                        (commandLine.includes('tars restart') ||
+                            commandLine.includes('tars stop') ||
+                            commandLine.includes('pm2'))
+                    ) {
+                        logger.warn(`🛑 INTERCEPTED self-destructive command: ${commandLine}`);
+                        onEvent({
+                            type: 'text',
+                            role: 'assistant',
+                            content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would restart or stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to restart, please run \`tars restart\` manually in your terminal.`,
+                            sessionId: sid
+                        });
+                        return false;
+                    }
+                    return true;
+                });
+
+                if (filteredToolRequests.length === 0 && toolRequests.length > 0) {
+                    // All tools were blocked by safety filter, break the loop
+                    break;
+                }
+
+                logger.debug(`🛠️ Executing ${filteredToolRequests.length} tool calls...`);
 
                 // Execute tools using Scheduler
                 const scheduler = new Scheduler({
@@ -347,7 +376,7 @@ export class GeminiEngine extends EventEmitter {
                 });
 
                 const completedCalls = await scheduler.schedule(
-                    toolRequests,
+                    filteredToolRequests,
                     abortController.signal
                 );
 
