@@ -10,6 +10,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 
 import { existsSync } from 'fs';
 import { TarsOAuthService } from '../../auth/oauth-service.js';
+import { BrainAuditor } from '../../utils/brain-audit.js';
 
 /**
  * Check if the isolated tars environment is authenticated
@@ -233,7 +234,11 @@ export async function setup() {
     console.log(chalk.bold('\nStep 4/4: Installing'));
     console.log(chalk.dim('─────────────────────'));
 
-    // Provision isolated environment
+    // 1. Audit and Heal existing brain if it exists
+    const auditor = new BrainAuditor(tarsHome);
+    await auditor.audit({ silent: true });
+
+    // 2. Provision isolated environment
     // GEMINI_CLI_HOME=~/.tars → Gemini CLI looks for ~/.tars/.gemini/
     const installSpinner = ora('Provisioning environment...').start();
     const geminiDir = path.join(tarsHome, '.gemini');

@@ -9,6 +9,7 @@ import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { BrainAuditor } from '../utils/brain-audit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -377,8 +378,10 @@ async function main() {
     try {
         logger.info('🚀 Tars Starting...');
 
-        // 1. Load Configuration
+        // 1. Load Configuration & Audit Brain
         const config = Config.getInstance();
+        const auditor = new BrainAuditor(config.homeDir);
+        await auditor.audit({ silent: true });
 
         // 2. Install system prompt, skills, extensions and settings
         installSystemPrompt(config);

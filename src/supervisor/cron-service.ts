@@ -17,7 +17,7 @@ export class CronService {
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config
-    ) { }
+    ) {}
 
     public async start(): Promise<void> {
         const tasks = await this.loadTasks();
