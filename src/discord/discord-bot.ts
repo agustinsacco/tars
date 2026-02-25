@@ -27,6 +27,8 @@ export class DiscordBot {
     private readonly supervisor: Supervisor;
     private readonly processor: AttachmentProcessor;
 
+    private lastChannelId: string | null = null;
+
     constructor(supervisor: Supervisor, config: Config) {
         this.config = config;
         this.supervisor = supervisor;
@@ -60,6 +62,35 @@ export class DiscordBot {
     }
 
     /**
+     * Send a proactive notification to the last active channel
+     */
+    public async notify(content: string): Promise<void> {
+        if (!this.lastChannelId || !content.trim()) return;
+        try {
+            const channel = await this.client.channels.fetch(this.lastChannelId);
+            if (channel && channel.isTextBased() && 'send' in channel) {
+
+                const formatted = MessageFormatter.format(content);
+                if (formatted.length > 8000) {
+                    const filePath = this.processor.saveResponse(content, 'md');
+                    await (channel as any).send({
+                        content: `🔔 **Task Notification** (Response too long, see attached):`,
+                        files: [filePath]
+                    });
+                } else {
+                    const chunks = MessageFormatter.split(formatted);
+                    for (let i = 0; i < chunks.length; i++) {
+                        const prefix = i === 0 ? `🔔 **Task Notification:**\n` : ``;
+                        await (channel as any).send(prefix + chunks[i]);
+                    }
+                }
+            }
+        } catch (e: any) {
+            logger.error(`Failed to send proactive notification: ${e.message}`);
+        }
+    }
+
+    /**
      * Setup event handlers
      */
     private setupEventHandlers(): void {
@@ -80,6 +111,10 @@ export class DiscordBot {
         const userPrompt = this.extractPrompt(message);
         // If null, message wasn't for us. If empty string, check for attachments.
         if (userPrompt === null) return;
+
+        // Save channel ID for proactive notifications
+        this.lastChannelId = message.channelId;
+
         if (!userPrompt && message.attachments.size === 0) return;
 
         logger.info(
@@ -115,12 +150,12 @@ export class DiscordBot {
         // Start typing indicator loop (Discord typing status lasts 10s)
         if ('sendTyping' in message.channel) {
             // Initial typing
-            await message.channel.sendTyping().catch(() => {});
+            await message.channel.sendTyping().catch(() => { });
 
             // Loop every 9s to keep it active
             typingInterval = setInterval(() => {
                 if ('sendTyping' in message.channel) {
-                    (message.channel as any).sendTyping().catch(() => {});
+                    (message.channel as any).sendTyping().catch(() => { });
                 }
             }, 9000);
         }

@@ -4,6 +4,7 @@ import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { CronExpressionParser } from 'cron-parser';
+import { DiscordBot } from '../discord/discord-bot.js';
 
 /**
  * CronService - Dedicated operator for scheduled tasks.
@@ -16,8 +17,9 @@ export class CronService {
 
     constructor(
         private readonly supervisor: Supervisor,
-        private readonly config: Config
-    ) {}
+        private readonly config: Config,
+        private readonly discordBot: DiscordBot
+    ) { }
 
     public async start(): Promise<void> {
         const tasks = await this.loadTasks();
@@ -71,17 +73,41 @@ export class CronService {
 
         try {
             // Tasks run in their own ephemeral session within the engine
-            const result = await this.supervisor.executeTask(task.prompt);
+            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user or use the ask_user tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
+            const result = await this.supervisor.executeTask(contextualPrompt);
             logger.info(`✅ [CRON] Task ${task.id} completed. Result length: ${result.length}`);
+            // Notify if requested
+            if (task.mode === 'notify') {
+                await this.discordBot.notify(`**${task.title}**\n${result}`);
+            }
 
             task.lastRun = new Date().toISOString();
             task.failedCount = 0;
+
+            // Check if it's a one-off task (not a cron expression)
+            try {
+                CronExpressionParser.parse(task.schedule);
+            } catch {
+                // If it fails to parse as cron, it's a one-off (ISO date). Disable it.
+                task.enabled = false;
+                logger.info(`✅ [CRON] One-off task ${task.id} disabled after successful execution.`);
+            }
         } catch (error: any) {
             logger.error(`❌ [CRON] Task ${task.id} failed: ${error.message}`);
             task.failedCount++;
+
+            if (task.failedCount >= 3) {
+                try {
+                    CronExpressionParser.parse(task.schedule);
+                } catch {
+                    task.enabled = false;
+                    logger.warn(`⚠️ [CRON] One-off task ${task.id} disabled after 3 failures.`);
+                }
+            }
         } finally {
-            // Calculate next run
-            task.nextRun = this.calculateNextRun(task.schedule);
+            if (task.enabled) {
+                task.nextRun = this.calculateNextRun(task.schedule);
+            }
             task.updatedAt = new Date().toISOString();
         }
     }
@@ -94,6 +120,8 @@ export class CronService {
         } catch (err) {
             const date = new Date(schedule);
             if (!isNaN(date.getTime()) && schedule.includes('-')) {
+                // Return a date far in the past/future so it doesn't immediately re-trigger
+                // Although it should be disabled now, this is a safety net
                 return date.toISOString();
             }
 

@@ -427,12 +427,12 @@ async function main() {
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 
-        // 4. Initialize Background Services
-        const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
-        const cron = new CronService(supervisor, config);
-
-        // 5. Initialize Interface (Discord)
+        // 4. Initialize Interface (Discord)
         const discordBot = new DiscordBot(supervisor, config);
+
+        // 5. Initialize Background Services
+        const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
+        const cron = new CronService(supervisor, config, discordBot);
 
         // Start Services
         await discordBot.start();
