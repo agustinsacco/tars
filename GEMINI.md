@@ -68,3 +68,4 @@ When building features or troubleshooting, follow this checklist:
 - **Session Swapping**: `GeminiEngine.ts` hot-swaps sessions. If you change a session mid-run, you must call `startChat` to re-initialize the core client with the correct history.
 - **Node Warnings**: Experimental SQLite warnings are silenced globally via `NODE_NO_WARNINGS=1` in `tars start`.
 - **MCP Enablement**: New extensions must be added to `~/.gemini/extensions/extension-enablement.json`. The `installExtensions` function in `main.ts` handles this automatically for repository-managed extensions.
+- **Publish Safety**: **CRITICAL**: Before pushing a new tag (e.g., `v1.0.47`), you MUST verify that the `version` field in `package.json` matches the tag exactly. NPM will reject the publish with a `403 Forbidden` error if the version in `package.json` has already been published. ALWAYS bump `package.json` first, commit it, and then tag.
