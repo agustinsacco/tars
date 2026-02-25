@@ -70,7 +70,7 @@ At startup, the `Config` constructor:
 1. Instantiates `SecretsManager` with the home directory path
 2. Reads all key-value pairs from `~/.tars/.env`
 3. Loads them into `process.env` so they're available globally
-4. The Gemini CLI subprocess inherits these environment variables
+4. The Gemini Engine (and integrated Core library) utilizes these environment variables
 
 ### File Format
 

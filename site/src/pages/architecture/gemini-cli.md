@@ -1,69 +1,46 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Gemini CLI Wrapper
-description: How Tars spawns and manages the Gemini CLI as an isolated subprocess.
+title: Gemini Native Core
+description: How Tars integrates directly with the Gemini CLI Core library.
 section: Architecture
 ---
 
 ## Overview
 
-The `GeminiCli` class wraps the `gemini` command-line tool as a child process. It manages an isolated environment, streams JSON events, and handles timeouts and session compaction.
+Tars has transitioned from a CLI-based wrapper to a **bare-metal Node.js integration** using the `@google/gemini-cli-core` library. This eliminates subprocess overhead, improves event streaming reliability, and allows for deeper integration with the Gemini ecosystem.
 
-## Environment Isolation
+## Integration Architecture
 
-Tars runs Gemini CLI in its own isolated home directory to prevent conflicts with the user's personal Gemini configuration:
+The `GeminiEngine` class acts as the bridge between Tars and the Gemini Core. It manages the lifecycle of the `GeminiClient` and handles session initialization, authentication, and tool discovery.
 
-```bash
-HOME=~/.tars
-GEMINI_CLI_HOME=~/.tars
-```
+## Environment & Discovery
 
-This means Gemini CLI looks for settings, extensions, and history in `~/.tars/.gemini/` rather than `~/.gemini/`.
+Tars maintains an isolated environment in `~/.tars/.gemini/`. During initialization, the engine performs the following:
 
-## Streaming Architecture
+1.  **Extension Discovery**: Scans `~/.tars/.gemini/extensions/` for `gemini-extension.json` files.
+2.  **Path Resolution**: Automatically resolves `${extensionPath}` placeholders in extension configurations to ensure MCP servers start correctly.
+3.  **Folder Trust**: Configures the Core library to trust the Tars home directory, enabling privileged tool execution.
 
-The `run()` method spawns `gemini` with a prompt piped to its stdin. The CLI outputs **JSON lines** — one JSON object per line — which are parsed into typed events:
+## Event Stream
+
+The engine exposes a streaming interface that emits typed events directly from the Core library:
 
 | Event Type   | Description                          |
 | ------------ | ------------------------------------ |
 | `text`       | A chunk of the AI's text response    |
-| `message`    | A complete message block             |
-| `toolCall`   | Tool invocation (MCP extension call) |
-| `toolResult` | Tool execution result                |
-| `error`      | An error from the CLI                |
-| `done`       | Stream complete                      |
+| `tool_call`  | Tool invocation (MCP extension call) |
+| `tool_response` | Tool execution result             |
+| `error`      | An error from the Core library       |
+| `done`       | Stream complete (includes usage stats)|
 
-### Session Resumption
+### Session Management
 
-On first run, Gemini CLI creates a new session and returns a session ID. Tars persists this ID via `SessionManager`. On subsequent calls, the session is resumed with `--session <id>`, maintaining full conversation context.
+Sessions are managed natively by the Core library. Tars tracks the `sessionId` and persists it via `SessionManager`. This ensures that conversation history is preserved across restarts without manual file surgery.
 
-## Timeouts
+## Tool Discovery
 
-Two timeout mechanisms prevent hangs:
-
-- **Idle Timeout** (120s) — If no output is received for 2 minutes, the process is killed
-- **Absolute Timeout** (300s) — Maximum total execution time per prompt
-
-## Context Compaction
-
-When sessions grow beyond 50KB, the `compactSession()` method triggers Gemini CLI's built-in compression:
-
-```bash
-gemini --session <id> --compact
-```
-
-This summarizes older turns while preserving recent context, reducing token usage significantly.
-
-## Debug Logging
-
-All raw CLI output is logged to timestamped files:
-
-```
-/tmp/gemini-debug-<timestamp>.log
-```
-
-These files capture the raw JSON line stream, making them invaluable for debugging JSON parsing errors or unexpected model behavior.
+Extensions are loaded via the `SimpleExtensionLoader`. Once registered, the Core library automatically discovers and integrates all tools defined in the extensions' MCP servers. This is how Tars gains capabilities like `tars-memory` and `tars-tasks`.
 
 ## Synchronous Execution
 
-The `runSync(prompt)` method collects the full response into a string. Used by the Heartbeat for background tasks where streaming isn't needed.
+For background tasks (like memory indexing or health checks), the engine provides a `runSync(prompt)` method that returns the full text response once completion is reached, simplifying logic for non-interactive routines.

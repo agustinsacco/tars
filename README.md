@@ -36,8 +36,8 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 ## Key Features
 
 - **Multi-Agent Orchestration**: Delegates specialized tasks (like coding or research) to sub-agents for better accuracy.
-- **Bare-Metal Runtime**: Executes natively on Node.js for minimal system impact and direct access to local tools.
-- **Autonomous persistence**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
+- **Native Gemini Core**: Integrated directly with the `@google/gemini-cli-core` library for high-speed, direct communication without subprocess overhead.
+- **Autonomous Persistence**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
 - **Context-Aware Memory**: Utilizes `GEMINI.md` files to maintain long-term awareness of project structures and decisions.
 
 ---
@@ -54,10 +54,11 @@ Full documentation is available in the `site/` directory or at the deployed site
 
 ### Prerequisites
 
-- **Node.js**: ≥ 22.0.0
-- **Gemini CLI**: `npm i -g @google/gemini-cli`
+- **Node.js**: ≥ 22.0.2
 
 ### Installation
+
+Tars is powered by the **Gemini CLI Core** library, which is automatically bundled during installation. No external CLI tools are required.
 
 ```bash
 npm install -g @saccolabs/tars

@@ -13,11 +13,7 @@ npm install -g @saccolabs/tars
 
 ### Dependencies
 
-Tars requires **Node.js 22+** and the **Gemini CLI**. If you don't have the Gemini CLI, install it first:
-
-```bash
-npm install -g @google/gemini-cli
-```
+Tars requires **Node.js 22.0.2+**. The Gemini Core engine is included automatically.
 
 ### Verification
 

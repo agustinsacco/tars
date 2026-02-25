@@ -1,10 +1,10 @@
 # Tars Architecture
 
-Tars is a bare-metal, autonomous personal assistant designed to run natively on your machine. Unlike its predecessor (Apex), Tars eschews Docker and complex container orchestration in favor of a lightweight, process-based architecture that leverages the native capabilities of the underlying OS and the Gemini CLI.
+Tars is a bare-metal, autonomous personal assistant designed to run natively on your machine. It operates as a lightweight, process-based application that leverages the direct Node.js integration of the Gemini CLI Core library.
 
 ## High-Level Overview
 
-Tars operates as a **Supervisor** process that orchestrates interactions between the user (via Discord), the AI brain (Gemini CLI), and the local system (Extensions).
+Tars operates as a **Supervisor** process that orchestrates interactions between the user (via Discord), the AI brain (Gemini Native Core), and the local system (Extensions/Skills).
 
 ```mermaid
 graph TB
@@ -13,100 +13,87 @@ graph TB
             CLI["Tars CLI"]
             DB["DiscordBot"]
             SV["Supervisor"]
-            GC["GeminiCli"]
+            GE["GeminiEngine"]
+            CORE["Gemini Core Library"]
             SM["SessionManager"]
             HB["HeartbeatService"]
         end
 
-        subgraph "Gemini CLI Process"
-            Core["Gemini Core"]
-            Mem["Memory (GEMINI.md)"]
+        subgraph "Gemini Environment (~/.tars/.gemini)"
+            Prompt["System Prompt (system.md)"]
+            Skills["Workspace Skills"]
             Ext["Extensions (MCP)"]
         end
 
         subgraph "Storage (~/.tars)"
             Config["config.json"]
-            Tasks["data/tasks.json"]
+            Memory["data/memory/facts.json"]
             Logs["logs/"]
         end
     end
 
     User["User (Discord)"] <--> DB
     DB <--> SV
-    SV <--> GC
-    GC <--> Core
-    Core <--> Ext
-    HB -- Polls --> Tasks
-    HB -- Executes --> SV
+    SV <--> GE
+    GE <--> CORE
+    CORE <--> Ext
+    CORE <--> Skills
+    HB -- Executes Tasks --> SV
 ```
 
 ## Core Components
 
-### 1. Supervisor (`src/supervisor/Supervisor.ts`)
+### 1. Supervisor (`src/supervisor/supervisor.ts`)
 
 The central nervous system of Tars. It is a lightweight orchestrator that:
 
-- Manages the lifecycle of Gemini CLI sessions.
-- Handles concurrent requests from Discord.
-- executes background tasks triggered by the Heartbeat service.
-- Tracks session usage and token counts.
+- Manages the lifecycle of conversations via `GeminiEngine`.
+- Handles concurrent requests from Discord with an execution lock.
+- Executes background tasks triggered by the `HeartbeatService`.
+- Detects memory mutations and invalidates sessions to ensure fact consistency.
 
-### 2. Gemini CLI Wrapper (`src/supervisor/GeminiCli.ts`)
+### 2. Gemini Engine (`src/supervisor/gemini-engine.ts`)
 
-A dedicated wrapper around the `gemini` command-line tool. It handles:
+A native integration with `@google/gemini-cli-core`. It replaces the old subprocess-based CLI wrapper with direct library calls, providing:
 
-- Spawning the `gemini` child process.
-- Streaming `stdout`/`stderr` events in real-time.
-- managing session persistence via the `--resume` flag.
-- Injecting extensions via the `--extensions` flag.
+- **Extension Discovery**: Automatically scans and loads MCP extensions from `~/.tars/.gemini/extensions/`.
+- **Direct Streaming**: Consumes event streams directly from the Gemini Core without JSON parsing overhead.
+- **Session Persistence**: Native handling of session IDs and conversation history.
+- **Path Resolution**: Ensures MCP servers can resolve internal paths correctly via `${extensionPath}` substitution.
 
-### 3. Heartbeat Service (`src/supervisor/HeartbeatService.ts`)
+### 3. Heartbeat Service (`src/supervisor/heartbeat-service.ts`)
 
 The autonomic nervous system. It runs in the background and:
 
-- Polls `~/.tars/data/tasks.json` every minute (configurable).
-- Evaluates cron schedules using `cron-parser`.
-- Triggers task execution via the Supervisor when a task is due.
-- Updates task status (last run, next run, failure count) atomically.
+- Performs "Autonomous Health Checks" every 300s (default).
+- Triggers the **Full Memory Sync** to index facts into the KnowledgeStore.
+- Coordinates background task execution via the Supervisor using ephemeral sessions.
 
 ### 4. Discord Bot (`src/discord/DiscordBot.ts`)
 
 The primary interface for user interaction. It:
 
-- Listens for messages mentioning `@Tars` or starting with `!tars`.
-- Routes user prompts to the Supervisor.
-- Streams responses back to Discord in chunks to handle long-form content.
-- Provides a "typing" indicator to signal activity.
+- Listens for messages mentioning the bot or DMs.
+- Routes user prompts and attachments to the Supervisor.
+- Streams responses back to Discord in real-time.
 
 ## Data Storage
 
-Tars uses two distinct home directories to maintain separation of concerns:
+Tars centralizes all data in `~/.tars/` to ensure portability and isolation:
 
 ### `~/.tars/`
-
-Stores Tars-specific operational data:
-
 - **`config.json`**: Core settings (Discord token, Model ID, Heartbeat interval).
-- **`data/tasks.json`**: The persistent store for scheduled tasks.
-- **`data/session.json`**: Session metadata and token usage stats.
+- **`data/memory/facts.json`**: Long-term facts stored by the `tars-memory` extension.
+- **`logs/`**: Detailed execution logs and tool call history.
 
-### `~/.gemini/`
-
-Stores the "Brain" (managed natively by Gemini CLI):
-
-- **`GEMINI.md`**: The core personality and long-term memories.
-- **`extensions/`**: Installed MCP extensions (including the built-in `tars-tasks`).
-- **`history/`**: Raw conversation logs handled by Gemini.
-
-## Extension System
-
-Tars leverages the Model Context Protocol (MCP) to extend its capabilities.
-
-- **Built-in Extensions**: `extensions/tasks/` is a TypeScript-based MCP server compiled and shipped with Tars. It provides tools like `create_task`, `list_tasks`, etc.
-- **User Extensions**: Tars can write its own extensions at runtime. These are typically plain JavaScript files created in `~/.gemini/extensions/` using the `create-extension` skill.
+### `~/.tars/.gemini/`
+- **`system.md`**: The core personality and operating instructions for the AI.
+- **`extensions/`**: Integrated MCP extensions (e.g., `tars-tasks`, `tars-memory`).
+- **`agents/`**: System-generated sub-agents for specialized tasks.
 
 ## Design Philosophy
 
-1.  **Native & Portable**: Tars runs where you run. No containers to manage. The "Brain" is just a directory of files that can be tarballed and moved.
-2.  **Transparent**: Everything Tars does is visible in `~/.tars/logs` or standard output. Its memory is a readable Markdown file.
-3.  **Self-Modifying**: Tars is aware of its own extension system and can write new code to upgrade itself without a rebuild.
+1.  **Bare-Metal & Native**: Tars runs directly on the host, allowing it to manage files, services, and processes without container boundaries.
+2.  **No Subprocess Overhead**: By using the Gemini Core library directly, Tars avoids the latency and fragility of spawning CLI subprocesses.
+3.  **Transparent Memory**: Facts are stored in readable JSON/Markdown formats, and all tool interactions are logged for auditing.
+4.  **Self-Configuring**: Tars automatically syncs its skills, agents, and extensions during bootstrap, ensuring the environment is always up to date.
