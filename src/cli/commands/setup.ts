@@ -313,50 +313,59 @@ export async function setup() {
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
 
-    // Copy built-in tasks extension (to ISOLATED env)
-    // We use copy instead of symlink to satisfy workspace safety rules
-    const extSpinner = ora('Installing tasks extension...').start();
-    try {
-        const linkTarget = path.join(geminiDir, 'extensions', 'tars-tasks');
-        const extensionSrc = path.resolve(
-            path.dirname(new URL(import.meta.url).pathname),
-            '../../../extensions/tasks'
-        );
+    // 3. Install and Hydrate extensions
+    const extensionsBaseSrc = path.resolve(
+        path.dirname(new URL(import.meta.url).pathname),
+        '../../../extensions'
+    );
 
-        // Remove existing (symlink or dir)
-        try {
-            await fs.rm(linkTarget, { recursive: true, force: true });
-        } catch {
-            /* ignore */
-        }
+    if (fsSync.existsSync(extensionsBaseSrc)) {
+        const extensions = fsSync.readdirSync(extensionsBaseSrc);
+        for (const extName of extensions) {
+            const extSrc = path.join(extensionsBaseSrc, extName);
+            if (!fsSync.statSync(extSrc).isDirectory()) continue;
 
-        await fs.cp(extensionSrc, linkTarget, { recursive: true });
+            const finalExtName =
+                extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
+            const linkTarget = path.join(geminiDir, 'extensions', finalExtName);
 
-        // Hydrate dependencies
-        extSpinner.text = `Installing dependencies for tars-tasks...`;
+            const extSpinner = ora(`Installing extension: ${finalExtName}...`).start();
 
-        try {
-            execSync('npm ci --production', {
-                cwd: linkTarget,
-                stdio: 'pipe' // Capture output to throw on error
-            });
+            try {
+                // Remove existing
+                if (fsSync.existsSync(linkTarget)) {
+                    await fs.rm(linkTarget, { recursive: true, force: true });
+                }
 
-            // Verify node_modules exists
-            if (!fsSync.existsSync(path.join(linkTarget, 'node_modules'))) {
-                throw new Error('npm install finished but node_modules is missing');
+                await fs.cp(extSrc, linkTarget, { recursive: true });
+
+                // Hydrate dependencies
+                extSpinner.text = `Hydrating ${finalExtName} (npm install)...`;
+                execSync('npm install --production', {
+                    cwd: linkTarget,
+                    stdio: 'pipe'
+                });
+
+                // Run build if package.json has a build script
+                const pkgPath = path.join(linkTarget, 'package.json');
+                if (fsSync.existsSync(pkgPath)) {
+                    const pkg = JSON.parse(fsSync.readFileSync(pkgPath, 'utf-8'));
+                    if (pkg.scripts?.build) {
+                        extSpinner.text = `Building ${finalExtName}...`;
+                        execSync('npm run build', {
+                            cwd: linkTarget,
+                            stdio: 'pipe'
+                        });
+                    }
+                }
+
+                extSpinner.succeed(`Extension ready: ${finalExtName}`);
+            } catch (err: any) {
+                const output =
+                    err.stdout?.toString() || err.stderr?.toString() || err.message;
+                extSpinner.warn(`Extension ${finalExtName} failed: ${output}`);
             }
-        } catch (installError: any) {
-            // Log the actual stdout/stderr if available
-            const output =
-                installError.stdout?.toString() ||
-                installError.stderr?.toString() ||
-                installError.message;
-            throw new Error(`Dependency install failed: ${output}`);
         }
-
-        extSpinner.succeed(`tars-tasks extension installed.`);
-    } catch (err: any) {
-        extSpinner.warn(`Extension install failed: ${err.message}`);
     }
 
     // ── Done ──────────────────────────────────────────────

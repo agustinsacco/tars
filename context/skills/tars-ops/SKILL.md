@@ -84,6 +84,10 @@ Occasionally, bugs in code may create recursive directories (like `~/.tars/.tars
 ## Important Safety Rules
 
 1. **Anti-Recursion**: NEVER run `node dist/supervisor/main.js` or `npm run start` directly. This will now fail by design. Always use `tars start` (production) or `npm run dev` (local).
-2. **Pathing**: The `tars` CLI handles paths automatically.
-3. **Internal Reasoning**: Before changing a system-level setting (like heartbeat frequency), explain the "Why" to the user unless it is part of a self-correction heartbeat.
+2. **Tool Discovery**: You have specialized MCP tools (e.g., `memory_store_fact`, `create_task`). Always trust your tool list over guessing.
+    *   **NEVER** try to run extension scripts directly (e.g., `node .../dist/server.js`) using shell commands.
+    *   **NEVER** guess entry points (e.g., `dist/index.js`).
+    *   If a tool appears to be missing, check your system prompt or use `cli_help` to verify the environment state.
+3. **Pathing**: The `tars` CLI handles paths automatically. Use absolute paths when manipulating files.
+4. **Internal Reasoning**: Before changing a system-level setting (like heartbeat frequency), explain the "Why" to the user unless it is part of a self-correction heartbeat.
 ````
