@@ -17,10 +17,15 @@ export class CronService {
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config
-    ) {}
+    ) { }
 
     public async start(): Promise<void> {
-        logger.info(`⏰ Cron service started (Precision: ${CronService.POLL_INTERVAL_MS / 1000}s)`);
+        const tasks = await this.loadTasks();
+        const activeTasks = tasks.filter((t) => t.enabled);
+
+        logger.info(
+            `⏰ Cron service started (Precision: ${CronService.POLL_INTERVAL_MS / 1000}s, Monitoring ${activeTasks.length} active tasks)`
+        );
 
         // Start the polling loop
         this.interval = setInterval(() => this.tick(), CronService.POLL_INTERVAL_MS);
@@ -43,6 +48,7 @@ export class CronService {
 
         try {
             const tasks = await this.loadTasks();
+            logger.debug(`⏰ Cron tick: Checking ${tasks.length} tasks...`);
             const now = new Date();
             const dueTasks = tasks.filter((t) => t.enabled && new Date(t.nextRun) <= now);
 
