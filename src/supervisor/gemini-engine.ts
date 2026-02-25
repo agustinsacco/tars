@@ -111,7 +111,7 @@ export class GeminiEngine extends EventEmitter {
                 enableHooks: true,
                 mcpEnabled: true,
                 extensionsEnabled: true,
-                enableAgents: true, // Enable agents support
+                enableAgents: true,
                 skillsSupport: true,
                 adminSkillsEnabled: true,
                 noBrowser: true,
@@ -122,6 +122,17 @@ export class GeminiEngine extends EventEmitter {
 
             await this.coreConfig.refreshAuth(authType);
             await this.coreConfig.initialize();
+
+            // Register system prompt template for tars-request
+            const promptProvider = (this.coreConfig as any).promptProvider;
+            if (promptProvider) {
+                promptProvider.registerPrompt('tars-request', {
+                    template: fs.readFileSync(systemMdPath, 'utf-8'),
+                    includeContext: true,
+                    includeTools: true,
+                    includeHistory: true
+                });
+            }
 
             this.client = this.coreConfig.getGeminiClient();
             this.initialized = true;
@@ -377,10 +388,10 @@ export class GeminiEngine extends EventEmitter {
                 type: 'done',
                 usageStats: finalUsageStats
                     ? {
-                          inputTokens: finalUsageStats.promptTokenCount || 0,
-                          outputTokens: finalUsageStats.candidatesTokenCount || 0,
-                          cachedTokens: finalUsageStats.cachedContentTokenCount || 0
-                      }
+                        inputTokens: finalUsageStats.promptTokenCount || 0,
+                        outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                        cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                    }
                     : undefined,
                 sessionId: sid
             });
@@ -471,10 +482,10 @@ export class GeminiEngine extends EventEmitter {
                     type: 'done',
                     usageStats: event.value.usageMetadata
                         ? {
-                              inputTokens: event.value.usageMetadata.promptTokenCount || 0,
-                              outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
-                              cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
-                          }
+                            inputTokens: event.value.usageMetadata.promptTokenCount || 0,
+                            outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
+                            cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
+                        }
                         : undefined,
                     sessionId
                 };
@@ -530,7 +541,7 @@ export class GeminiEngine extends EventEmitter {
                 for (const d of allDirs) {
                     if (d !== projectIdentifier) searchDirs.push(d);
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             const shortId = sessionId.slice(0, 8);
             for (const dir of searchDirs) {

@@ -40,3 +40,5 @@ You are operating in **Autonomous YOLO mode**. You have full authority to execut
 
 ${AgentSkills}
 ${SubAgents}
+
+${tools}

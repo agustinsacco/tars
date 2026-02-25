@@ -8,6 +8,7 @@ import { DiscordBot } from '../discord/discord-bot.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { BrainAuditor } from '../utils/brain-audit.js';
 
@@ -227,7 +228,7 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
 
         if (needsLink) {
             try {
@@ -244,6 +245,34 @@ function installExtensions(config: Config): void {
                 logger.info(`🔌 Integrated extension: ${finalExtName}`);
             } catch (error) {
                 logger.error(`❌ Failed to integrate extension ${finalExtName}: ${error}`);
+            }
+        }
+
+        // Hydration check (Heal missing dependencies on startup)
+        const nmPath = path.join(finalDestPath, 'node_modules');
+        if (!fs.existsSync(nmPath)) {
+            logger.info(`💧 Hydrating extension: ${finalExtName}...`);
+            try {
+                execSync('npm install --production', {
+                    cwd: finalDestPath,
+                    stdio: 'pipe'
+                });
+
+                const pkgPath = path.join(finalDestPath, 'package.json');
+                if (fs.existsSync(pkgPath)) {
+                    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+                    if (pkg.scripts?.build) {
+                        logger.info(`🏗️ Building extension: ${finalExtName}...`);
+                        execSync('npm run build', {
+                            cwd: finalDestPath,
+                            stdio: 'pipe'
+                        });
+                    }
+                }
+                logger.info(`✅ Extension ${finalExtName} hydrated successfully.`);
+            } catch (e: any) {
+                const out = e.stdout?.toString() || e.stderr?.toString() || e.message;
+                logger.error(`❌ Failed to hydrate extension ${finalExtName}: ${out}`);
             }
         }
     }
