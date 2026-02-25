@@ -7,7 +7,9 @@ import {
     Scheduler,
     type ServerGeminiStreamEvent,
     ApprovalMode,
-    PolicyDecision
+    PolicyDecision,
+    SimpleExtensionLoader,
+    MCPServerConfig
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
@@ -92,6 +94,8 @@ export class GeminiEngine extends EventEmitter {
             process.env.GEMINI_SYSTEM_MD = systemMdPath;
 
             const authType = getAuthTypeFromEnv() || AuthType.LOGIN_WITH_GOOGLE;
+            const discoveredExtensions = await this.discoverExtensions();
+            const extensionLoader = new SimpleExtensionLoader(discoveredExtensions);
 
             this.coreConfig = new CoreConfig({
                 sessionId: uuidv4(),
@@ -110,7 +114,10 @@ export class GeminiEngine extends EventEmitter {
                 enableAgents: true, // Enable agents support
                 skillsSupport: true,
                 adminSkillsEnabled: true,
-                noBrowser: true
+                noBrowser: true,
+                folderTrust: true,
+                trustedFolder: true,
+                extensionLoader
             });
 
             await this.coreConfig.refreshAuth(authType);
@@ -126,6 +133,78 @@ export class GeminiEngine extends EventEmitter {
         } finally {
             process.env.HOME = savedHome;
         }
+    }
+
+    /**
+     * Discovers extensions from the ~/.tars/.gemini/extensions directory.
+     */
+    private async discoverExtensions(): Promise<any[]> {
+        const extensionsDir = path.join(this.tarsConfig.homeDir, '.gemini', 'extensions');
+        if (!fs.existsSync(extensionsDir)) return [];
+
+        const extensions: any[] = [];
+        try {
+            const entries = fs.readdirSync(extensionsDir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                if (!entry.isDirectory()) continue;
+                const extPath = path.resolve(extensionsDir, entry.name);
+                const configPath = path.join(extPath, 'gemini-extension.json');
+
+                if (fs.existsSync(configPath)) {
+                    try {
+                        const content = fs.readFileSync(configPath, 'utf-8');
+                        const config = JSON.parse(content);
+
+                        // Ensure mcpServers are converted to MCPServerConfig instances if they exist
+                        const mcpServers: Record<string, any> = {};
+                        if (config.mcpServers) {
+                            for (const [name, srv] of Object.entries(config.mcpServers)) {
+                                const s = srv as any;
+
+                                // Manually resolve ${extensionPath} since we are constructing configs early
+                                const resolvedArgs = s.args?.map((arg: string) =>
+                                    arg.replace(/\${extensionPath}/g, extPath)
+                                );
+                                const resolvedEnv = s.env ? { ...s.env } : {};
+                                for (const key in resolvedEnv) {
+                                    resolvedEnv[key] = resolvedEnv[key].replace(/\${extensionPath}/g, extPath);
+                                }
+
+                                mcpServers[name] = new MCPServerConfig(
+                                    s.command,
+                                    resolvedArgs,
+                                    resolvedEnv,
+                                    s.cwd?.replace(/\${extensionPath}/g, extPath),
+                                    s.url?.replace(/\${extensionPath}/g, extPath),
+                                    s.httpUrl?.replace(/\${extensionPath}/g, extPath),
+                                    s.headers,
+                                    s.tcp,
+                                    s.type,
+                                    s.timeout,
+                                    s.trust
+                                );
+                            }
+                        }
+
+                        extensions.push({
+                            ...config,
+                            id: config.name,
+                            path: extPath,
+                            isActive: true,
+                            mcpServers,
+                            contextFiles: config.contextFiles || []
+                        });
+                        logger.info(`🔌 Found extension: ${config.name}`);
+                    } catch (e) {
+                        logger.error(`Failed to parse extension at ${extPath}: ${e}`);
+                    }
+                }
+            }
+        } catch (error) {
+            logger.error(`Error during extension discovery: ${error}`);
+        }
+        return extensions;
     }
 
     /**
@@ -295,10 +374,10 @@ export class GeminiEngine extends EventEmitter {
                 type: 'done',
                 usageStats: finalUsageStats
                     ? {
-                          inputTokens: finalUsageStats.promptTokenCount || 0,
-                          outputTokens: finalUsageStats.candidatesTokenCount || 0,
-                          cachedTokens: finalUsageStats.cachedContentTokenCount || 0
-                      }
+                        inputTokens: finalUsageStats.promptTokenCount || 0,
+                        outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                        cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                    }
                     : undefined,
                 sessionId: sid
             });
@@ -389,10 +468,10 @@ export class GeminiEngine extends EventEmitter {
                     type: 'done',
                     usageStats: event.value.usageMetadata
                         ? {
-                              inputTokens: event.value.usageMetadata.promptTokenCount || 0,
-                              outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
-                              cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
-                          }
+                            inputTokens: event.value.usageMetadata.promptTokenCount || 0,
+                            outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
+                            cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
+                        }
                         : undefined,
                     sessionId
                 };
@@ -448,7 +527,7 @@ export class GeminiEngine extends EventEmitter {
                 for (const d of allDirs) {
                     if (d !== projectIdentifier) searchDirs.push(d);
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             const shortId = sessionId.slice(0, 8);
             for (const dir of searchDirs) {
