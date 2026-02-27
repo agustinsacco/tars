@@ -12,12 +12,20 @@ interface SendDiscordMessageParams {
     message: string;
 }
 
-class SendDiscordMessageInvocation extends BaseToolInvocation<SendDiscordMessageParams, ToolResult> {
+class SendDiscordMessageInvocation extends BaseToolInvocation<
+    SendDiscordMessageParams,
+    ToolResult
+> {
     constructor(
         params: SendDiscordMessageParams,
         private discordBot: DiscordBot
     ) {
-        super(params, null as unknown as MessageBus, 'send_discord_message', 'Send Discord Message');
+        super(
+            params,
+            null as unknown as MessageBus,
+            'send_discord_message',
+            'Send Discord Message'
+        );
     }
 
     getDescription(): string {
@@ -28,7 +36,11 @@ class SendDiscordMessageInvocation extends BaseToolInvocation<SendDiscordMessage
         try {
             if (!(this.discordBot as any).config?.discordOwnerId) {
                 return {
-                    llmContent: [{ text: '❌ Soft Error: Could not reach Discord. Owner ID not yet captured. The user must send a direct message to the bot first before proactive notifications can be sent.' }],
+                    llmContent: [
+                        {
+                            text: '❌ Soft Error: Could not reach Discord. Owner ID not yet captured. The user must send a direct message to the bot first before proactive notifications can be sent.'
+                        }
+                    ],
                     returnDisplay: 'Failed: Owner ID not yet captured.'
                 };
             }
@@ -47,7 +59,10 @@ class SendDiscordMessageInvocation extends BaseToolInvocation<SendDiscordMessage
     }
 }
 
-export class SendDiscordMessageTool extends BaseDeclarativeTool<SendDiscordMessageParams, ToolResult> {
+export class SendDiscordMessageTool extends BaseDeclarativeTool<
+    SendDiscordMessageParams,
+    ToolResult
+> {
     constructor(private discordBot: DiscordBot) {
         super(
             'send_discord_message',

@@ -361,8 +361,7 @@ export async function setup() {
 
                 extSpinner.succeed(`Extension ready: ${finalExtName}`);
             } catch (err: any) {
-                const output =
-                    err.stdout?.toString() || err.stderr?.toString() || err.message;
+                const output = err.stdout?.toString() || err.stderr?.toString() || err.message;
                 extSpinner.warn(`Extension ${finalExtName} failed: ${output}`);
             }
         }

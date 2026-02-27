@@ -434,10 +434,10 @@ export class GeminiEngine extends EventEmitter {
                 type: 'done',
                 usageStats: finalUsageStats
                     ? {
-                        inputTokens: finalUsageStats.promptTokenCount || 0,
-                        outputTokens: finalUsageStats.candidatesTokenCount || 0,
-                        cachedTokens: finalUsageStats.cachedContentTokenCount || 0
-                    }
+                          inputTokens: finalUsageStats.promptTokenCount || 0,
+                          outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                          cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                      }
                     : undefined,
                 sessionId: sid
             });
@@ -528,10 +528,10 @@ export class GeminiEngine extends EventEmitter {
                     type: 'done',
                     usageStats: event.value.usageMetadata
                         ? {
-                            inputTokens: event.value.usageMetadata.promptTokenCount || 0,
-                            outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
-                            cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
-                        }
+                              inputTokens: event.value.usageMetadata.promptTokenCount || 0,
+                              outputTokens: event.value.usageMetadata.candidatesTokenCount || 0,
+                              cachedTokens: event.value.usageMetadata.cachedContentTokenCount || 0
+                          }
                         : undefined,
                     sessionId
                 };
@@ -587,7 +587,7 @@ export class GeminiEngine extends EventEmitter {
                 for (const d of allDirs) {
                     if (d !== projectIdentifier) searchDirs.push(d);
                 }
-            } catch (e) { }
+            } catch (e) {}
 
             const shortId = sessionId.slice(0, 8);
             for (const dir of searchDirs) {
@@ -620,11 +620,17 @@ export class GeminiEngine extends EventEmitter {
      * Used to append background/cron task summaries so the engine "remembers" them
      * in the next interactive session.
      */
-    public async injectBackgroundHistory(sessionId: string, taskPrompt: string, taskResult: string): Promise<void> {
+    public async injectBackgroundHistory(
+        sessionId: string,
+        taskPrompt: string,
+        taskResult: string
+    ): Promise<void> {
         try {
             const sessionData = await this.loadResumedSessionData(sessionId);
             if (!sessionData || !sessionData.filePath || !sessionData.conversation) {
-                logger.warn(`⚠️ Could not find session file to inject background history for: ${sessionId}`);
+                logger.warn(
+                    `⚠️ Could not find session file to inject background history for: ${sessionId}`
+                );
                 return;
             }
 
@@ -650,7 +656,9 @@ export class GeminiEngine extends EventEmitter {
 
             // Write back to disk
             fs.writeFileSync(sessionData.filePath, JSON.stringify(history, null, 2));
-            logger.info(`💾 Injected background execution summary into session history: ${sessionId}`);
+            logger.info(
+                `💾 Injected background execution summary into session history: ${sessionId}`
+            );
         } catch (e: any) {
             logger.error(`❌ Failed to inject background history: ${e.message}`);
         }

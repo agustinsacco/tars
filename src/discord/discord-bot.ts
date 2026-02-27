@@ -99,7 +99,9 @@ export class DiscordBot {
             if (this.config.discordOwnerId) {
                 logger.info(`👤 Primary Contact ID: ${this.config.discordOwnerId}`);
             } else {
-                logger.warn(`⚠️ No Primary Contact ID set. Will bind to the first user who sends a message.`);
+                logger.warn(
+                    `⚠️ No Primary Contact ID set. Will bind to the first user who sends a message.`
+                );
             }
         });
 
@@ -121,7 +123,9 @@ export class DiscordBot {
             this.config.discordOwnerId = message.author.id;
             this.config.saveSettings();
             logger.info(`🔒 Automatically bound Primary Contact to user: ${message.author.id}`);
-            await message.reply(`🔒 **System Alert:** I have permanently bound my background notification channel to your account. I will send proactive alerts here.`);
+            await message.reply(
+                `🔒 **System Alert:** I have permanently bound my background notification channel to your account. I will send proactive alerts here.`
+            );
         }
 
         if (!userPrompt && message.attachments.size === 0) return;
@@ -159,12 +163,12 @@ export class DiscordBot {
         // Start typing indicator loop (Discord typing status lasts 10s)
         if ('sendTyping' in message.channel) {
             // Initial typing
-            await message.channel.sendTyping().catch(() => { });
+            await message.channel.sendTyping().catch(() => {});
 
             // Loop every 9s to keep it active
             typingInterval = setInterval(() => {
                 if ('sendTyping' in message.channel) {
-                    (message.channel as any).sendTyping().catch(() => { });
+                    (message.channel as any).sendTyping().catch(() => {});
                 }
             }, 9000);
         }

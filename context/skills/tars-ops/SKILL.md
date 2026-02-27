@@ -42,6 +42,7 @@ If you run `tars restart`, `tars stop`, or `pm2 restart`, you will forcefully te
 ```bash
 tars restart
 ```
+
 ### Knowledge Management
 
 Use the `memory` command to search or manually trigger a sync of the long-term knowledge base.
@@ -57,32 +58,43 @@ tars memory sync
 ## Self-Maintenance (Data Hygiene)
 
 ### 1. Log Pruning
+
 Tars generates logs in `~/.tars/logs/`. These are crucial for debugging recent issues but unnecessary to keep forever.
-*   **Policy**: Keep logs for the last 7 days.
-*   **Command**: `find ~/.tars/logs -type f -mtime +7 -delete`
+
+- **Policy**: Keep logs for the last 7 days.
+- **Command**: `find ~/.tars/logs -type f -mtime +7 -delete`
 
 ### 2. Upload Cleanup
+
 Files uploaded to `~/.tars/data/uploads/` are temporary staging for processing.
-*   **Policy**: Remove uploads older than 24 hours.
-*   **Command**: `find ~/.tars/data/uploads -type f -mtime +1 -delete`
+
+- **Policy**: Remove uploads older than 24 hours.
+- **Command**: `find ~/.tars/data/uploads -type f -mtime +1 -delete`
 
 ### 3. History Management
+
 The `~/.tars/.gemini/history/` directory contains raw JSON conversation logs. These grow rapidly.
-*   **Policy**: Keep the most recent 100 conversation logs.
-*   **Command**: `ls -t ~/.tars/.gemini/history/*.json | tail -n +101 | xargs -I {} rm {}` (Be careful with xargs; ensure filenames don't have special characters, or use `find` by time if preferred).
+
+- **Policy**: Keep the most recent 100 conversation logs.
+- **Command**: `ls -t ~/.tars/.gemini/history/*.json | tail -n +101 | xargs -I {} rm {}` (Be careful with xargs; ensure filenames don't have special characters, or use `find` by time if preferred).
 
 ### 4. Anomaly Detection
+
 Occasionally, bugs in code may create recursive directories (like `~/.tars/.tars` or `~/.tars/~`).
-*   **Policy**: Check for and remove these specific anomalies if found.
-*   **Command**: `rm -rf ~/.tars/.tars ~/.tars/\~``
+
+- **Policy**: Check for and remove these specific anomalies if found.
+- **Command**: `rm -rf ~/.tars/.tars ~/.tars/\~``
 
 ## Important Safety Rules
 
 1. **Anti-Recursion**: NEVER run `node dist/supervisor/main.js` or `npm run start` directly. This will now fail by design. Always use `tars start` (production) or `npm run dev` (local).
 2. **Tool Discovery**: You have specialized MCP tools (e.g., `memory_store_fact`, `create_task`). Always trust your tool list over guessing.
-    *   **NEVER** try to run extension scripts directly (e.g., `node .../dist/server.js`) using shell commands.
-    *   **NEVER** guess entry points (e.g., `dist/index.js`).
-    *   If a tool appears to be missing, check your system prompt or use `cli_help` to verify the environment state.
+    - **NEVER** try to run extension scripts directly (e.g., `node .../dist/server.js`) using shell commands.
+    - **NEVER** guess entry points (e.g., `dist/index.js`).
+    - If a tool appears to be missing, check your system prompt or use `cli_help` to verify the environment state.
 3. **Pathing**: The `tars` CLI handles paths automatically. Use absolute paths when manipulating files.
 4. **Internal Reasoning**: Before changing a system-level setting (like heartbeat frequency), explain the "Why" to the user unless it is part of a self-correction heartbeat.
-````
+
+```
+
+```

@@ -5,9 +5,7 @@
     "mcpServers": {
         "memory": {
             "command": "node",
-            "args": [
-                "${extensionPath}/dist/server.js"
-            ]
+            "args": ["${extensionPath}/dist/server.js"]
         }
     }
 }

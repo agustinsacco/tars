@@ -19,7 +19,7 @@ export class CronService {
         private readonly supervisor: Supervisor,
         private readonly config: Config,
         private readonly discordBot: DiscordBot
-    ) { }
+    ) {}
 
     public async start(): Promise<void> {
         const tasks = await this.loadTasks();
@@ -81,7 +81,9 @@ export class CronService {
             const taskToUpdate = currentTasks.find((t) => t.id === task.id);
 
             if (!taskToUpdate) {
-                logger.info(`ℹ️ [CRON] Task ${task.id} was deleted during execution. Skipping sync.`);
+                logger.info(
+                    `ℹ️ [CRON] Task ${task.id} was deleted during execution. Skipping sync.`
+                );
                 return;
             }
 
@@ -94,7 +96,9 @@ export class CronService {
             } catch {
                 // If it fails to parse as cron, it's a one-off (ISO date). Disable it.
                 taskToUpdate.enabled = false;
-                logger.info(`✅ [CRON] One-off task ${taskToUpdate.id} disabled after successful execution.`);
+                logger.info(
+                    `✅ [CRON] One-off task ${taskToUpdate.id} disabled after successful execution.`
+                );
             }
 
             if (taskToUpdate.enabled) {
@@ -115,7 +119,9 @@ export class CronService {
                         CronExpressionParser.parse(taskToUpdate.schedule);
                     } catch {
                         taskToUpdate.enabled = false;
-                        logger.warn(`⚠️ [CRON] One-off task ${taskToUpdate.id} disabled after 3 failures.`);
+                        logger.warn(
+                            `⚠️ [CRON] One-off task ${taskToUpdate.id} disabled after 3 failures.`
+                        );
                     }
                 }
                 taskToUpdate.updatedAt = new Date().toISOString();

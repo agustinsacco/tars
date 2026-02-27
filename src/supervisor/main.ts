@@ -228,7 +228,7 @@ function installExtensions(config: Config): void {
                     }
                 }
             }
-        } catch (e) { }
+        } catch (e) {}
 
         if (needsLink) {
             try {
