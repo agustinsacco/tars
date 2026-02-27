@@ -295,7 +295,7 @@ export class GeminiEngine extends EventEmitter {
             }
 
             let turnCount = 0;
-            const maxTurns = 50; // Increased to handle complex autonomous tasks
+            const maxTurns = 100; // Increased to handle complex autonomous tasks
             const abortController = new AbortController();
             let finalUsageStats: any = undefined;
 
@@ -362,15 +362,14 @@ export class GeminiEngine extends EventEmitter {
                     if (
                         (toolName.includes('run_command') ||
                             toolName.includes('run_shell_command')) &&
-                        (commandLine.includes('tars restart') ||
-                            commandLine.includes('tars stop') ||
-                            commandLine.includes('pm2'))
+                        (commandLine.includes('tars stop') ||
+                            /\bpm2\s+(stop|kill|delete)\b/.test(commandLine))
                     ) {
                         logger.warn(`🛑 INTERCEPTED self-destructive command: ${commandLine}`);
                         onEvent({
                             type: 'text',
                             role: 'assistant',
-                            content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would restart or stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to restart, please run \`tars restart\` manually in your terminal.`,
+                            content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to stop, please run \`tars stop\` manually in your terminal.`,
                             sessionId: sid
                         });
                         return false;
