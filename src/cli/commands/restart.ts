@@ -10,7 +10,9 @@ export async function restart() {
 
     try {
         // Check npm for the latest version
-        const latest = execSync('npm view @saccolabs/tars version', { encoding: 'utf-8' }).trim();
+        const latest = execSync('npm view @saccolabs/tars@latest version --prefer-online', {
+            encoding: 'utf-8'
+        }).trim();
 
         if (latest && latest !== pkg.version) {
             console.log(chalk.blue(`ℹ️ Latest version on npm: ${latest}`));
