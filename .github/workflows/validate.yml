@@ -1,0 +1,94 @@
+name: Validation
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    # Always run linting on all changes to maintain repo-wide style
+    lint:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+            - run: npm ci
+            - run: npm run lint
+
+    # Run core validation (build, test) only when code or its CI changes
+    validate-core:
+        runs-on: ubuntu-latest
+        needs: lint
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check for core changes
+              id: core_changes
+              uses: tj-actions/changed-files@v44
+              with:
+                  files: |
+                      src/**
+                      extensions/**
+                      package.json
+                      package-lock.json
+                      tsconfig.json
+                      vitest.config.ts
+                      .github/workflows/validate.yml
+                      .github/workflows/publish.yml
+
+            - name: Setup Node.js
+              if: steps.core_changes.outputs.any_changed == 'true'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              if: steps.core_changes.outputs.any_changed == 'true'
+              run: npm ci
+
+            - name: Build
+              if: steps.core_changes.outputs.any_changed == 'true'
+              run: npm run build
+
+            - name: Test
+              if: steps.core_changes.outputs.any_changed == 'true'
+              run: npm test
+
+    # Run site validation (build) only when the documentation site changes
+    validate-site:
+        runs-on: ubuntu-latest
+        needs: lint
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Check for site changes
+              id: site_changes
+              uses: tj-actions/changed-files@v44
+              with:
+                  files: |
+                      site/**
+
+            - name: Setup Node.js
+              if: steps.site_changes.outputs.any_changed == 'true'
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+                  cache-dependency-path: site/package-lock.json
+
+            - name: Install site dependencies
+              if: steps.site_changes.outputs.any_changed == 'true'
+              run: cd site && npm install
+
+            - name: Build site
+              if: steps.site_changes.outputs.any_changed == 'true'
+              run: cd site && npm run build
