@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/agustinsacco/tars/compare/v1.1.0...v1.2.0) (2026-03-01)
+
+
+### Features
+
+* add assistant name to setup wizard ([50c1bb0](https://github.com/agustinsacco/tars/commit/50c1bb08d9a46306832f439468b49c86b40bd31c))
+* configurable assistant name and home directory ([#6](https://github.com/agustinsacco/tars/issues/6)) ([1a8b257](https://github.com/agustinsacco/tars/commit/1a8b257a619bbeff634259c956b363840133f429))
+
 ## [1.1.0](https://github.com/agustinsacco/tars/compare/v1.0.53...v1.1.0) (2026-03-01)
 
 ### Features
