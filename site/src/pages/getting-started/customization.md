@@ -26,9 +26,9 @@ Alternatively, you can edit your `config.json` (located in your Tars home direct
 
 ```json
 {
-  "assistantName": "Case",
-  "discordToken": "...",
-  "geminiModel": "..."
+    "assistantName": "Case",
+    "discordToken": "...",
+    "geminiModel": "..."
 }
 ```
 
@@ -42,4 +42,4 @@ Alternatively, you can edit your `config.json` (located in your Tars home direct
 
 ## Changing the CLI Binary Name
 
-While you can rename the assistant's *identity*, the command-line tool itself remains `tars` to maintain backward compatibility and ensure standard installation paths work as expected.
+While you can rename the assistant's _identity_, the command-line tool itself remains `tars` to maintain backward compatibility and ensure standard installation paths work as expected.

@@ -34,7 +34,7 @@ tars setup
 ```
 
 3. **Configure the new Agent**
-   When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot". 
+   When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot".
 
 4. **Start the second Agent**
 
