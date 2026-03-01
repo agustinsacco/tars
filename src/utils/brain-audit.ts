@@ -3,6 +3,7 @@ import path from 'path';
 import os from 'os';
 import logger from './logger.js';
 import chalk from 'chalk';
+import { getTarsHome } from './paths.js';
 
 /**
  * BrainAuditor - Ensures the stability and structural integrity of the Tars workspace (~/.tars).
@@ -12,7 +13,7 @@ export class BrainAuditor {
     private tarsHome: string;
 
     constructor(tarsHome?: string) {
-        this.tarsHome = tarsHome || path.join(os.homedir(), '.tars');
+        this.tarsHome = tarsHome || getTarsHome();
     }
 
     /**

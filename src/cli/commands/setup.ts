@@ -5,12 +5,10 @@ import { execSync, spawnSync } from 'child_process';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
-import os from 'os';
 import { Client, GatewayIntentBits } from 'discord.js';
-
-import { existsSync } from 'fs';
 import { TarsOAuthService } from '../../auth/oauth-service.js';
 import { BrainAuditor } from '../../utils/brain-audit.js';
+import { getTarsHome } from '../../utils/paths.js';
 
 /**
  * Check if the isolated tars environment is authenticated
@@ -38,7 +36,7 @@ export async function setup() {
         process.exit(1);
     }
 
-    const tarsHome = path.join(os.homedir(), '.tars');
+    const tarsHome = getTarsHome();
     const isAuthed = await checkTarsAuth(tarsHome);
 
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);

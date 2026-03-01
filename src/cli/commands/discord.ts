@@ -1,17 +1,32 @@
 import chalk from 'chalk';
+import path from 'path';
+import fs from 'fs';
+import { getTarsHome } from '../../utils/paths.js';
 
 /**
  * tars discord - Display Discord setup and invitation instructions
  */
 export async function discord() {
-    console.log(chalk.bold.cyan('\n💬 Discord Setup & Invitation Guide'));
+    const tarsHome = getTarsHome();
+    let assistantName = 'Tars';
+    try {
+        const configPath = path.join(tarsHome, 'config.json');
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+            if (config.assistantName) {
+                assistantName = config.assistantName;
+            }
+        }
+    } catch (e) {}
+
+    console.log(chalk.bold.cyan(`\n💬 Discord Setup & Invitation Guide (${assistantName})`));
     console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
 
     console.log(chalk.bold('\n1. 🛠️ Configure your Bot Application'));
     console.log(
         chalk.white('   • Go to: ') + chalk.blue('https://discord.com/developers/applications')
     );
-    console.log(chalk.white('   • Select your Tars application.'));
+    console.log(chalk.white(`   • Select your ${assistantName} application.`));
     console.log(chalk.white('   • Click ') + chalk.bold('Bot') + chalk.white(' in the sidebar.'));
     console.log(
         chalk.white('   • Toggle ') +
@@ -58,12 +73,12 @@ export async function discord() {
     console.log(chalk.white('   • Click ') + chalk.bold('Authorize') + chalk.white('.'));
 
     console.log(chalk.bold('\n4. ✅ Verify Installation'));
-    console.log(chalk.white('   • Tars should appear in your member list.'));
+    console.log(chalk.white(`   • ${assistantName} should appear in your member list.`));
     console.log(
-        chalk.white('   • Once Tars is running (via ') +
+        chalk.white(`   • Once ${assistantName} is running (via `) +
             chalk.cyan('tars start') +
             chalk.white('), type ') +
-            chalk.bold('!tars hello') +
+            chalk.bold(`!${assistantName.toLowerCase()} hello`) +
             chalk.white(' to test.')
     );
     console.log('\n');

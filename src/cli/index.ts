@@ -15,20 +15,29 @@ import { versionString } from '../utils/version.js';
 
 const program = new Command();
 
-program.name('tars').description('Tars — Personal AI Assistant').version(versionString);
+program.name('tars').description('Your Personal AI Assistant').version(versionString);
 
 program
     .command('setup')
-    .description('Interactive onboarding wizard to configure Tars')
+    .description('Interactive onboarding wizard to configure your assistant')
     .action(setup);
 
-program.command('start').description('Start Tars supervisor in the background').action(start);
+program
+    .command('start')
+    .description('Start the assistant supervisor in the background')
+    .action(start);
 
-program.command('stop').description('Stop the Tars supervisor').action(stop);
+program.command('stop').description('Stop the assistant supervisor').action(stop);
 
-program.command('restart').description('Check for updates and restart Tars').action(restart);
+program
+    .command('restart')
+    .description('Check for updates and restart the assistant')
+    .action(restart);
 
-program.command('status').description('Check the status of Tars supervisor').action(status);
+program
+    .command('status')
+    .description('Check the status of the assistant supervisor')
+    .action(status);
 
 program
     .command('quota')
@@ -53,7 +62,10 @@ program
         return importBrain(path);
     });
 
-program.command('logs').description('View real-time logs from the Tars supervisor').action(logs);
+program
+    .command('logs')
+    .description('View real-time logs from the assistant supervisor')
+    .action(logs);
 
 program
     .command('discord')
@@ -78,6 +90,9 @@ program
         return memory(action, ...queryArgs);
     });
 
-program.command('uninstall').description('Uninstall Tars and remove all data').action(uninstall);
+program
+    .command('uninstall')
+    .description('Uninstall the assistant and remove all data')
+    .action(uninstall);
 
 program.parse();

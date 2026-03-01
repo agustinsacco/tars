@@ -5,6 +5,8 @@ import os from 'os';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 
+import { getTarsHome } from '../../utils/paths.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function start(): Promise<void> {
@@ -13,9 +15,9 @@ export async function start(): Promise<void> {
     // Point to the compiled JS entry point (dist/supervisor/main.js)
     const mainPath = path.resolve(__dirname, '../../supervisor/main.js');
 
-    // Pin CWD to ~/.tars so the supervisor is truly global and doesn't
+    // Pin CWD to the Tars home so the supervisor is truly global and doesn't
     // pick up context from whatever directory the user runs `tars start` in.
-    const tarsHome = process.env.TARS_HOME || path.join(os.homedir(), '.tars');
+    const tarsHome = getTarsHome();
     if (!fs.existsSync(tarsHome)) {
         fs.mkdirSync(tarsHome, { recursive: true });
     }

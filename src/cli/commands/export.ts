@@ -3,6 +3,8 @@ import chalk from 'chalk';
 import path from 'path';
 import os from 'os';
 
+import { getTarsHome } from '../../utils/paths.js';
+
 export async function exportBrain(options: { output?: string }) {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const defaultName = `tars-brain-${timestamp}.tar.gz`;
@@ -12,8 +14,9 @@ export async function exportBrain(options: { output?: string }) {
 
     console.log(chalk.cyan(`📦 Exporting Tars brain to ${outputPath}...`));
 
-    const tarsHome = path.join(os.homedir(), '.tars');
-    const geminiHome = path.join(os.homedir(), '.gemini');
+    const tarsHome = getTarsHome();
+    const parentDir = path.dirname(tarsHome);
+    const baseName = path.basename(tarsHome);
 
     // Exclude heavy directories to keep the brain lean
     const excludes = [
@@ -29,7 +32,7 @@ export async function exportBrain(options: { output?: string }) {
         '--exclude=.sass-cache'
     ];
 
-    const tar = spawn('tar', ['-czf', outputPath, ...excludes, '-C', os.homedir(), '.tars']);
+    const tar = spawn('tar', ['-czf', outputPath, ...excludes, '-C', parentDir, baseName]);
 
     tar.stderr.on('data', (data) => console.warn(chalk.yellow(data.toString())));
 

@@ -48,8 +48,12 @@ function installSystemPrompt(config: Config): void {
     const targetDir = path.dirname(config.systemPromptPath);
     fs.mkdirSync(targetDir, { recursive: true });
 
+    // Read the template and process placeholders
+    let promptContent = fs.readFileSync(srcPrompt, 'utf-8');
+    promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
+
     // Always overwrite to ensure latest prompt is deployed
-    fs.copyFileSync(srcPrompt, config.systemPromptPath);
+    fs.writeFileSync(config.systemPromptPath, promptContent);
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
 }
 
