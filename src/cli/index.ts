@@ -8,6 +8,7 @@ import { status } from './commands/status.js';
 import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
 import { secret } from './commands/secret.js';
+import { quota } from './commands/quota.js';
 import { uninstall } from './commands/uninstall.js';
 
 import { versionString } from '../utils/version.js';
@@ -28,6 +29,8 @@ program.command('stop').description('Stop the Tars supervisor').action(stop);
 program.command('restart').description('Check for updates and restart Tars').action(restart);
 
 program.command('status').description('Check the status of Tars supervisor').action(status);
+
+program.command('quota').description('Check current Gemini API rate limits and quotas').action(quota);
 
 program
     .command('export')

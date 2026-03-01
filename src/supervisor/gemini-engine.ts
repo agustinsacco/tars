@@ -22,6 +22,7 @@ import { AttachmentContext } from '../types/index.js';
 
 import { DiscordBot } from '../discord/discord-bot.js';
 import { SendDiscordMessageTool } from '../tools/send-discord-message.js';
+import { GetQuotaTool } from '../tools/get-quota.js';
 
 export interface GeminiEngineEvent {
     type: string;
@@ -145,12 +146,18 @@ export class GeminiEngine extends EventEmitter {
                 });
             }
 
-            // Inject the proactive notification tool
+            // Inject native tools
+            const toolRegistry = this.coreConfig.getToolRegistry();
+
             if (this.discordBot) {
                 const sendDiscordTool = new SendDiscordMessageTool(this.discordBot);
-                this.coreConfig.getToolRegistry().registerTool(sendDiscordTool);
+                toolRegistry.registerTool(sendDiscordTool);
                 logger.info('🔌 Registered native tool: send_discord_message');
             }
+
+            const getQuotaTool = new GetQuotaTool(this.coreConfig);
+            toolRegistry.registerTool(getQuotaTool);
+            logger.info('🔌 Registered native tool: get_model_quota');
 
             this.client = this.coreConfig.getGeminiClient();
             this.initialized = true;

@@ -18,7 +18,10 @@ vi.mock('@google/gemini-cli-core', async () => {
             refreshAuth: vi.fn(),
             initialize: vi.fn(),
             getGeminiClient: vi.fn().mockReturnValue({}),
-            getSessionId: vi.fn().mockReturnValue('mock-session-id')
+            getSessionId: vi.fn().mockReturnValue('mock-session-id'),
+            getToolRegistry: vi.fn().mockReturnValue({
+                registerTool: vi.fn()
+            })
         })),
         SimpleExtensionLoader: vi.fn(),
         MCPServerConfig: vi
