@@ -1,9 +1,9 @@
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import logger from '../utils/logger.js';
 import { SecretsManager } from '../utils/secrets-manager.js';
+import { getTarsHome } from '../utils/paths.js';
 
 dotenv.config();
 
@@ -23,17 +23,15 @@ export class Config {
 
     // Gemini
     public readonly geminiModel: string;
+    public readonly assistantName: string;
     public readonly heartbeatIntervalMs: number;
 
     // System Prompt
     public readonly systemPromptPath: string;
 
     private constructor() {
-        // 1. Establish Home Directory (~/.tars)
-        // Hardcode the base to be the real user home to avoid recursion if HOME is changed for subprocesses
-        const realUserHome = process.env.REAL_HOME || os.homedir();
-        this.homeDir =
-            process.env.TARS_HOME || path.join(realUserHome.replace('/.tars', ''), '.tars');
+        // 1. Establish Home Directory
+        this.homeDir = getTarsHome();
         this.configFilePath = path.join(this.homeDir, 'config.json');
 
         // 1.5 Load Secrets into environment
@@ -57,6 +55,7 @@ export class Config {
         // 3. Set values (Env vars override JSON config)
         this.discordToken = process.env.DISCORD_TOKEN || jsonConfig.discordToken || '';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
+        this.assistantName = process.env.ASSISTANT_NAME || jsonConfig.assistantName || 'Tars';
         this.discordOwnerId = process.env.DISCORD_OWNER_ID || jsonConfig.discordOwnerId || null;
 
         const hbSec =

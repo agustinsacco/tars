@@ -4,15 +4,17 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import { BrainAuditor } from '../../utils/brain-audit.js';
+import { getTarsHome } from '../../utils/paths.js';
 
 export async function importBrain(archivePath: string) {
     const fullPath = path.resolve(archivePath);
-    const homeDir = os.homedir();
+    const tarsHome = getTarsHome();
+    const parentDir = path.dirname(tarsHome);
 
     console.log(chalk.cyan(`📥 Importing Tars brain from ${fullPath}...`));
 
-    // 1. Extract the archive
-    const tar = spawn('tar', ['-xzf', fullPath, '-C', homeDir]);
+    // 1. Extract the archive into the parent directory
+    const tar = spawn('tar', ['-xzf', fullPath, '-C', parentDir]);
 
     tar.stderr.on('data', (data) => console.warn(chalk.yellow(data.toString())));
 

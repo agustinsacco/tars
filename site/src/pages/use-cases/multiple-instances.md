@@ -23,7 +23,7 @@ tars setup
 tars start
 ```
 
-_At this point, you have "DevOps-Bot" running on Discord._
+_At this point, you have the default bot running on Discord._
 
 2. **Bootstrap the SecOps Agent (Custom Path)**
 
@@ -34,29 +34,25 @@ tars setup
 ```
 
 3. **Configure the new Agent**
-   When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot". Then, edit the system prompt specifically for this agent:
-
-```bash
-nano ~/.tars-secops/.gemini/system.md
-```
-
-_(Teach it to be paranoid and focused purely on security logs)_
+   When `tars setup` prompts you for a Discord token, provide a brand new token for "SecOps-Bot". 
 
 4. **Start the second Agent**
 
 ```bash
 export TARS_HOME=~/.tars-secops
+export ASSISTANT_NAME="SecOps"
 tars start
 ```
 
-## Management
+## Deep Isolation
 
-You now have two entirely distinct AI workers operating on the exact same server.
+When you use a custom `TARS_HOME`, the following are strictly isolated:
 
-- They have different Discord accounts.
-- They have completely isolated Memory (`~/.tars/data/memory` vs `~/.tars-secops/data/memory`).
-- They schedule separate cron tasks.
-- They have different personalities dictated by their unique `system.md` prompts.
+- **Identity**: The assistant name and personality (`system.md`).
+- **Memory**: The SQLite knowledge base and daily facts.
+- **Extensions**: A fresh copy of all extensions is installed and hydrated in the new home.
+- **Tasks**: Scheduled cron jobs and one-time reminders.
+- **Logs**: All operational logs are written to the local `logs/` directory.
 
 To manage them, just supply the `TARS_HOME` variable before running the CLI:
 

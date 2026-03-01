@@ -94,7 +94,7 @@ export class DiscordBot {
      */
     private setupEventHandlers(): void {
         this.client.once('clientReady', (c) => {
-            logger.info(`🚀 Tars online as ${c.user.tag}`);
+            logger.info(`🚀 ${this.config.assistantName} online as ${c.user.tag}`);
             logger.info(`🧠 Gemini Model: ${this.config.geminiModel}`);
             if (this.config.discordOwnerId) {
                 logger.info(`👤 Primary Contact ID: ${this.config.discordOwnerId}`);
@@ -220,19 +220,25 @@ export class DiscordBot {
     }
 
     /**
-     * Extract prompt and handle prefix !tars
+     * Extract prompt and handle prefix
      */
     private extractPrompt(message: Message): string | null {
         const isDM = message.channel.type === ChannelType.DM;
         const isMentioned = this.client.user && message.mentions.has(this.client.user);
-        const hasCommand = message.content.startsWith('!tars');
 
-        if (!isDM && !isMentioned && !hasCommand) return null;
+        const customPrefix = `!${this.config.assistantName.toLowerCase()}`;
+        const hasCustomCommand = message.content.toLowerCase().startsWith(customPrefix);
+        const hasLegacyCommand = message.content.toLowerCase().startsWith('!tars');
+
+        if (!isDM && !isMentioned && !hasCustomCommand && !hasLegacyCommand) return null;
 
         let prompt = message.content;
-        if (hasCommand) {
-            prompt = prompt.replace('!tars', '');
+        if (hasCustomCommand) {
+            prompt = prompt.substring(customPrefix.length);
+        } else if (hasLegacyCommand) {
+            prompt = prompt.substring(6); // length of '!tars'
         }
+
         if (isMentioned && this.client.user) {
             prompt = prompt.replace(new RegExp(`<@!?${this.client.user.id}>`, 'g'), '');
         }
