@@ -30,7 +30,10 @@ program.command('restart').description('Check for updates and restart Tars').act
 
 program.command('status').description('Check the status of Tars supervisor').action(status);
 
-program.command('quota').description('Check current Gemini API rate limits and quotas').action(quota);
+program
+    .command('quota')
+    .description('Check current Gemini API rate limits and quotas')
+    .action(quota);
 
 program
     .command('export')

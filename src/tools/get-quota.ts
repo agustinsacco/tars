@@ -42,21 +42,25 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
             const buckets = quota.buckets;
 
             let resultText = '### Current Model Quotas\n\n';
-            
+
             // Filter buckets if a specific modelId was requested, otherwise show all relevant ones
-            const relevantBuckets = this.params.modelId 
-                ? buckets.filter(b => b.modelId?.includes(this.params.modelId!))
-                : buckets.filter(b => b.modelId && (b.modelId === activeModel || b.modelId.includes('gemini')));
+            const relevantBuckets = this.params.modelId
+                ? buckets.filter((b) => b.modelId?.includes(this.params.modelId!))
+                : buckets.filter(
+                      (b) =>
+                          b.modelId && (b.modelId === activeModel || b.modelId.includes('gemini'))
+                  );
 
             if (relevantBuckets.length === 0) {
                 resultText += `No buckets found matching "${this.params.modelId || 'Gemini models'}".\n`;
             } else {
                 for (const bucket of relevantBuckets) {
                     const is_active = bucket.modelId === activeModel ? ' (Active)' : '';
-                    const remaining = bucket.remainingFraction != null 
-                        ? `${(bucket.remainingFraction * 100).toFixed(1)}%` 
-                        : 'Unknown';
-                    
+                    const remaining =
+                        bucket.remainingFraction != null
+                            ? `${(bucket.remainingFraction * 100).toFixed(1)}%`
+                            : 'Unknown';
+
                     resultText += `- **${bucket.modelId}**${is_active}\n`;
                     resultText += `  - **Remaining**: ${remaining}\n`;
                     if (bucket.resetTime) {
@@ -94,7 +98,8 @@ export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult
                 properties: {
                     modelId: {
                         type: 'string',
-                        description: 'Optional: Filter for a specific model ID (e.g. "gemini-2.5-flash"). If omitted, returns all relevant Gemini quotas.'
+                        description:
+                            'Optional: Filter for a specific model ID (e.g. "gemini-2.5-flash"). If omitted, returns all relevant Gemini quotas.'
                     }
                 }
             },
