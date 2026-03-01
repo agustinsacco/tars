@@ -180,6 +180,12 @@ export async function setup() {
 
     const config = await inquirer.prompt([
         {
+            type: 'input',
+            name: 'assistantName',
+            message: 'Assistant Name (Display identity):',
+            default: existingConfig.assistantName || 'Tars'
+        },
+        {
             type: 'list',
             name: 'geminiModel',
             message: 'Select Gemini Model:',
@@ -303,6 +309,7 @@ export async function setup() {
     const intervalSec = minutes * 60;
 
     const configData = {
+        assistantName: config.assistantName,
         discordToken,
         geminiModel: finalModel,
         heartbeatIntervalSec: intervalSec
