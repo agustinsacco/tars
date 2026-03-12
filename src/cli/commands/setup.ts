@@ -42,7 +42,7 @@ export async function setup() {
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
 
     // ── Step 1: Google OAuth ───────────────────────────────
-    console.log(chalk.bold('\nStep 1/4: Google Authentication'));
+    console.log(chalk.bold('\nStep 1/5: Google Authentication'));
     console.log(chalk.dim('────────────────────────────────'));
 
     let performAuth = false;
@@ -99,7 +99,10 @@ export async function setup() {
         );
     }
 
-    // ── Step 2: Discord Bot ───────────────────────────────
+    // ── Step 2: Channel Configuration ─────────────────────
+    console.log(chalk.bold('\nStep 2/5: Communication Channels'));
+    console.log(chalk.dim('─────────────────────────────────'));
+
     let existingConfig: any = {};
     try {
         const data = await fs.readFile(path.join(tarsHome, 'config.json'), 'utf-8');
@@ -108,75 +111,117 @@ export async function setup() {
         /* ignore */
     }
 
+    const { selectedChannels } = await inquirer.prompt([
+        {
+            type: 'checkbox',
+            name: 'selectedChannels',
+            message: 'Select the communication channels you want to enable:',
+            choices: [
+                {
+                    name: 'Discord',
+                    value: 'discord',
+                    checked:
+                        !!existingConfig.discordToken || !!existingConfig.channels?.discord?.enabled
+                },
+                {
+                    name: 'WhatsApp',
+                    value: 'whatsapp',
+                    checked: !!existingConfig.channels?.whatsapp?.enabled
+                }
+            ]
+        }
+    ]);
+
+    const channels: Record<string, any> = {};
     let discordToken = existingConfig.discordToken || '';
-    let skipDiscord = false;
 
-    if (discordToken) {
-        console.log(chalk.green('  ✓ Discord token already configured.'));
-        const { reAuthDiscord } = await inquirer.prompt([
-            {
-                type: 'confirm',
-                name: 'reAuthDiscord',
-                message: 'Do you want to update the Discord Bot Token?',
-                default: false
-            }
-        ]);
-        if (!reAuthDiscord) {
-            skipDiscord = true;
+    // Discord Wizard
+    if (selectedChannels.includes('discord')) {
+        let skipDiscord = false;
+        if (discordToken) {
+            console.log(chalk.green('\n  ✓ Discord token already configured.'));
+            const { reAuthDiscord } = await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'reAuthDiscord',
+                    message: 'Do you want to update the Discord Bot Token?',
+                    default: false
+                }
+            ]);
+            if (!reAuthDiscord) skipDiscord = true;
         }
-    }
 
-    if (!skipDiscord) {
-        const answers = await inquirer.prompt([
-            {
-                type: 'password',
-                name: 'discordToken',
-                message: 'Enter Discord Bot Token:',
-                validate: (input) =>
-                    input.length > 50 ||
-                    'Token too short — paste the full token from the Developer Portal'
-            }
-        ]);
-        discordToken = answers.discordToken;
+        if (!skipDiscord) {
+            const answers = await inquirer.prompt([
+                {
+                    type: 'password',
+                    name: 'discordToken',
+                    message: 'Enter Discord Bot Token:',
+                    validate: (input) =>
+                        input.length > 50 ||
+                        'Token too short — paste the full token from the Developer Portal'
+                }
+            ]);
+            discordToken = answers.discordToken;
 
-        const validateSpinner = ora('Validating token & intents...').start();
-        try {
-            const client = new Client({
-                intents: [
-                    GatewayIntentBits.Guilds,
-                    GatewayIntentBits.GuildMessages,
-                    GatewayIntentBits.MessageContent,
-                    GatewayIntentBits.DirectMessages
-                ]
-            });
-            await client.login(discordToken);
-            const botName = client.user?.tag;
-            client.destroy();
-            validateSpinner.succeed(`Token & Intents valid! Bot: ${chalk.bold(botName)}`);
-        } catch (err: any) {
-            if (err.message.includes('disallowed intents')) {
-                validateSpinner.fail(chalk.red.bold('DISALLOWED INTENTS ERROR'));
-                console.log(
-                    chalk.red(
-                        '\n  The token is valid, but your bot lacks the "Message Content Intent".'
-                    )
-                );
-                console.log(
-                    chalk.red('  Please go to the Discord Developer Portal and enable it:')
-                );
-                console.log(chalk.red('  1. Select your Bot -> "Bot" section.'));
-                console.log(chalk.red('  2. Scroll to "Privileged Gateway Intents".'));
-                console.log(chalk.red('  3. Enable "Message Content Intent" and SAVE CHANGES.\n'));
-            } else {
+            const validateSpinner = ora('Validating Discord token...').start();
+            try {
+                const client = new Client({
+                    intents: [
+                        GatewayIntentBits.Guilds,
+                        GatewayIntentBits.GuildMessages,
+                        GatewayIntentBits.MessageContent,
+                        GatewayIntentBits.DirectMessages
+                    ]
+                });
+                await client.login(discordToken);
+                const botName = client.user?.tag;
+                client.destroy();
+                validateSpinner.succeed(`Discord Token valid! Bot: ${chalk.bold(botName)}`);
+            } catch (err: any) {
                 validateSpinner.fail('Invalid Discord token. Check your token and try again.');
+                process.exit(1);
             }
-            process.exit(1);
         }
+        channels.discord = {
+            enabled: true,
+            token: discordToken,
+            ownerId: existingConfig.discordOwnerId || undefined
+        };
     }
+
+    // WhatsApp Wizard
+    if (selectedChannels.includes('whatsapp')) {
+        const waAnswers = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'ownerNumber',
+                message: 'Enter your WhatsApp Phone Number (with country code, e.g., 15141234567):',
+                default: existingConfig.channels?.whatsapp?.ownerNumber || '',
+                validate: (input) =>
+                    /^\d{10,15}$/.test(input) ||
+                    'Please enter a valid number (digits only, 10-15 characters).'
+            }
+        ]);
+        channels.whatsapp = { enabled: true, ownerNumber: waAnswers.ownerNumber };
+        console.log(
+            chalk.dim('  Note: You will be prompted to scan a QR code on the first "tars start".')
+        );
+    }
+
+    const { primaryChannel } = await inquirer.prompt([
+        {
+            type: 'list',
+            name: 'primaryChannel',
+            message: 'Select your Primary Channel for notifications:',
+            choices: selectedChannels,
+            default: existingConfig.primaryChannel || selectedChannels[0]
+        }
+    ]);
 
     // ── Step 3: Configuration ─────────────────────────────
-    console.log(chalk.bold('\nStep 3/4: Configuration'));
-    console.log(chalk.dim('────────────────────────'));
+    console.log(chalk.bold('\nStep 3/5: Identity & Engine'));
+    console.log(chalk.dim('────────────────────────────'));
 
     const config = await inquirer.prompt([
         {
@@ -221,33 +266,22 @@ export async function setup() {
             default: existingConfig.heartbeatIntervalSec
                 ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
                 : 30
-        },
-        {
-            type: 'number',
-            name: 'customHeartbeat',
-            message: 'Enter heartbeat interval in minutes (Minimum 30):',
-            when: (answers) => answers.heartbeatMinutes === 'custom',
-            validate: (input) => {
-                if (input < 30) return 'Minimum heartbeat interval is 30 minutes.';
-                return true;
-            }
         }
     ]);
 
     // ── Step 4: Installation ──────────────────────────────
-    console.log(chalk.bold('\nStep 4/4: Installing'));
+    console.log(chalk.bold('\nStep 4/5: Installing'));
     console.log(chalk.dim('─────────────────────'));
 
-    // 1. Audit and Heal existing brain if it exists
+    // 1. Audit and Heal
     const auditor = new BrainAuditor(tarsHome);
     await auditor.audit({ silent: true });
 
     // 2. Provision isolated environment
-    // GEMINI_CLI_HOME=~/.tars → Gemini CLI looks for ~/.tars/.gemini/
     const installSpinner = ora('Provisioning environment...').start();
     const geminiDir = path.join(tarsHome, '.gemini');
 
-    await fs.mkdir(path.join(tarsHome, 'data'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'data', 'uploads'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'logs'), { recursive: true });
     await fs.mkdir(path.join(geminiDir, 'extensions'), { recursive: true });
     await fs.mkdir(path.join(geminiDir, 'tmp'), { recursive: true });
@@ -255,75 +289,31 @@ export async function setup() {
 
     installSpinner.succeed('Directories created (~/.tars/.gemini/)');
 
-    // ── Auth Credentials (Handled natively) ────────────────
-    // Credentials are now created or verified directly in ~/.tars/.gemini/
-    // during the setup process, so no migration from host is needed.
-
-    // ── Write Gemini CLI settings.json ─────────────────────
-    const settingsSpinner = ora('Configuring Gemini CLI settings...').start();
-    try {
-        const settingsTemplatePath = path.resolve(
-            path.dirname(new URL(import.meta.url).pathname),
-            '../../../context/config/settings.json-template'
-        );
-
-        let geminiSettings: any = {};
-        try {
-            const templateData = await fs.readFile(settingsTemplatePath, 'utf-8');
-            geminiSettings = JSON.parse(templateData);
-        } catch {
-            // Fallback
-            geminiSettings = {
-                model: {
-                    compressionThreshold: 0.2,
-                    summarizeToolOutput: {
-                        run_shell_command: { tokenBudget: 2000 }
-                    }
-                },
-                experimental: {
-                    enableAgents: true
-                }
-            };
-        }
-
-        if (!geminiSettings.security) geminiSettings.security = {};
-        if (!geminiSettings.security.auth) geminiSettings.security.auth = {};
-        geminiSettings.security.auth.selectedType = 'oauth-personal';
-
-        await fs.writeFile(
-            path.join(geminiDir, 'settings.json'),
-            JSON.stringify(geminiSettings, null, 2)
-        );
-        settingsSpinner.succeed('Gemini CLI settings configured from template.');
-    } catch (err: any) {
-        settingsSpinner.warn(`Could not write settings: ${err.message}`);
-    }
-
-    // Save Tars configuration
+    // ── Write Tars configuration ─────────────────────
     const saveSpinner = ora('Saving configuration...').start();
     const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
-
-    // Convert minutes to seconds
-    const minutes =
-        config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes;
-    const intervalSec = minutes * 60;
+    const intervalSec =
+        (config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes) *
+        60;
 
     const configData = {
         assistantName: config.assistantName,
         discordToken,
+        discordOwnerId: existingConfig.discordOwnerId,
         geminiModel: finalModel,
-        heartbeatIntervalSec: intervalSec
+        heartbeatIntervalSec: intervalSec,
+        channels,
+        primaryChannel
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
 
-    // 3. Install and Hydrate extensions
+    // Hydrate extensions (Scan extensions directory)
     const extensionsBaseSrc = path.resolve(
         path.dirname(new URL(import.meta.url).pathname),
         '../../../extensions'
     );
-
     if (fsSync.existsSync(extensionsBaseSrc)) {
         const extensions = fsSync.readdirSync(extensionsBaseSrc);
         for (const extName of extensions) {
@@ -333,41 +323,17 @@ export async function setup() {
             const finalExtName =
                 extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
             const linkTarget = path.join(geminiDir, 'extensions', finalExtName);
-
             const extSpinner = ora(`Installing extension: ${finalExtName}...`).start();
 
             try {
-                // Remove existing
-                if (fsSync.existsSync(linkTarget)) {
+                if (fsSync.existsSync(linkTarget))
                     await fs.rm(linkTarget, { recursive: true, force: true });
-                }
-
                 await fs.cp(extSrc, linkTarget, { recursive: true });
-
-                // Hydrate dependencies
-                extSpinner.text = `Hydrating ${finalExtName} (npm install)...`;
-                execSync('npm install --production', {
-                    cwd: linkTarget,
-                    stdio: 'pipe'
-                });
-
-                // Run build if package.json has a build script
-                const pkgPath = path.join(linkTarget, 'package.json');
-                if (fsSync.existsSync(pkgPath)) {
-                    const pkg = JSON.parse(fsSync.readFileSync(pkgPath, 'utf-8'));
-                    if (pkg.scripts?.build) {
-                        extSpinner.text = `Building ${finalExtName}...`;
-                        execSync('npm run build', {
-                            cwd: linkTarget,
-                            stdio: 'pipe'
-                        });
-                    }
-                }
-
+                extSpinner.text = `Hydrating ${finalExtName}...`;
+                execSync('npm install --production', { cwd: linkTarget, stdio: 'pipe' });
                 extSpinner.succeed(`Extension ready: ${finalExtName}`);
             } catch (err: any) {
-                const output = err.stdout?.toString() || err.stderr?.toString() || err.message;
-                extSpinner.warn(`Extension ${finalExtName} failed: ${output}`);
+                extSpinner.warn(`Extension ${finalExtName} failed: ${err.message}`);
             }
         }
     }
@@ -377,5 +343,4 @@ export async function setup() {
     console.log(`\n  Start Tars:     ${chalk.cyan('tars start')}`);
     console.log(`  Check status:   ${chalk.cyan('tars status')}`);
     console.log(`  View logs:      ${chalk.cyan('tars logs')}`);
-    console.log(`  Invite Bot:     ${chalk.cyan('tars discord')}\n`);
 }

@@ -3,25 +3,35 @@ import { GeminiEngine } from '../../supervisor/gemini-engine.js';
 import { Config as TarsConfig } from '../../config/config.js';
 import fs from 'fs';
 import path from 'path';
-import {
-    Config as CoreConfig,
-    SimpleExtensionLoader,
-    MCPServerConfig
-} from '@google/gemini-cli-core';
 
 vi.mock('fs');
-vi.mock('@google/gemini-cli-core', async () => {
-    const actual = (await vi.importActual('@google/gemini-cli-core')) as any;
+
+vi.mock('@google/gemini-cli-core', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@google/gemini-cli-core')>();
+
+    // Define a base class for the mock inside the factory to avoid hoisting issues
+    class MockNativeTool {
+        constructor(
+            public name: string,
+            public description: string,
+            public schema: any
+        ) {}
+    }
+
     return {
         ...actual,
+        NativeTool: MockNativeTool,
         Config: vi.fn().mockImplementation(() => ({
             refreshAuth: vi.fn(),
             initialize: vi.fn(),
-            getGeminiClient: vi.fn().mockReturnValue({}),
+            getGeminiClient: vi.fn().mockReturnValue({
+                isInitialized: vi.fn().mockReturnValue(false)
+            }),
             getSessionId: vi.fn().mockReturnValue('mock-session-id'),
             getToolRegistry: vi.fn().mockReturnValue({
                 registerTool: vi.fn()
-            })
+            }),
+            getMessageBus: vi.fn().mockReturnValue({})
         })),
         SimpleExtensionLoader: vi.fn(),
         MCPServerConfig: vi
@@ -38,7 +48,8 @@ describe('GeminiEngine', () => {
         vi.clearAllMocks();
         mockTarsConfig = {
             homeDir: '/mock/home',
-            geminiModel: 'gemini-pro'
+            geminiModel: 'gemini-pro',
+            systemPromptPath: '/mock/home/.gemini/system.md'
         } as any;
         engine = new GeminiEngine(mockTarsConfig);
     });
@@ -75,6 +86,7 @@ describe('GeminiEngine', () => {
 
         await engine.initialize();
 
+        const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
         expect(SimpleExtensionLoader).toHaveBeenCalled();
         const loaderArgs = (SimpleExtensionLoader as any).mock.calls[0][0];
         expect(loaderArgs).toHaveLength(1);
@@ -90,6 +102,7 @@ describe('GeminiEngine', () => {
     it('should handle no extensions directory', async () => {
         (fs.existsSync as any).mockReturnValue(false);
         await engine.initialize();
+        const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
         expect(SimpleExtensionLoader).toHaveBeenCalledWith([]);
     });
 });

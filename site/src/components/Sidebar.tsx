@@ -18,7 +18,8 @@ export const NAV_SECTIONS: NavSection[] = [
             { title: 'Introduction', href: '/getting-started/what-is-tars' },
             { title: 'Installation', href: '/getting-started/installation' },
             { title: 'Quick Start', href: '/getting-started/setup' },
-            { title: 'Discord Integration', href: '/getting-started/discord' }
+            { title: 'Discord Integration', href: '/getting-started/discord' },
+            { title: 'WhatsApp Integration', href: '/getting-started/whatsapp' }
         ]
     },
     {

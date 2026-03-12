@@ -12,21 +12,16 @@ interface NotifyParams {
     message: string;
 }
 
-class SendDiscordMessageInvocation extends BaseToolInvocation<NotifyParams, ToolResult> {
+class SendNotificationInvocation extends BaseToolInvocation<NotifyParams, ToolResult> {
     constructor(
         params: NotifyParams,
         private channelManager: ChannelManager
     ) {
-        super(
-            params,
-            null as unknown as MessageBus,
-            'send_discord_message',
-            'Send Discord Message'
-        );
+        super(params, null as unknown as MessageBus, 'send_notification', 'Send Notification');
     }
 
     getDescription(): string {
-        return `Sending Discord notification (Deprecated): ${this.params.message.substring(0, 50)}${this.params.message.length > 50 ? '...' : ''}`;
+        return `Sending proactive notification: ${this.params.message.substring(0, 50)}${this.params.message.length > 50 ? '...' : ''}`;
     }
 
     async execute(signal: AbortSignal): Promise<ToolResult> {
@@ -46,14 +41,14 @@ class SendDiscordMessageInvocation extends BaseToolInvocation<NotifyParams, Tool
 }
 
 /**
- * Tool to send proactive messages back to the user on Discord (Deprecated: use send_notification)
+ * Tool to send proactive notifications to the user via enabled channels
  */
-export class SendDiscordMessageTool extends BaseDeclarativeTool<NotifyParams, ToolResult> {
+export class SendNotificationTool extends BaseDeclarativeTool<NotifyParams, ToolResult> {
     constructor(private readonly channelManager: ChannelManager) {
         super(
-            'send_discord_message',
-            'Send Discord Message',
-            'Send a proactive message or notification back to the user on Discord. Use this tool during background tasks to report results, alert the user to issues, or ask questions that you want them to see when they return.',
+            'send_notification',
+            'Send Notification',
+            'Send a proactive message or notification back to the user. Use this tool during background tasks to report results, alert the user to issues, or ask questions that you want them to see when they return.',
             Kind.Communicate,
             {
                 type: 'object',
@@ -75,6 +70,6 @@ export class SendDiscordMessageTool extends BaseDeclarativeTool<NotifyParams, To
         params: NotifyParams,
         _messageBus: MessageBus
     ): ToolInvocation<NotifyParams, ToolResult> {
-        return new SendDiscordMessageInvocation(params, this.channelManager);
+        return new SendNotificationInvocation(params, this.channelManager);
     }
 }
