@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/agustinsacco/tars/compare/v1.2.0...v1.3.0) (2026-03-12)
+
+
+### Features
+
+* multi-channel architecture and WhatsApp integration ([#12](https://github.com/agustinsacco/tars/issues/12)) ([927bfc2](https://github.com/agustinsacco/tars/commit/927bfc2d599427ca1cc4be9b4d0f849f85baa481))
+* multi-channel architecture plan (Discord & WhatsApp) ([#10](https://github.com/agustinsacco/tars/issues/10)) ([6f0fbd1](https://github.com/agustinsacco/tars/commit/6f0fbd13073f014121326cd8c0ee198fc252411f))
+
 ## [1.2.0](https://github.com/agustinsacco/tars/compare/v1.1.0...v1.2.0) (2026-03-01)
 
 ### Features
