@@ -51,6 +51,8 @@ function installSystemPrompt(config: Config): void {
     // Read the template and process placeholders
     let promptContent = fs.readFileSync(srcPrompt, 'utf-8');
     promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
+    promptContent = promptContent.replace(/{{INSTANCE_NAME}}/g, config.instanceName);
+    promptContent = promptContent.replace(/{{INSTANCE_ROLE}}/g, config.instanceRole);
 
     // Always overwrite to ensure latest prompt is deployed
     fs.writeFileSync(config.systemPromptPath, promptContent);
