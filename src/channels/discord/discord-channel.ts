@@ -1,10 +1,4 @@
-import {
-    Client,
-    GatewayIntentBits,
-    Message,
-    ChannelType,
-    Partials
-} from 'discord.js';
+import { Client, GatewayIntentBits, Message, ChannelType, Partials } from 'discord.js';
 import { Config } from '../../config/config.js';
 import logger from '../../utils/logger.js';
 import { MessageFormatter } from './message-formatter.js';
@@ -134,7 +128,9 @@ export class DiscordChannel implements CommunicationChannel {
         if (!this.config.discordOwnerId) {
             this.config.discordOwnerId = message.author.id;
             this.config.saveSettings();
-            logger.info(`🔒 Automatically bound Primary Contact to Discord user: ${message.author.id}`);
+            logger.info(
+                `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id}`
+            );
             await message.reply(
                 `🔒 **System Alert:** I have permanently bound my background notification channel to your Discord account.`
             );
@@ -180,7 +176,7 @@ export class DiscordChannel implements CommunicationChannel {
                     for (let i = 0; i < chunks.length; i++) {
                         await message.reply({
                             content: chunks[i],
-                            files: i === chunks.length - 1 ? (outAttachments || []) : []
+                            files: i === chunks.length - 1 ? outAttachments || [] : []
                         });
                     }
                 }

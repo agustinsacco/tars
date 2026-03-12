@@ -117,8 +117,17 @@ export async function setup() {
             name: 'selectedChannels',
             message: 'Select the communication channels you want to enable:',
             choices: [
-                { name: 'Discord', value: 'discord', checked: !!existingConfig.discordToken || !!existingConfig.channels?.discord?.enabled },
-                { name: 'WhatsApp', value: 'whatsapp', checked: !!existingConfig.channels?.whatsapp?.enabled }
+                {
+                    name: 'Discord',
+                    value: 'discord',
+                    checked:
+                        !!existingConfig.discordToken || !!existingConfig.channels?.discord?.enabled
+                },
+                {
+                    name: 'WhatsApp',
+                    value: 'whatsapp',
+                    checked: !!existingConfig.channels?.whatsapp?.enabled
+                }
             ]
         }
     ]);
@@ -149,7 +158,8 @@ export async function setup() {
                     name: 'discordToken',
                     message: 'Enter Discord Bot Token:',
                     validate: (input) =>
-                        input.length > 50 || 'Token too short — paste the full token from the Developer Portal'
+                        input.length > 50 ||
+                        'Token too short — paste the full token from the Developer Portal'
                 }
             ]);
             discordToken = answers.discordToken;
@@ -157,7 +167,12 @@ export async function setup() {
             const validateSpinner = ora('Validating Discord token...').start();
             try {
                 const client = new Client({
-                    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent, GatewayIntentBits.DirectMessages]
+                    intents: [
+                        GatewayIntentBits.Guilds,
+                        GatewayIntentBits.GuildMessages,
+                        GatewayIntentBits.MessageContent,
+                        GatewayIntentBits.DirectMessages
+                    ]
                 });
                 await client.login(discordToken);
                 const botName = client.user?.tag;
@@ -168,7 +183,11 @@ export async function setup() {
                 process.exit(1);
             }
         }
-        channels.discord = { enabled: true, token: discordToken, ownerId: existingConfig.discordOwnerId || undefined };
+        channels.discord = {
+            enabled: true,
+            token: discordToken,
+            ownerId: existingConfig.discordOwnerId || undefined
+        };
     }
 
     // WhatsApp Wizard
@@ -179,11 +198,15 @@ export async function setup() {
                 name: 'ownerNumber',
                 message: 'Enter your WhatsApp Phone Number (with country code, e.g., 15141234567):',
                 default: existingConfig.channels?.whatsapp?.ownerNumber || '',
-                validate: (input) => /^\d{10,15}$/.test(input) || 'Please enter a valid number (digits only, 10-15 characters).'
+                validate: (input) =>
+                    /^\d{10,15}$/.test(input) ||
+                    'Please enter a valid number (digits only, 10-15 characters).'
             }
         ]);
         channels.whatsapp = { enabled: true, ownerNumber: waAnswers.ownerNumber };
-        console.log(chalk.dim('  Note: You will be prompted to scan a QR code on the first "tars start".'));
+        console.log(
+            chalk.dim('  Note: You will be prompted to scan a QR code on the first "tars start".')
+        );
     }
 
     const { primaryChannel } = await inquirer.prompt([
@@ -240,7 +263,9 @@ export async function setup() {
                 { name: '4 Hours', value: 240 },
                 { name: 'Custom', value: 'custom' }
             ],
-            default: existingConfig.heartbeatIntervalSec ? Math.floor(existingConfig.heartbeatIntervalSec / 60) : 30
+            default: existingConfig.heartbeatIntervalSec
+                ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
+                : 30
         }
     ]);
 
@@ -267,7 +292,9 @@ export async function setup() {
     // ── Write Tars configuration ─────────────────────
     const saveSpinner = ora('Saving configuration...').start();
     const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
-    const intervalSec = (config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes) * 60;
+    const intervalSec =
+        (config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes) *
+        60;
 
     const configData = {
         assistantName: config.assistantName,
@@ -283,19 +310,24 @@ export async function setup() {
     saveSpinner.succeed('Configuration saved.');
 
     // Hydrate extensions (Scan extensions directory)
-    const extensionsBaseSrc = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../extensions');
+    const extensionsBaseSrc = path.resolve(
+        path.dirname(new URL(import.meta.url).pathname),
+        '../../../extensions'
+    );
     if (fsSync.existsSync(extensionsBaseSrc)) {
         const extensions = fsSync.readdirSync(extensionsBaseSrc);
         for (const extName of extensions) {
             const extSrc = path.join(extensionsBaseSrc, extName);
             if (!fsSync.statSync(extSrc).isDirectory()) continue;
 
-            const finalExtName = extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
+            const finalExtName =
+                extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
             const linkTarget = path.join(geminiDir, 'extensions', finalExtName);
             const extSpinner = ora(`Installing extension: ${finalExtName}...`).start();
 
             try {
-                if (fsSync.existsSync(linkTarget)) await fs.rm(linkTarget, { recursive: true, force: true });
+                if (fsSync.existsSync(linkTarget))
+                    await fs.rm(linkTarget, { recursive: true, force: true });
                 await fs.cp(extSrc, linkTarget, { recursive: true });
                 extSpinner.text = `Hydrating ${finalExtName}...`;
                 execSync('npm install --production', { cwd: linkTarget, stdio: 'pipe' });

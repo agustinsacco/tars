@@ -215,20 +215,29 @@ function installExtensions(config: Config): void {
             extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
         const finalDestPath = path.join(targetExtensionsDir, finalExtName);
 
-        // Check if copy/update needed
-        let needsUpdate = true;
+        // Check if symlink exists and is valid
+        let needsLink = true;
         try {
             if (fs.existsSync(finalDestPath)) {
-                needsUpdate = true; // Always update for now to be safe
+                const stats = fs.lstatSync(finalDestPath);
+                if (stats.isSymbolicLink()) {
+                    const realPath = fs.realpathSync(finalDestPath);
+                    if (realPath === srcPath) {
+                        needsLink = false;
+                    }
+                }
             }
         } catch (e) {}
 
-        if (needsUpdate) {
+        if (needsLink) {
             try {
-                if (fs.existsSync(finalDestPath)) {
+                if (
+                    fs.existsSync(finalDestPath) ||
+                    (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())
+                ) {
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
-                fs.cpSync(srcPath, finalDestPath, { recursive: true });
+                fs.symlinkSync(srcPath, finalDestPath);
                 logger.info(`🔌 Integrated extension: ${finalExtName}`);
             } catch (error) {
                 logger.error(`❌ Failed to integrate extension ${finalExtName}: ${error}`);

@@ -17,14 +17,24 @@ The wizard will guide you through the following steps:
 
 Tars uses the **Gemini Core engine** for intelligence. The wizard will open a browser window for you to sign in with your Google account. This grants Tars direct access to Gemini models via the official Node.js Core library.
 
-### 2. Discord Bot Connection
+### 2. Communication Channels
 
-You will need a **Discord Bot Token**.
+Tars now supports a multi-channel architecture. You can connect Discord, WhatsApp, or both.
+
+**Discord:**
 
 1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Create a new application and add a Bot.
-3. Reset/Copy the **Token**.
-4. Enable the **Message Content Intent** under the Bot settings.
+2. Create a new application, add a Bot, and copy the **Token**.
+3. Enable the **Message Content Intent** under the Bot settings.
+
+**WhatsApp:**
+
+1. Enter your WhatsApp phone number (with country code).
+2. Upon running `tars start` for the first time, Tars will display a QR code in the terminal.
+3. Scan it with your phone's WhatsApp app (Linked Devices) to connect.
+
+**Primary Channel:**
+You will also select a "Primary Channel". This determines where Tars sends proactive notifications if you have both enabled and haven't recently interacted on one of them.
 
 ### 3. Model & Heartbeat
 

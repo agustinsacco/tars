@@ -8,10 +8,14 @@ vi.mock('fs');
 
 vi.mock('@google/gemini-cli-core', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@google/gemini-cli-core')>();
-    
+
     // Define a base class for the mock inside the factory to avoid hoisting issues
     class MockNativeTool {
-        constructor(public name: string, public description: string, public schema: any) {}
+        constructor(
+            public name: string,
+            public description: string,
+            public schema: any
+        ) {}
     }
 
     return {

@@ -66,8 +66,9 @@ export class Config {
         // 3. Set values (Env vars override JSON config)
         this.assistantName = process.env.ASSISTANT_NAME || jsonConfig.assistantName || 'Tars';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
-        
-        const hbSec = process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
+
+        const hbSec =
+            process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
         this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
 
         // 4. Initialize Channels
@@ -93,7 +94,7 @@ export class Config {
         this.systemPromptPath = path.join(this.homeDir, '.gemini', 'system.md');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
 
-        if (!this.discordToken && !Object.values(this.channels).some(c => c.enabled)) {
+        if (!this.discordToken && !Object.values(this.channels).some((c) => c.enabled)) {
             logger.warn('⚠️ No active communication channels found. Please run `tars setup`.');
         }
     }

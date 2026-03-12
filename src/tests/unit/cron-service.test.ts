@@ -24,7 +24,11 @@ describe('CronService', () => {
         mockDiscordChannel = {
             notify: vi.fn().mockResolvedValue(undefined)
         };
-        service = new CronService(mockSupervisor as any, mockConfig as any, mockDiscordChannel as any);
+        service = new CronService(
+            mockSupervisor as any,
+            mockConfig as any,
+            mockDiscordChannel as any
+        );
     });
 
     describe('calculateNextRun', () => {

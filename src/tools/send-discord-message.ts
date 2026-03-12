@@ -17,7 +17,12 @@ class SendDiscordMessageInvocation extends BaseToolInvocation<NotifyParams, Tool
         params: NotifyParams,
         private channelManager: ChannelManager
     ) {
-        super(params, null as unknown as MessageBus, 'send_discord_message', 'Send Discord Message');
+        super(
+            params,
+            null as unknown as MessageBus,
+            'send_discord_message',
+            'Send Discord Message'
+        );
     }
 
     getDescription(): string {

@@ -11,6 +11,7 @@ export class ChannelManager {
     private readonly channels: Map<string, CommunicationChannel> = new Map();
     private readonly config: Config;
     private messageHandler?: (message: ChannelMessage) => Promise<void>;
+    private lastActiveChannelId?: string;
 
     constructor() {
         this.config = Config.getInstance();
@@ -44,10 +45,11 @@ export class ChannelManager {
         }
 
         logger.info(`🚀 Starting ${this.channels.size} communication channel(s)...`);
-        
+
         for (const channel of this.channels.values()) {
             try {
                 channel.onMessage(async (message) => {
+                    this.lastActiveChannelId = channel.id;
                     if (this.messageHandler) {
                         await this.messageHandler(message);
                     }
@@ -66,7 +68,9 @@ export class ChannelManager {
     public async stop(): Promise<void> {
         logger.info('Stopping all communication channels...');
         for (const channel of this.channels.values()) {
-            await channel.stop().catch((e) => logger.error(`Error stopping ${channel.id}: ${e.message}`));
+            await channel
+                .stop()
+                .catch((e) => logger.error(`Error stopping ${channel.id}: ${e.message}`));
         }
     }
 
@@ -81,7 +85,8 @@ export class ChannelManager {
      * Send a proactive notification
      */
     public async notify(content: string, attachments?: string[]): Promise<void> {
-        const primaryChannelId = this.config.primaryChannel || 'discord';
+        const primaryChannelId =
+            this.lastActiveChannelId || this.config.primaryChannel || 'discord';
         const channel = this.channels.get(primaryChannelId);
 
         if (channel) {

@@ -1,6 +1,6 @@
-import makeWASocket, { 
-    useMultiFileAuthState, 
-    DisconnectReason, 
+import makeWASocket, {
+    useMultiFileAuthState,
+    DisconnectReason,
     downloadMediaMessage,
     WAMessage,
     proto
@@ -65,11 +65,18 @@ export class WhatsAppChannel implements CommunicationChannel {
 
             if (qr) {
                 logger.info('📱 Scan the QR code below to link WhatsApp:');
+                if (process.env.name === 'tars-supervisor') {
+                    logger.warn(
+                        '⚠️ Tars is running in the background. Please use "tars logs" to view the full QR code in your terminal.'
+                    );
+                }
                 qrcode.generate(qr, { small: true });
             }
 
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+                const shouldReconnect =
+                    (lastDisconnect?.error as Boom)?.output?.statusCode !==
+                    DisconnectReason.loggedOut;
                 logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}`);
                 this.isConnected = false;
                 if (shouldReconnect) {
@@ -81,7 +88,7 @@ export class WhatsAppChannel implements CommunicationChannel {
             }
         });
 
-        this.sock.ev.on('messages.upsert', async (m: { messages: WAMessage[], type: string }) => {
+        this.sock.ev.on('messages.upsert', async (m: { messages: WAMessage[]; type: string }) => {
             if (m.type === 'notify') {
                 for (const msg of m.messages) {
                     if (!msg.key.fromMe && msg.message) {
@@ -136,21 +143,28 @@ export class WhatsAppChannel implements CommunicationChannel {
             return;
         }
 
-        const text = msg.message?.conversation || 
-                     msg.message?.extendedTextMessage?.text || 
-                     msg.message?.imageMessage?.caption || 
-                     msg.message?.videoMessage?.caption || '';
+        const text =
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            msg.message?.videoMessage?.caption ||
+            '';
 
         const attachments: AttachmentContext[] = [];
         const messageType = Object.keys(msg.message!)[0];
 
         // Handle Media Attachments
-        if (['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage'].includes(messageType)) {
+        if (
+            ['imageMessage', 'videoMessage', 'documentMessage', 'audioMessage'].includes(
+                messageType
+            )
+        ) {
             try {
                 const buffer = await downloadMediaMessage(msg, 'buffer', {});
                 const mimeType = (msg.message as any)[messageType].mimetype;
-                const fileName = (msg.message as any)[messageType].fileName || `wa_media_${Date.now()}`;
-                
+                const fileName =
+                    (msg.message as any)[messageType].fileName || `wa_media_${Date.now()}`;
+
                 // Save to temporary file
                 const filePath = path.join(this.config.homeDir, 'data', 'uploads', fileName);
                 fs.writeFileSync(filePath, buffer);
@@ -183,7 +197,11 @@ export class WhatsAppChannel implements CommunicationChannel {
     /**
      * Helper to send message with optional attachments
      */
-    private async sendMessageWithAttachments(jid: string, content: string, attachments?: string[]): Promise<void> {
+    private async sendMessageWithAttachments(
+        jid: string,
+        content: string,
+        attachments?: string[]
+    ): Promise<void> {
         if (!this.sock) return;
 
         // Send text message first
@@ -198,7 +216,11 @@ export class WhatsAppChannel implements CommunicationChannel {
                 } else if (mimeType.startsWith('video/')) {
                     await this.sock.sendMessage(jid, { video: { url: filePath } });
                 } else {
-                    await this.sock.sendMessage(jid, { document: { url: filePath }, fileName: path.basename(filePath), mimetype: mimeType });
+                    await this.sock.sendMessage(jid, {
+                        document: { url: filePath },
+                        fileName: path.basename(filePath),
+                        mimetype: mimeType
+                    });
                 }
             }
         }
