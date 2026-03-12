@@ -11,7 +11,7 @@ async function main() {
     const engine = new GeminiEngine(config);
 
     // Provide a mocked DiscordBot so the send_discord_message tool is injected
-    engine.setDiscordBot({
+    engine.setChannelManager({
         config: config,
         notify: async (content: string) => {
             console.log(`\n\n📢 [MOCK DISCORD NOTIFICATION] -> ${content}\n\n`);

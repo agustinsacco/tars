@@ -3,7 +3,7 @@ import { CronService } from '../../supervisor/cron-service.js';
 import { Supervisor } from '../../supervisor/supervisor.js';
 import { Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
-import { DiscordBot } from '../../discord/discord-bot.js';
+import { DiscordChannel } from '../../channels/discord/discord-channel.js';
 
 vi.mock('fs/promises');
 
@@ -11,7 +11,7 @@ describe('CronService', () => {
     let service: CronService;
     let mockSupervisor: Partial<Supervisor>;
     let mockConfig: Partial<Config>;
-    let mockDiscordBot: Partial<DiscordBot>;
+    let mockDiscordChannel: Partial<DiscordChannel>;
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -21,10 +21,10 @@ describe('CronService', () => {
         mockConfig = {
             taskFilePath: '/mock/paths/tasks.json'
         };
-        mockDiscordBot = {
+        mockDiscordChannel = {
             notify: vi.fn().mockResolvedValue(undefined)
         };
-        service = new CronService(mockSupervisor as any, mockConfig as any, mockDiscordBot as any);
+        service = new CronService(mockSupervisor as any, mockConfig as any, mockDiscordChannel as any);
     });
 
     describe('calculateNextRun', () => {

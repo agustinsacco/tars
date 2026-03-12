@@ -46,6 +46,7 @@ export interface GeminiEvent {
     toolId?: string;
     imagePath?: string;
     error?: string;
+    role?: 'user' | 'assistant' | 'system';
     usageStats?: UsageStats;
     sessionId?: string;
     status?: string;

@@ -4,7 +4,7 @@ import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { CronExpressionParser } from 'cron-parser';
-import { DiscordBot } from '../discord/discord-bot.js';
+import { ChannelManager } from '../channels/channel-manager.js';
 
 /**
  * CronService - Dedicated operator for scheduled tasks.
@@ -18,7 +18,7 @@ export class CronService {
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config,
-        private readonly discordBot: DiscordBot
+        private readonly channelManager: ChannelManager
     ) {}
 
     public async start(): Promise<void> {
@@ -72,7 +72,7 @@ export class CronService {
 
         try {
             // Tasks run in their own ephemeral session within the engine
-            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user using the ask_user tool. If you need to alert the user about the result of this task, you MUST use the send_discord_message tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
+            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user using the ask_user tool. If you need to alert the user about the result of this task, you MUST use the send_notification tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
             const result = await this.supervisor.executeTask(contextualPrompt);
             logger.info(`✅ [CRON] Task ${task.id} completed. Result length: ${result.length}`);
 

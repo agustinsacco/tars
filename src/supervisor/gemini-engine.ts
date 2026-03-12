@@ -20,8 +20,8 @@ import path from 'path';
 
 import { AttachmentContext } from '../types/index.js';
 
-import { DiscordBot } from '../discord/discord-bot.js';
-import { SendDiscordMessageTool } from '../tools/send-discord-message.js';
+import { ChannelManager } from '../channels/channel-manager.js';
+import { SendNotificationTool } from '../tools/send-notification.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
 
 export interface GeminiEngineEvent {
@@ -69,17 +69,17 @@ export class GeminiEngine extends EventEmitter {
     private client!: GeminiClient;
     private initialized = false;
     private currentSessionId: string | null = null;
-    private discordBot?: DiscordBot;
+    private channelManager?: ChannelManager;
 
     constructor(private readonly tarsConfig: TarsConfig) {
         super();
     }
 
     /**
-     * Provide the DiscordBot instance to the engine so it can build the proactive message tool
+     * Provide the ChannelManager instance to the engine so it can build proactive notification tools
      */
-    public setDiscordBot(discordBot: DiscordBot): void {
-        this.discordBot = discordBot;
+    public setChannelManager(channelManager: ChannelManager): void {
+        this.channelManager = channelManager;
     }
 
     /**
@@ -149,10 +149,10 @@ export class GeminiEngine extends EventEmitter {
             // Inject native tools
             const toolRegistry = this.coreConfig.getToolRegistry();
 
-            if (this.discordBot) {
-                const sendDiscordTool = new SendDiscordMessageTool(this.discordBot);
-                toolRegistry.registerTool(sendDiscordTool);
-                logger.info('🔌 Registered native tool: send_discord_message');
+            if (this.channelManager) {
+                const notifyTool = new SendNotificationTool(this.channelManager);
+                toolRegistry.registerTool(notifyTool);
+                logger.info('🔌 Registered native tool: send_notification');
             }
 
             const getQuotaTool = new GetQuotaTool(this.coreConfig);

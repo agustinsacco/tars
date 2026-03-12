@@ -4,7 +4,7 @@ import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
 import { CronService } from './cron-service.js';
-import { DiscordBot } from '../discord/discord-bot.js';
+import { ChannelManager } from '../channels/channel-manager.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
@@ -57,9 +57,6 @@ function installSystemPrompt(config: Config): void {
     logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
 }
 
-/**
- * Install built-in skills into the Tars runtime directory.
- */
 /**
  * Install and sync built-in skills into the Tars runtime directory.
  * Safely updates built-in skills while preserving user-created ones.
@@ -114,7 +111,6 @@ function installSkills(config: Config): void {
             if (!fs.statSync(srcSkillPath).isDirectory()) continue;
 
             // Remove existing destination (to ensure clean update - e.g. deleting old files)
-            // This assumes built-in skills are managed entirely by the repo
             if (fs.existsSync(destSkillPath)) {
                 fs.rmSync(destSkillPath, { recursive: true, force: true });
             }
@@ -185,7 +181,6 @@ function installAgents(config: Config): void {
 
 /**
  * Automatically install/link extensions and enable them.
- * Verifies symlinks are valid and re-links if broken.
  */
 function installExtensions(config: Config): void {
     const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
@@ -220,31 +215,19 @@ function installExtensions(config: Config): void {
             extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
         const finalDestPath = path.join(targetExtensionsDir, finalExtName);
 
-        // Check if symlink exists and is valid
-        let needsLink = true;
+        // Check if copy/update needed
+        let needsUpdate = true;
         try {
             if (fs.existsSync(finalDestPath)) {
-                const stats = fs.lstatSync(finalDestPath);
-                if (stats.isSymbolicLink()) {
-                    const realPath = fs.realpathSync(finalDestPath);
-                    if (realPath === srcPath) {
-                        needsLink = false;
-                    }
-                }
+                needsUpdate = true; // Always update for now to be safe
             }
         } catch (e) {}
 
-        if (needsLink) {
+        if (needsUpdate) {
             try {
-                // Remove existing file/link if present to prevent EEXIST or to replace link with copy
-                if (
-                    fs.existsSync(finalDestPath) ||
-                    (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())
-                ) {
+                if (fs.existsSync(finalDestPath)) {
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
-
-                // Copy instead of symlink to ensure it stays within the workspace
                 fs.cpSync(srcPath, finalDestPath, { recursive: true });
                 logger.info(`🔌 Integrated extension: ${finalExtName}`);
             } catch (error) {
@@ -252,7 +235,7 @@ function installExtensions(config: Config): void {
             }
         }
 
-        // Hydration check (Heal missing dependencies on startup)
+        // Hydration check
         const nmPath = path.join(finalDestPath, 'node_modules');
         if (!fs.existsSync(nmPath)) {
             logger.info(`💧 Hydrating extension: ${finalExtName}...`);
@@ -281,17 +264,15 @@ function installExtensions(config: Config): void {
         }
     }
 
-    // 3. Scan installation directory for ALL extensions (including manually added ones)
+    // Update enablement
     const allInstalledExtensions = fs.readdirSync(targetExtensionsDir);
     for (const extName of allInstalledExtensions) {
         const extPath = path.join(targetExtensionsDir, extName);
         if (extName === 'extension-enablement.json') continue;
         if (!fs.statSync(extPath).isDirectory()) continue;
 
-        // Resolve real path (critical for symlinks to satisfy Gemini workspace safety)
         const realPath = fs.realpathSync(extPath);
 
-        // Ensure enabled with permissive overrides
         if (!enablement[extName]) {
             enablement[extName] = { overrides: [] };
         }
@@ -301,9 +282,6 @@ function installExtensions(config: Config): void {
         overrides.add(path.join(realPath, '*'));
 
         enablement[extName].overrides = Array.from(overrides);
-        logger.debug(
-            `🔧 Configured safety overrides for ${extName}: ${enablement[extName].overrides.join(', ')}`
-        );
     }
 
     fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));
@@ -329,13 +307,11 @@ function installDefaultSettings(config: Config): void {
         fs.mkdirSync(path.dirname(targetSettings), { recursive: true });
         fs.copyFileSync(settingsTemplate, targetSettings);
         logger.info(`⚙️ Default settings installed: ${targetSettings}`);
-    } else {
-        logger.warn('⚠️ Could not locate settings.json-template');
     }
 }
 
 /**
- * Ensure existing settings.json has required settings (like experimental and agents)
+ * Ensure existing settings.json has required settings
  */
 function patchSettings(config: Config): void {
     const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
@@ -357,41 +333,12 @@ function patchSettings(config: Config): void {
 
         if (fs.existsSync(settingsTemplate)) {
             const template = JSON.parse(fs.readFileSync(settingsTemplate, 'utf-8'));
-
-            // Shallow merge for each top-level section
             const sections = ['experimental', 'agents', 'model', 'general'];
             for (const section of sections) {
                 if (template[section] && !settings[section]) {
                     settings[section] = template[section];
                     modified = true;
-                } else if (template[section]) {
-                    for (const [key, value] of Object.entries(template[section])) {
-                        if (settings[section][key] === undefined) {
-                            settings[section][key] = value;
-                            modified = true;
-                        }
-                    }
                 }
-            }
-
-            // Force-update compressionThreshold if it was set too aggressively
-            if (
-                settings.model?.compressionThreshold !== undefined &&
-                settings.model.compressionThreshold < 0.5
-            ) {
-                settings.model.compressionThreshold = 0.5;
-                modified = true;
-                logger.info('⚙️ Updated compressionThreshold to 0.5 (was too aggressive)');
-            }
-        } else {
-            // Fallback
-            if (!settings.experimental) {
-                settings.experimental = {};
-                modified = true;
-            }
-            if (settings.experimental.enableAgents !== true) {
-                settings.experimental.enableAgents = true;
-                modified = true;
             }
         }
 
@@ -416,7 +363,7 @@ async function main() {
         const auditor = new BrainAuditor(config.homeDir);
         await auditor.audit({ silent: true });
 
-        // 2. Install system prompt, skills, extensions and settings
+        // 2. Install components
         installSystemPrompt(config);
         installSkills(config);
         installAgents(config);
@@ -424,24 +371,45 @@ async function main() {
         installDefaultSettings(config);
         patchSettings(config);
 
-        // 3. Initialize Core Services (without initializing engine yet)
+        // 3. Initialize Core Services
         const gemini = new GeminiEngine(config);
         const sessionManager = new SessionManager(config.sessionFilePath);
         const supervisor = new Supervisor(gemini, sessionManager);
 
-        // 4. Initialize Interface (Discord)
-        const discordBot = new DiscordBot(supervisor, config);
+        // 4. Initialize Multi-Channel Interface
+        const channelManager = new ChannelManager();
 
-        // 5. Inject Interface into Engine and Initialize Core
-        gemini.setDiscordBot(discordBot);
+        // 5. Inject Interface into Engine
+        gemini.setChannelManager(channelManager);
         await gemini.initialize();
 
-        // 5. Initialize Background Services
-        const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
-        const cron = new CronService(supervisor, config, discordBot);
+        // 6. Connect Routing
+        channelManager.onMessage(async (message) => {
+            try {
+                await supervisor.run(
+                    message.content,
+                    async (event) => {
+                        if (event.type === 'text' && event.content && event.role !== 'user') {
+                            await message.reply(event.content);
+                        } else if (event.type === 'error') {
+                            await message.reply(`❌ **Error:** ${event.error}`);
+                        }
+                    },
+                    undefined,
+                    message.attachments
+                );
+            } catch (error: any) {
+                logger.error(`Routing error: ${error.message}`);
+                await message.reply(`❌ **Supervisor Error:** ${error.message}`);
+            }
+        });
 
-        // Start Services
-        await discordBot.start();
+        // 7. Initialize Background Services
+        const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
+        const cron = new CronService(supervisor, config, channelManager);
+
+        // Start everything
+        await channelManager.start();
         await heartbeat.start();
         await cron.start();
 
@@ -450,6 +418,7 @@ async function main() {
         // Graceful shutdown
         process.on('SIGINT', async () => {
             logger.info('🛑 Shutting down...');
+            await channelManager.stop();
             heartbeat.stop();
             cron.stop();
             process.exit(0);
@@ -460,13 +429,8 @@ async function main() {
     }
 }
 
-// 6. Run Main
-// Strict Safety Check: The supervisor must be explicitly activated via environment variable.
-// This prevents accidental execution via "node dist/supervisor/main.js" which can spawn zombie processes.
 if (process.env.TARS_SUPERVISOR_MODE !== 'true') {
     logger.error('❌ TARS_SUPERVISOR_MODE=true is required to start the supervisor.');
-    logger.error('   This safety check prevents accidental multiple instances.');
-    logger.error('👉 Use "tars start" or "npm run dev" instead.');
     process.exit(1);
 }
 

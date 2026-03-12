@@ -1,0 +1,6 @@
+{
+  "name": "google-workspace",
+  "description": "Unified Google Workspace CLI (Gmail, Drive, Calendar, Sheets, Docs, Tasks, People) with compact AI tools.",
+  "entryPoint": "gws-mcp.sh",
+  "scopes": ["gmail", "drive", "calendar", "sheets", "docs", "tasks", "people"]
+}
