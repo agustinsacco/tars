@@ -36,6 +36,8 @@ export class Config {
     // Gemini
     public readonly geminiModel: string;
     public readonly assistantName: string;
+    public readonly instanceName: string;
+    public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
 
     // System Prompt
@@ -65,6 +67,8 @@ export class Config {
 
         // 3. Set values (Env vars override JSON config)
         this.assistantName = process.env.ASSISTANT_NAME || jsonConfig.assistantName || 'Tars';
+        this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
+        this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
 
         const hbSec =

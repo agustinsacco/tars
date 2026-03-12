@@ -25,6 +25,8 @@ program
 program
     .command('start')
     .description('Start the assistant supervisor in the background')
+    .option('--name <name>', 'Name of the instance (default: tars-supervisor)')
+    .option('--role <role>', 'Role of the instance for swarm coordination')
     .action(start);
 
 program.command('stop').description('Stop the assistant supervisor').action(stop);
