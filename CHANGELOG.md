@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/agustinsacco/tars/compare/v1.3.0...v1.4.0) (2026-03-13)
+
+
+### Features
+
+* Multi-Agent Swarm (Mesh) Specification and CLI Foundation ([#8](https://github.com/agustinsacco/tars/issues/8)) ([5787394](https://github.com/agustinsacco/tars/commit/57873944f204c1b6045b6b46049065a47e7554f0))
+
 ## [1.3.2](https://github.com/agustinsacco/tars/compare/v1.3.1...v1.3.2) (2026-03-13)
 
 ### Features
