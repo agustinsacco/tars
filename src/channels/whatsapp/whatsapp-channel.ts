@@ -3,7 +3,9 @@ import makeWASocket, {
     DisconnectReason,
     downloadMediaMessage,
     WAMessage,
-    proto
+    proto,
+    fetchLatestBaileysVersion,
+    Browsers
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -51,11 +53,17 @@ export class WhatsAppChannel implements CommunicationChannel {
         }
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+
+        logger.info(`WhatsApp using Baileys version: ${version.join('.')} (Latest: ${isLatest})`);
 
         this.sock = makeWASocket({
+            version,
             auth: state,
-            printQRInTerminal: true,
-            browser: ['Tars', 'Chrome', '1.0.0']
+            browser: Browsers.macOS('Desktop'),
+            // printQRInTerminal is deprecated, handled in connection.update
+            markOnlineOnConnect: true,
+            generateHighQualityLinkPreview: true
         });
 
         this.sock.ev.on('creds.update', saveCreds);

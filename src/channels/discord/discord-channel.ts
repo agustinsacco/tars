@@ -128,6 +128,9 @@ export class DiscordChannel implements CommunicationChannel {
         const wasAutoBound = !this.config.discordOwnerId;
         if (wasAutoBound) {
             this.config.discordOwnerId = message.author.id;
+            if (this.config.channels.discord) {
+                this.config.channels.discord.ownerId = message.author.id;
+            }
             this.config.saveSettings();
             logger.info(
                 `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id} (Channel: ${message.channelId})`

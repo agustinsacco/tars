@@ -120,9 +120,9 @@ export class Config {
                 currentConfig = JSON.parse(fs.readFileSync(this.configFilePath, 'utf-8'));
             }
 
-            // Sync structured config back to legacy for now
-            if (this.channels.discord) {
-                this.discordOwnerId = this.channels.discord.ownerId || null;
+            // Sync legacy discordOwnerId into structured config
+            if (this.channels.discord && this.discordOwnerId) {
+                this.channels.discord.ownerId = this.discordOwnerId;
             }
 
             // Update fields
