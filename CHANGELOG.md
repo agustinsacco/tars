@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/agustinsacco/tars/compare/v1.3.1...v1.3.2) (2026-03-13)
+
+### Features
+
+- **Multi-Channel**: Aggregate streaming chunks into single message blocks to avoid UI fragmentation and multiple notification bubbles.
+- **Discord**: Prepend auto-binding system alerts to the first assistant response instead of sending separate messages.
+
 ## [1.3.1](https://github.com/agustinsacco/tars/compare/v1.3.0...v1.3.1) (2026-03-12)
 
 ### Features

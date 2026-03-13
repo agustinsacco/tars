@@ -9,6 +9,7 @@ export interface ChannelMessage {
     senderName: string;
     channelId: string;
     attachments?: AttachmentContext[];
+    metadata?: Record<string, any>;
     reply: (content: string, attachments?: string[]) => Promise<void>;
 }
 

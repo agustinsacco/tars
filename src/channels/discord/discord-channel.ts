@@ -125,14 +125,12 @@ export class DiscordChannel implements CommunicationChannel {
         if (userPrompt === null) return;
 
         // Auto-Bind on first interaction if not set
-        if (!this.config.discordOwnerId) {
+        const wasAutoBound = !this.config.discordOwnerId;
+        if (wasAutoBound) {
             this.config.discordOwnerId = message.author.id;
             this.config.saveSettings();
             logger.info(
                 `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id}`
-            );
-            await message.reply(
-                `🔒 **System Alert:** I have permanently bound my background notification channel to your Discord account.`
             );
         }
 
@@ -163,6 +161,7 @@ export class DiscordChannel implements CommunicationChannel {
             senderName: message.author.username,
             channelId: message.channelId,
             attachments,
+            metadata: { wasAutoBound },
             reply: async (response: string, outAttachments?: string[]) => {
                 const formatted = MessageFormatter.format(response);
                 if (formatted.length > 8000) {

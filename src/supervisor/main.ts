@@ -396,14 +396,39 @@ async function main() {
 
         // 6. Connect Routing
         channelManager.onMessage(async (message) => {
+            let responseBuffer = '';
+            let replyCount = 0;
+
+            const flush = async () => {
+                const text = responseBuffer.trim();
+                if (!text) return;
+
+                let finalContent = text;
+                // Prepend the binding alert to the first message if we just auto-bound
+                if (replyCount === 0 && message.metadata?.wasAutoBound) {
+                    finalContent = `🔒 **System Alert:** I have permanently bound my background notification channel to your Discord account.\n\n${finalContent}`;
+                }
+
+                await message.reply(finalContent);
+                responseBuffer = '';
+                replyCount++;
+            };
+
             try {
                 await supervisor.run(
                     message.content,
                     async (event) => {
                         if (event.type === 'text' && event.content && event.role !== 'user') {
-                            await message.reply(event.content);
+                            responseBuffer += event.content;
+                        } else if (event.type === 'tool_call') {
+                            // If the model had something to say before calling a tool, send it now
+                            // so the user knows what's happening.
+                            await flush();
                         } else if (event.type === 'error') {
+                            await flush();
                             await message.reply(`❌ **Error:** ${event.error}`);
+                        } else if (event.type === 'done') {
+                            await flush();
                         }
                     },
                     undefined,
