@@ -130,7 +130,7 @@ export class DiscordChannel implements CommunicationChannel {
             this.config.discordOwnerId = message.author.id;
             this.config.saveSettings();
             logger.info(
-                `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id}`
+                `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id} (Channel: ${message.channelId})`
             );
         }
 
