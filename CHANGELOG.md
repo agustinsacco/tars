@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/agustinsacco/tars/compare/v1.4.0...v1.4.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* improve log clarity for auto-binding registration ([ddb5d24](https://github.com/agustinsacco/tars/commit/ddb5d244404dfe0a57a75ee76b6fbd931c84bb9c))
+
 ## [1.4.0](https://github.com/agustinsacco/tars/compare/v1.3.0...v1.4.0) (2026-03-13)
 
 ### Features
