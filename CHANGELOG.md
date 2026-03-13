@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/agustinsacco/tars/compare/v1.4.1...v1.4.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* resolve repeated discord auto-bind and whatsapp connection errors ([ba1e93c](https://github.com/agustinsacco/tars/commit/ba1e93c5cbadc5e0cdc9f8f1e6c5612c635bbb92))
+
 ## [1.4.1](https://github.com/agustinsacco/tars/compare/v1.4.0...v1.4.1) (2026-03-13)
 
 
