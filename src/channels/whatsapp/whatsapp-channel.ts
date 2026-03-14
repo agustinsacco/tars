@@ -105,7 +105,7 @@ export class WhatsAppChannel implements CommunicationChannel {
         this.sock.ev.on('messages.upsert', async (m: { messages: WAMessage[]; type: string }) => {
             if (m.type === 'notify') {
                 for (const msg of m.messages) {
-                    if (!msg.key.fromMe && msg.message) {
+                    if (msg.message) {
                         await this.handleIncomingMessage(msg);
                     }
                 }
@@ -153,7 +153,10 @@ export class WhatsAppChannel implements CommunicationChannel {
 
         // Security: Only respond to the owner if configured
         if (ownerNumber && !jid.startsWith(ownerNumber)) {
-            logger.warn(`WhatsApp: Ignored message from unauthorized sender: ${jid}`);
+            // Don't log warnings for outbound messages we send to friends
+            if (!msg.key.fromMe) {
+                logger.warn(`WhatsApp: Ignored message from unauthorized sender: ${jid}`);
+            }
             return;
         }
 
@@ -163,6 +166,9 @@ export class WhatsAppChannel implements CommunicationChannel {
             msg.message?.imageMessage?.caption ||
             msg.message?.videoMessage?.caption ||
             '';
+
+        // Anti-Loop: Ignore messages sent by Tars (marked with invisible zero-width space)
+        if (text.includes('\u200B')) return;
 
         const attachments: AttachmentContext[] = [];
         const messageType = Object.keys(msg.message!)[0];
@@ -218,22 +224,29 @@ export class WhatsAppChannel implements CommunicationChannel {
     ): Promise<void> {
         if (!this.sock) return;
 
+        // Invisible signature to prevent infinite bot loops when using "Message Yourself"
+        const botSignature = '\u200B';
+        const finalContent = content ? content + botSignature : botSignature;
+
         // Send text message first
-        await this.sock.sendMessage(jid, { text: content });
+        if (content.trim()) {
+            await this.sock.sendMessage(jid, { text: finalContent });
+        }
 
         // Send attachments if any
         if (attachments && attachments.length > 0) {
             for (const filePath of attachments) {
                 const mimeType = this.getMimeType(filePath);
                 if (mimeType.startsWith('image/')) {
-                    await this.sock.sendMessage(jid, { image: { url: filePath } });
+                    await this.sock.sendMessage(jid, { image: { url: filePath }, caption: botSignature });
                 } else if (mimeType.startsWith('video/')) {
-                    await this.sock.sendMessage(jid, { video: { url: filePath } });
+                    await this.sock.sendMessage(jid, { video: { url: filePath }, caption: botSignature });
                 } else {
                     await this.sock.sendMessage(jid, {
                         document: { url: filePath },
                         fileName: path.basename(filePath),
-                        mimetype: mimeType
+                        mimetype: mimeType,
+                        caption: botSignature
                     });
                 }
             }
