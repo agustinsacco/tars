@@ -9,24 +9,21 @@
 
 ## [1.5.0](https://github.com/agustinsacco/tars/compare/v1.4.2...v1.5.0) (2026-03-14)
 
-
 ### Features
 
-* move whatsapp qr generation to status command to avoid log mangling ([9f4f9fe](https://github.com/agustinsacco/tars/commit/9f4f9feb2a606f7ffd63443b3f683d1e79a60c92))
+- move whatsapp qr generation to status command to avoid log mangling ([9f4f9fe](https://github.com/agustinsacco/tars/commit/9f4f9feb2a606f7ffd63443b3f683d1e79a60c92))
 
 ## [1.4.2](https://github.com/agustinsacco/tars/compare/v1.4.1...v1.4.2) (2026-03-13)
 
-
 ### Bug Fixes
 
-* resolve repeated discord auto-bind and whatsapp connection errors ([ba1e93c](https://github.com/agustinsacco/tars/commit/ba1e93c5cbadc5e0cdc9f8f1e6c5612c635bbb92))
+- resolve repeated discord auto-bind and whatsapp connection errors ([ba1e93c](https://github.com/agustinsacco/tars/commit/ba1e93c5cbadc5e0cdc9f8f1e6c5612c635bbb92))
 
 ## [1.4.1](https://github.com/agustinsacco/tars/compare/v1.4.0...v1.4.1) (2026-03-13)
 
-
 ### Bug Fixes
 
-* improve log clarity for auto-binding registration ([ddb5d24](https://github.com/agustinsacco/tars/commit/ddb5d244404dfe0a57a75ee76b6fbd931c84bb9c))
+- improve log clarity for auto-binding registration ([ddb5d24](https://github.com/agustinsacco/tars/commit/ddb5d244404dfe0a57a75ee76b6fbd931c84bb9c))
 
 ## [1.4.0](https://github.com/agustinsacco/tars/compare/v1.3.0...v1.4.0) (2026-03-13)
 

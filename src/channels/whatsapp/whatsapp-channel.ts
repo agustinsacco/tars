@@ -238,9 +238,15 @@ export class WhatsAppChannel implements CommunicationChannel {
             for (const filePath of attachments) {
                 const mimeType = this.getMimeType(filePath);
                 if (mimeType.startsWith('image/')) {
-                    await this.sock.sendMessage(jid, { image: { url: filePath }, caption: botSignature });
+                    await this.sock.sendMessage(jid, {
+                        image: { url: filePath },
+                        caption: botSignature
+                    });
                 } else if (mimeType.startsWith('video/')) {
-                    await this.sock.sendMessage(jid, { video: { url: filePath }, caption: botSignature });
+                    await this.sock.sendMessage(jid, {
+                        video: { url: filePath },
+                        caption: botSignature
+                    });
                 } else {
                     await this.sock.sendMessage(jid, {
                         document: { url: filePath },
