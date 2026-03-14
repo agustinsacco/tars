@@ -11,8 +11,6 @@ export interface ChannelConfig {
     enabled: boolean;
     token?: string;
     ownerId?: string;
-    ownerNumber?: string;
-    sessionPath?: string;
 }
 
 export class Config {
