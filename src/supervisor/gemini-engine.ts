@@ -40,7 +40,7 @@ export interface GeminiEngineEvent {
     error?: string;
 }
 
-export type GeminiEngineOutputHandler = (event: GeminiEngineEvent) => void;
+export type GeminiEngineOutputHandler = (event: GeminiEngineEvent) => void | Promise<void>;
 
 /**
  * Detects the best authentication type based on environment variables.
@@ -306,11 +306,12 @@ export class GeminiEngine extends EventEmitter {
             const maxTurns = 100; // Increased to handle complex autonomous tasks
             const abortController = new AbortController();
             let finalUsageStats: any = undefined;
+            let loopDetected = false;
+            let hasRealContent = false;
 
             while (turnCount < maxTurns) {
                 turnCount++;
                 const toolRequests: any[] = [];
-                let hasRealContent = false;
 
                 const stream = await promptIdContext.run(sid, () => {
                     return this.client.sendMessageStream(
@@ -329,6 +330,10 @@ export class GeminiEngine extends EventEmitter {
                         toolRequests.push(event.value);
                     }
 
+                    if (event.type === GeminiEventType.LoopDetected) {
+                        loopDetected = true;
+                    }
+
                     if (event.type === GeminiEventType.Finished) {
                         finalUsageStats = event.value.usageMetadata;
                         continue; // Don't emit done yet
@@ -339,20 +344,26 @@ export class GeminiEngine extends EventEmitter {
                         if (normalized.type === 'text' && normalized.content) {
                             hasRealContent = true;
                         }
-                        onEvent(normalized);
+                        await onEvent(normalized);
                     }
+                }
+
+                if (loopDetected) {
+                    logger.warn(`⚠️ Loop detected in Gemini Engine at turn ${turnCount}.`);
+                    break;
                 }
 
                 if (toolRequests.length === 0) {
                     logger.debug(`✅ Interaction complete after ${turnCount} turns.`);
                     break;
                 }
+                // ... (rest of the loop)
 
                 if (turnCount >= maxTurns) {
                     logger.warn(
                         `⚠️ Hit maxTurns (${maxTurns}) limit. Force terminating interaction.`
                     );
-                    onEvent({
+                    await onEvent({
                         type: 'text',
                         role: 'assistant',
                         content:
@@ -363,7 +374,8 @@ export class GeminiEngine extends EventEmitter {
                 }
 
                 // Runtime Safety Filter: Prevent self-destructive commands
-                const filteredToolRequests = toolRequests.filter((req) => {
+                const filteredToolRequests: any[] = [];
+                for (const req of toolRequests) {
                     const toolName = req.name;
                     const commandLine = req.args?.CommandLine || req.args?.command || '';
 
@@ -374,16 +386,16 @@ export class GeminiEngine extends EventEmitter {
                             /\bpm2\s+(stop|kill|delete)\b/.test(commandLine))
                     ) {
                         logger.warn(`🛑 INTERCEPTED self-destructive command: ${commandLine}`);
-                        onEvent({
+                        await onEvent({
                             type: 'text',
                             role: 'assistant',
                             content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to stop, please run \`tars stop\` manually in your terminal.`,
                             sessionId: sid
                         });
-                        return false;
+                        continue;
                     }
-                    return true;
-                });
+                    filteredToolRequests.push(req);
+                }
 
                 if (filteredToolRequests.length === 0 && toolRequests.length > 0) {
                     // All tools were blocked by safety filter, break the loop
@@ -414,7 +426,7 @@ export class GeminiEngine extends EventEmitter {
                         } as any,
                         sid
                     );
-                    if (normalized) onEvent(normalized);
+                    if (normalized) await onEvent(normalized);
                 }
 
                 // Record results in chat recording service for persistence/memory
@@ -437,8 +449,26 @@ export class GeminiEngine extends EventEmitter {
                 }
             }
 
+            // If the loop finished without producing any content, notify the user
+            if (!hasRealContent) {
+                let fallbackMsg =
+                    '\n\n⚠️ **Model Interaction Issue**: The Gemini model failed to produce a valid text response.';
+                if (loopDetected) {
+                    fallbackMsg +=
+                        ' A repetitive output loop was detected and terminated. This can sometimes happen with complex prompts or transient API glitches.';
+                }
+                fallbackMsg += '\n\nPlease try rephrasing your request or starting a new session.';
+
+                await onEvent({
+                    type: 'text',
+                    role: 'assistant',
+                    content: fallbackMsg,
+                    sessionId: sid
+                });
+            }
+
             // Always emit final done event when exiting the loop
-            onEvent({
+            await onEvent({
                 type: 'done',
                 usageStats: finalUsageStats
                     ? {
@@ -451,7 +481,7 @@ export class GeminiEngine extends EventEmitter {
             });
         } catch (error: any) {
             logger.error(`❌ Gemini Engine run error: ${error.message}`);
-            onEvent({ type: 'error', error: error.message });
+            await onEvent({ type: 'error', error: error.message });
             throw error;
         } finally {
             process.env.HOME = savedHome;
@@ -549,6 +579,12 @@ export class GeminiEngine extends EventEmitter {
                 return {
                     type: 'error',
                     error: event.value instanceof Error ? event.value.message : String(event.value),
+                    sessionId
+                };
+
+            case GeminiEventType.LoopDetected:
+                return {
+                    type: 'loop_detected',
                     sessionId
                 };
 

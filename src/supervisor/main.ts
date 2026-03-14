@@ -401,7 +401,6 @@ async function main() {
                 const text = responseBuffer.trim();
                 if (!text) return;
 
-                message.stopTyping();
                 let finalContent = text;
                 // Prepend the binding alert to the first message if we just auto-bound
                 if (replyCount === 0 && message.metadata?.wasAutoBound) {
@@ -409,7 +408,6 @@ async function main() {
                 }
 
                 await message.reply(finalContent);
-                message.startTyping();
                 responseBuffer = '';
                 replyCount++;
             };
@@ -428,6 +426,7 @@ async function main() {
                         } else if (event.type === 'error') {
                             await flush();
                             await message.reply(`❌ **Error:** ${event.error}`);
+                            message.stopTyping();
                         } else if (event.type === 'done') {
                             await flush();
                             message.stopTyping();
@@ -437,9 +436,10 @@ async function main() {
                     message.attachments
                 );
             } catch (error: any) {
-                message.stopTyping();
                 logger.error(`Routing error: ${error.message}`);
                 await message.reply(`❌ **Supervisor Error:** ${error.message}`);
+            } finally {
+                message.stopTyping();
             }
         });
 

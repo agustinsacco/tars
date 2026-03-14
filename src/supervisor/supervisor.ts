@@ -58,7 +58,7 @@ export class Supervisor {
             // Run Gemini CLI
             await this.gemini.run(
                 content,
-                (event) => {
+                async (event) => {
                     // Learn session ID from Gemini CLI if it was newly generated
                     if (event.sessionId && !sessionIdToUse) {
                         sessionIdToUse = event.sessionId;
@@ -124,7 +124,7 @@ export class Supervisor {
                                 .catch((e) => logger.error(`Failed to update usage: ${e}`));
                         }
                     }
-                    onEvent(event as any);
+                    await onEvent(event as any);
                 },
                 sessionIdToUse || undefined,
                 attachments
