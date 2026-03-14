@@ -374,7 +374,8 @@ export class GeminiEngine extends EventEmitter {
                 }
 
                 // Runtime Safety Filter: Prevent self-destructive commands
-                const filteredToolRequests = toolRequests.filter((req) => {
+                const filteredToolRequests: any[] = [];
+                for (const req of toolRequests) {
                     const toolName = req.name;
                     const commandLine = req.args?.CommandLine || req.args?.command || '';
 
@@ -391,10 +392,10 @@ export class GeminiEngine extends EventEmitter {
                             content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to stop, please run \`tars stop\` manually in your terminal.`,
                             sessionId: sid
                         });
-                        return false;
+                        continue;
                     }
-                    return true;
-                });
+                    filteredToolRequests.push(req);
+                }
 
                 if (filteredToolRequests.length === 0 && toolRequests.length > 0) {
                     // All tools were blocked by safety filter, break the loop

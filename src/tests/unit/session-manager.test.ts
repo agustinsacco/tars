@@ -10,7 +10,8 @@ vi.mock('fs', () => {
                 readFile: vi.fn(),
                 writeFile: vi.fn(),
                 unlink: vi.fn(),
-                mkdir: vi.fn()
+                mkdir: vi.fn(),
+                rename: vi.fn()
             },
             existsSync: vi.fn(),
             readFileSync: vi.fn(),
