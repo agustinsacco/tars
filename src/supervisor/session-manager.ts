@@ -98,12 +98,7 @@ export class SessionManager {
                 totalNetTokens: 0
             };
 
-            const dir = path.dirname(this.sessionFilePath);
-            await fs.promises.mkdir(dir, { recursive: true });
-            await fs.promises.writeFile(
-                this.sessionFilePath,
-                JSON.stringify(this.sessionData, null, 2)
-            );
+            await this.atomicWrite();
             logger.info(`[SessionManager] New session initialized: ${sessionId}`);
         } catch (e) {
             logger.error(`[SessionManager] Failed to initialize session: ${e}`);
@@ -130,10 +125,7 @@ export class SessionManager {
 
         // Persist to disk
         try {
-            await fs.promises.writeFile(
-                this.sessionFilePath,
-                JSON.stringify(this.sessionData, null, 2)
-            );
+            await this.atomicWrite();
         } catch (e) {
             logger.error(`[SessionManager] Failed to update usage: ${e}`);
         }
@@ -189,12 +181,31 @@ export class SessionManager {
         if (!this.sessionData) return;
         this.sessionData.lastUserInteractionAt = new Date().toISOString();
         try {
-            await fs.promises.writeFile(
-                this.sessionFilePath,
-                JSON.stringify(this.sessionData, null, 2)
-            );
+            await this.atomicWrite();
         } catch (e) {
             logger.error(`[SessionManager] Failed to touch activity: ${e}`);
+        }
+    }
+
+    /**
+     * Writes session data to disk atomically.
+     */
+    private async atomicWrite(): Promise<void> {
+        if (!this.sessionData) return;
+
+        const tempPath = `${this.sessionFilePath}.tmp`;
+        const dir = path.dirname(this.sessionFilePath);
+
+        try {
+            await fs.promises.mkdir(dir, { recursive: true });
+            await fs.promises.writeFile(tempPath, JSON.stringify(this.sessionData, null, 2));
+            await fs.promises.rename(tempPath, this.sessionFilePath);
+        } catch (e) {
+            // Cleanup temp file if it exists
+            try {
+                await fs.promises.unlink(tempPath);
+            } catch {}
+            throw e;
         }
     }
 

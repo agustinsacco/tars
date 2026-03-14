@@ -306,11 +306,12 @@ export class GeminiEngine extends EventEmitter {
             const maxTurns = 100; // Increased to handle complex autonomous tasks
             const abortController = new AbortController();
             let finalUsageStats: any = undefined;
+            let loopDetected = false;
+            let hasRealContent = false;
 
             while (turnCount < maxTurns) {
                 turnCount++;
                 const toolRequests: any[] = [];
-                let hasRealContent = false;
 
                 const stream = await promptIdContext.run(sid, () => {
                     return this.client.sendMessageStream(
@@ -329,6 +330,10 @@ export class GeminiEngine extends EventEmitter {
                         toolRequests.push(event.value);
                     }
 
+                    if (event.type === GeminiEventType.LoopDetected) {
+                        loopDetected = true;
+                    }
+
                     if (event.type === GeminiEventType.Finished) {
                         finalUsageStats = event.value.usageMetadata;
                         continue; // Don't emit done yet
@@ -343,10 +348,16 @@ export class GeminiEngine extends EventEmitter {
                     }
                 }
 
+                if (loopDetected) {
+                    logger.warn(`⚠️ Loop detected in Gemini Engine at turn ${turnCount}.`);
+                    break;
+                }
+
                 if (toolRequests.length === 0) {
                     logger.debug(`✅ Interaction complete after ${turnCount} turns.`);
                     break;
                 }
+                // ... (rest of the loop)
 
                 if (turnCount >= maxTurns) {
                     logger.warn(
@@ -435,6 +446,24 @@ export class GeminiEngine extends EventEmitter {
                     logger.warn('⚠️ No tool responses generated after execution.');
                     break;
                 }
+            }
+
+            // If the loop finished without producing any content, notify the user
+            if (!hasRealContent) {
+                let fallbackMsg =
+                    '\n\n⚠️ **Model Interaction Issue**: The Gemini model failed to produce a valid text response.';
+                if (loopDetected) {
+                    fallbackMsg +=
+                        ' A repetitive output loop was detected and terminated. This can sometimes happen with complex prompts or transient API glitches.';
+                }
+                fallbackMsg += '\n\nPlease try rephrasing your request or starting a new session.';
+
+                onEvent({
+                    type: 'text',
+                    role: 'assistant',
+                    content: fallbackMsg,
+                    sessionId: sid
+                });
             }
 
             // Always emit final done event when exiting the loop
@@ -549,6 +578,12 @@ export class GeminiEngine extends EventEmitter {
                 return {
                     type: 'error',
                     error: event.value instanceof Error ? event.value.message : String(event.value),
+                    sessionId
+                };
+
+            case GeminiEventType.LoopDetected:
+                return {
+                    type: 'loop_detected',
                     sessionId
                 };
 
