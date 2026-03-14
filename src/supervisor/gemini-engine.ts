@@ -30,6 +30,7 @@ export interface GeminiEngineEvent {
     content?: string;
     toolName?: string;
     toolArgs?: any;
+    callId?: string;
     usageStats?: {
         inputTokens: number;
         outputTokens: number;
@@ -507,6 +508,7 @@ export class GeminiEngine extends EventEmitter {
                     type: 'tool_call',
                     toolName: event.value.name,
                     toolArgs: event.value.args,
+                    callId: event.value.callId,
                     sessionId
                 };
 

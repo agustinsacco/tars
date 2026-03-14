@@ -52,6 +52,9 @@ export class Supervisor {
             // Track user activity for idle suppression
             await this.sessionManager.touchActivity();
 
+            let toolCallCount = 0;
+            const callIdToNameMap = new Map<string, string>();
+
             // Run Gemini CLI
             await this.gemini.run(
                 content,
@@ -66,9 +69,19 @@ export class Supervisor {
 
                     // Log all tool calls for observability
                     if (event.type === 'tool_call' && event.toolName) {
-                        logger.info(
-                            `[Supervisor] 🛠️ Tool Call: ${event.toolName}(${JSON.stringify(event.toolArgs)})`
-                        );
+                        toolCallCount++;
+                        if (event.callId) {
+                            callIdToNameMap.set(event.callId, event.toolName);
+                        }
+
+                        const argsPreview = JSON.stringify(event.toolArgs || {});
+                        const truncatedArgs =
+                            argsPreview.length > 150
+                                ? argsPreview.substring(0, 150) + '...'
+                                : argsPreview;
+
+                        logger.info(`🛠️  [Tool #${toolCallCount}] ${event.toolName}`);
+                        logger.info(`   📥 Input: ${truncatedArgs}`);
 
                         // Detect memory-mutating MCP tool calls
                         const toolName = event.toolName;
@@ -76,16 +89,30 @@ export class Supervisor {
                             toolName.includes('memory_store_fact') ||
                             toolName.includes('memory_delete_fact')
                         ) {
-                            logger.info(`[Supervisor] Memory mutation detected: ${toolName}`);
+                            logger.info(`   ✨ Memory Mutation: ${toolName}`);
                             memoryMutated = true;
                         }
                     }
 
                     // Log tool responses
                     if (event.type === 'tool_response' && event.toolName) {
-                        const preview = event.content?.substring(0, 100);
+                        const toolName = callIdToNameMap.get(event.toolName) || 'unknown_tool';
+                        const content = event.content || '';
+
+                        let summary = '';
+                        if (content.startsWith('[') || content.startsWith('{')) {
+                            try {
+                                const parsed = JSON.parse(content);
+                                if (Array.isArray(parsed)) {
+                                    summary = ` -> ${parsed.length} results found`;
+                                }
+                            } catch (e) {}
+                        }
+
+                        const preview = content.substring(0, 100).replace(/\n/g, ' ').trim();
+                        logger.info(`✅ [Tool] ${toolName}${summary}`);
                         logger.info(
-                            `[Supervisor] ✅ Tool Response: ${event.toolName} -> ${preview}...`
+                            `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
                         );
                     }
 
@@ -106,7 +133,7 @@ export class Supervisor {
             // If a memory-mutating tool was used, invalidate the session so the
             // next turn starts fresh and picks up the updated facts
             if (memoryMutated) {
-                logger.info('[Supervisor] Memory was mutated this turn — invalidating session');
+                logger.debug('[Supervisor] Memory was mutated this turn — invalidating session');
                 await this.sessionManager.forceInvalidate();
             }
         } catch (error: any) {
