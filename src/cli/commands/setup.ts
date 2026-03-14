@@ -99,9 +99,9 @@ export async function setup() {
         );
     }
 
-    // ── Step 2: Channel Configuration ─────────────────────
-    console.log(chalk.bold('\nStep 2/5: Communication Channels'));
-    console.log(chalk.dim('─────────────────────────────────'));
+    // ── Step 2: Discord Configuration ─────────────────────
+    console.log(chalk.bold('\nStep 2/5: Discord Bot Setup'));
+    console.log(chalk.dim('───────────────────────────'));
 
     let existingConfig: any = {};
     try {
@@ -111,89 +111,54 @@ export async function setup() {
         /* ignore */
     }
 
-    const { selectedChannels } = await inquirer.prompt([
-        {
-            type: 'checkbox',
-            name: 'selectedChannels',
-            message: 'Select the communication channels you want to enable:',
-            choices: [
-                {
-                    name: 'Discord',
-                    value: 'discord',
-                    checked:
-                        !!existingConfig.discordToken || !!existingConfig.channels?.discord?.enabled
-                }
-            ]
-        }
-    ]);
-
-    const channels: Record<string, any> = {};
     let discordToken = existingConfig.discordToken || '';
+    let skipDiscord = false;
 
-    // Discord Wizard
-    if (selectedChannels.includes('discord')) {
-        let skipDiscord = false;
-        if (discordToken) {
-            console.log(chalk.green('\n  ✓ Discord token already configured.'));
-            const { reAuthDiscord } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'reAuthDiscord',
-                    message: 'Do you want to update the Discord Bot Token?',
-                    default: false
-                }
-            ]);
-            if (!reAuthDiscord) skipDiscord = true;
-        }
-
-        if (!skipDiscord) {
-            const answers = await inquirer.prompt([
-                {
-                    type: 'password',
-                    name: 'discordToken',
-                    message: 'Enter Discord Bot Token:',
-                    validate: (input) =>
-                        input.length > 50 ||
-                        'Token too short — paste the full token from the Developer Portal'
-                }
-            ]);
-            discordToken = answers.discordToken;
-
-            const validateSpinner = ora('Validating Discord token...').start();
-            try {
-                const client = new Client({
-                    intents: [
-                        GatewayIntentBits.Guilds,
-                        GatewayIntentBits.GuildMessages,
-                        GatewayIntentBits.MessageContent,
-                        GatewayIntentBits.DirectMessages
-                    ]
-                });
-                await client.login(discordToken);
-                const botName = client.user?.tag;
-                client.destroy();
-                validateSpinner.succeed(`Discord Token valid! Bot: ${chalk.bold(botName)}`);
-            } catch (err: any) {
-                validateSpinner.fail('Invalid Discord token. Check your token and try again.');
-                process.exit(1);
+    if (discordToken) {
+        console.log(chalk.green('  ✓ Discord token already configured.'));
+        const { reAuthDiscord } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'reAuthDiscord',
+                message: 'Do you want to update the Discord Bot Token?',
+                default: false
             }
-        }
-        channels.discord = {
-            enabled: true,
-            token: discordToken,
-            ownerId: existingConfig.discordOwnerId || undefined
-        };
+        ]);
+        if (!reAuthDiscord) skipDiscord = true;
     }
 
-    const { primaryChannel } = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'primaryChannel',
-            message: 'Select your Primary Channel for notifications:',
-            choices: selectedChannels,
-            default: existingConfig.primaryChannel || selectedChannels[0]
+    if (!skipDiscord) {
+        const answers = await inquirer.prompt([
+            {
+                type: 'password',
+                name: 'discordToken',
+                message: 'Enter Discord Bot Token:',
+                validate: (input) =>
+                    input.length > 50 ||
+                    'Token too short — paste the full token from the Developer Portal'
+            }
+        ]);
+        discordToken = answers.discordToken;
+
+        const validateSpinner = ora('Validating Discord token...').start();
+        try {
+            const client = new Client({
+                intents: [
+                    GatewayIntentBits.Guilds,
+                    GatewayIntentBits.GuildMessages,
+                    GatewayIntentBits.MessageContent,
+                    GatewayIntentBits.DirectMessages
+                ]
+            });
+            await client.login(discordToken);
+            const botName = client.user?.tag;
+            client.destroy();
+            validateSpinner.succeed(`Discord Token valid! Bot: ${chalk.bold(botName)}`);
+        } catch (err: any) {
+            validateSpinner.fail('Invalid Discord token. Check your token and try again.');
+            process.exit(1);
         }
-    ]);
+    }
 
     // ── Step 3: Configuration ─────────────────────────────
     console.log(chalk.bold('\nStep 3/5: Identity & Engine'));
@@ -277,9 +242,7 @@ export async function setup() {
         discordToken,
         discordOwnerId: existingConfig.discordOwnerId,
         geminiModel: finalModel,
-        heartbeatIntervalSec: intervalSec,
-        channels,
-        primaryChannel
+        heartbeatIntervalSec: intervalSec
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));

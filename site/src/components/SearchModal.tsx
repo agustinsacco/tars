@@ -13,7 +13,7 @@ const ALL_PAGES: SearchResult[] = [
     { title: 'Installation', href: '/getting-started/installation', section: 'Get Started' },
     { title: 'Quick Start', href: '/getting-started/setup', section: 'Get Started' },
     { title: 'Discord Integration', href: '/getting-started/discord', section: 'Get Started' },
-    { title: 'WhatsApp Integration', href: '/getting-started/whatsapp', section: 'Get Started' },
+
     { title: 'Supervisor Engine', href: '/architecture/supervisor', section: 'Architecture' },
     { title: 'Heartbeat Protocol', href: '/architecture/heartbeat', section: 'Architecture' },
     { title: 'Core Intelligence', href: '/architecture/gemini-cli', section: 'Architecture' },

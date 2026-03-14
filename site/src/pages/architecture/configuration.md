@@ -22,18 +22,7 @@ Located at `~/.tars/config.json`:
     "assistantName": "Tars",
     "discordToken": "...",
     "geminiModel": "auto",
-    "heartbeatIntervalSec": 60,
-    "primaryChannel": "whatsapp",
-    "channels": {
-        "discord": {
-            "enabled": true,
-            "token": "..."
-        },
-        "whatsapp": {
-            "enabled": true,
-            "ownerNumber": "15141234567"
-        }
-    }
+    "heartbeatIntervalSec": 60
 }
 ```
 
@@ -41,13 +30,11 @@ This file is created by `tars setup` and can be edited manually.
 
 ## All Configuration Fields
 
-| Field                  | Env Variable             | Default | Description                          |
-| ---------------------- | ------------------------ | ------- | ------------------------------------ |
-| `discordToken`         | `DISCORD_TOKEN`          | —       | Legacy Discord bot token             |
-| `channels`             | —                        | —       | Configuration for Discord/WhatsApp   |
-| `primaryChannel`       | —                        | —       | Default channel for proactive alerts |
-| `geminiModel`          | `GEMINI_MODEL`           | `auto`  | Gemini model to use                  |
-| `heartbeatIntervalSec` | `HEARTBEAT_INTERVAL_SEC` | `300`   | Heartbeat tick interval              |
+| Field                  | Env Variable             | Default | Description             |
+| ---------------------- | ------------------------ | ------- | ----------------------- |
+| `discordToken`         | `DISCORD_TOKEN`          | —       | Discord bot token       |
+| `geminiModel`          | `GEMINI_MODEL`           | `auto`  | Gemini model to use     |
+| `heartbeatIntervalSec` | `HEARTBEAT_INTERVAL_SEC` | `300`   | Heartbeat tick interval |
 
 ## Derived Paths
 
