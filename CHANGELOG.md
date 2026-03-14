@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/agustinsacco/tars/compare/v1.7.0...v1.8.0) (2026-03-14)
+
+
+### Features
+
+* release version 1.8.0 with supervisor stability fixes ([#26](https://github.com/agustinsacco/tars/issues/26)) ([c60a9d3](https://github.com/agustinsacco/tars/commit/c60a9d3af69c01cb91acbdfe5f38384feef91e22))
+
+
+### Bug Fixes
+
+* restore correct version 1.7.8 and prepare for 1.8.0 release ([#24](https://github.com/agustinsacco/tars/issues/24)) ([53a9090](https://github.com/agustinsacco/tars/commit/53a90901a53c90c5cb46618f06dd9382626ca4ea))
+
 ## [1.7.0](https://github.com/agustinsacco/tars/compare/v1.6.0...v1.7.0) (2026-03-14)
 
 
