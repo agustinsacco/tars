@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/agustinsacco/tars/compare/v1.4.2...v1.5.0) (2026-03-14)
+
+
+### Features
+
+* move whatsapp qr generation to status command to avoid log mangling ([9f4f9fe](https://github.com/agustinsacco/tars/commit/9f4f9feb2a606f7ffd63443b3f683d1e79a60c92))
+
 ## [1.4.2](https://github.com/agustinsacco/tars/compare/v1.4.1...v1.4.2) (2026-03-13)
 
 
