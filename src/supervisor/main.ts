@@ -119,7 +119,6 @@ function installSkills(config: Config): void {
 
             // Copy fresh from repo
             fs.cpSync(srcSkillPath, destSkillPath, { recursive: true });
-            logger.info(`📚 Skill synced: ${skillName}`);
         }
     } catch (error) {
         logger.error(`❌ Failed to sync skills: ${error}`);
@@ -174,7 +173,6 @@ function installAgents(config: Config): void {
             if (!fs.statSync(srcAgentPath).isFile() || !agentName.endsWith('.md')) continue;
 
             fs.copyFileSync(srcAgentPath, destAgentPath);
-            logger.info(`🤖 Agent synced: ${agentName}`);
         }
     } catch (error) {
         logger.error(`❌ Failed to sync agents: ${error}`);
@@ -403,6 +401,7 @@ async function main() {
                 const text = responseBuffer.trim();
                 if (!text) return;
 
+                message.stopTyping();
                 let finalContent = text;
                 // Prepend the binding alert to the first message if we just auto-bound
                 if (replyCount === 0 && message.metadata?.wasAutoBound) {
@@ -410,11 +409,13 @@ async function main() {
                 }
 
                 await message.reply(finalContent);
+                message.startTyping();
                 responseBuffer = '';
                 replyCount++;
             };
 
             try {
+                message.startTyping();
                 await supervisor.run(
                     message.content,
                     async (event) => {
@@ -429,12 +430,14 @@ async function main() {
                             await message.reply(`❌ **Error:** ${event.error}`);
                         } else if (event.type === 'done') {
                             await flush();
+                            message.stopTyping();
                         }
                     },
                     undefined,
                     message.attachments
                 );
             } catch (error: any) {
+                message.stopTyping();
                 logger.error(`Routing error: ${error.message}`);
                 await message.reply(`❌ **Supervisor Error:** ${error.message}`);
             }

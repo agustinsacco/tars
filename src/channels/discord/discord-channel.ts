@@ -15,6 +15,7 @@ export class DiscordChannel implements CommunicationChannel {
     private readonly client: Client;
     private readonly processor: AttachmentProcessor;
     private messageHandler?: (message: ChannelMessage) => Promise<void>;
+    private typingIntervals: Map<string, NodeJS.Timeout> = new Map();
 
     constructor() {
         this.config = Config.getInstance();
@@ -182,16 +183,37 @@ export class DiscordChannel implements CommunicationChannel {
                         });
                     }
                 }
+            },
+            startTyping: () => {
+                const channelId = message.channelId;
+                if (this.typingIntervals.has(channelId)) return;
+
+                // Send first one immediately
+                if ('sendTyping' in message.channel) {
+                    message.channel.sendTyping().catch(() => {});
+                    const interval = setInterval(() => {
+                        (message.channel as any).sendTyping().catch(() => {
+                            this.stopTypingInternal(channelId);
+                        });
+                    }, 5000); // Discord typing state lasts ~10s, we refresh every 5s
+                    this.typingIntervals.set(channelId, interval);
+                }
+            },
+            stopTyping: () => {
+                this.stopTypingInternal(message.channelId);
             }
         };
 
-        // Show typing indicator
-        if ('sendTyping' in message.channel) {
-            await message.channel.sendTyping().catch(() => {});
-        }
-
         // Forward to the registered handler (Supervisor via ChannelManager)
         await this.messageHandler(channelMessage);
+    }
+
+    private stopTypingInternal(channelId: string): void {
+        const interval = this.typingIntervals.get(channelId);
+        if (interval) {
+            clearInterval(interval);
+            this.typingIntervals.delete(channelId);
+        }
     }
 
     /**

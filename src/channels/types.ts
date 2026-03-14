@@ -11,6 +11,8 @@ export interface ChannelMessage {
     attachments?: AttachmentContext[];
     metadata?: Record<string, any>;
     reply: (content: string, attachments?: string[]) => Promise<void>;
+    startTyping: () => void;
+    stopTyping: () => void;
 }
 
 /**
