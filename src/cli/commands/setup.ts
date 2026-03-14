@@ -111,7 +111,7 @@ export async function setup() {
         /* ignore */
     }
 
-    let discordToken = existingConfig.discordToken || '';
+    let discordToken = existingConfig.discordToken || existingConfig.channels?.discord?.token || '';
     let skipDiscord = false;
 
     if (discordToken) {
