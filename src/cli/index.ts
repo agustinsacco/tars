@@ -4,6 +4,7 @@ import { setup } from './commands/setup.js';
 import { start } from './commands/start.js';
 import { stop } from './commands/stop.js';
 import { restart } from './commands/restart.js';
+import { update } from './commands/update.js';
 import { status } from './commands/status.js';
 import { logs } from './commands/logs.js';
 import { discord } from './commands/discord.js';
@@ -35,6 +36,11 @@ program
     .command('restart')
     .description('Check for updates and restart the assistant')
     .action(restart);
+
+program
+    .command('update')
+    .description('Force check and install the latest version of Tars')
+    .action(update);
 
 program
     .command('status')
