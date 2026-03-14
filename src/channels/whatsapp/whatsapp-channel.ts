@@ -72,19 +72,23 @@ export class WhatsAppChannel implements CommunicationChannel {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                logger.info('📱 Scan the QR code below to link WhatsApp:');
-                if (process.env.name === 'tars-supervisor') {
-                    logger.warn(
-                        '⚠️ Tars is running in the background. Please use "tars logs" to view the full QR code in your terminal.'
-                    );
-                }
-                qrcode.generate(qr, { small: true });
+                const qrPath = path.join(this.config.homeDir, 'data', 'whatsapp-qr.txt');
+                fs.writeFileSync(qrPath, qr, 'utf8');
+                logger.info(
+                    '📱 A WhatsApp QR code is ready! Run "tars status" to view and scan it.'
+                );
             }
 
             if (connection === 'close') {
                 const shouldReconnect =
                     (lastDisconnect?.error as Boom)?.output?.statusCode !==
                     DisconnectReason.loggedOut;
+
+                if (!shouldReconnect) {
+                    const qrPath = path.join(this.config.homeDir, 'data', 'whatsapp-qr.txt');
+                    if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
+                }
+
                 logger.warn(`WhatsApp connection closed. Reconnecting: ${shouldReconnect}`);
                 this.isConnected = false;
                 if (shouldReconnect) {
@@ -93,6 +97,8 @@ export class WhatsAppChannel implements CommunicationChannel {
             } else if (connection === 'open') {
                 logger.info('✅ WhatsApp channel connected and ready.');
                 this.isConnected = true;
+                const qrPath = path.join(this.config.homeDir, 'data', 'whatsapp-qr.txt');
+                if (fs.existsSync(qrPath)) fs.unlinkSync(qrPath);
             }
         });
 

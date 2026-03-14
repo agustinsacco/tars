@@ -1,5 +1,8 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
+import fs from 'fs';
+import path from 'path';
+import qrcode from 'qrcode-terminal';
 import { pkg, isDev } from '../../utils/version.js';
 import { Config } from '../../config/config.js';
 import { SessionManager } from '../../supervisor/session-manager.js';
@@ -65,6 +68,24 @@ export async function status() {
             }
 
             console.log(`\nLogs:    tars logs\n`);
+
+            const qrPath = path.join(config.homeDir, 'data', 'whatsapp-qr.txt');
+            if (fs.existsSync(qrPath)) {
+                try {
+                    const qrString = fs.readFileSync(qrPath, 'utf8');
+                    if (qrString) {
+                        console.log(chalk.cyan('──────────────'));
+                        console.log(chalk.bold('📱 WhatsApp Registration Required'));
+                        console.log(
+                            chalk.dim('Scan the QR code below from your WhatsApp app to link Tars:')
+                        );
+                        qrcode.generate(qrString, { small: true });
+                        console.log('');
+                    }
+                } catch (err: any) {
+                    // ignore if file couldn't be read in the split second it generated
+                }
+            }
         });
     });
 }
