@@ -2,10 +2,9 @@
 
 ## [1.6.0](https://github.com/agustinsacco/tars/compare/v1.5.0...v1.6.0) (2026-03-14)
 
-
 ### Features
 
-* enable whatsapp message yourself functionality ([32bd165](https://github.com/agustinsacco/tars/commit/32bd16525d3ed77f35eefa4053e5e7abd1ad69b9))
+- enable whatsapp message yourself functionality ([32bd165](https://github.com/agustinsacco/tars/commit/32bd16525d3ed77f35eefa4053e5e7abd1ad69b9))
 
 ## [1.5.0](https://github.com/agustinsacco/tars/compare/v1.4.2...v1.5.0) (2026-03-14)
 

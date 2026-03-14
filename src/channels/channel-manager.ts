@@ -1,6 +1,5 @@
 import { CommunicationChannel, ChannelMessage } from './types.js';
 import { DiscordChannel } from './discord/discord-channel.js';
-import { WhatsAppChannel } from './whatsapp/whatsapp-channel.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 
@@ -26,12 +25,6 @@ export class ChannelManager {
         const discord = new DiscordChannel();
         if (discord.isEnabled) {
             this.channels.set(discord.id, discord);
-        }
-
-        // 2. Initialize WhatsApp
-        const whatsapp = new WhatsAppChannel();
-        if (whatsapp.isEnabled) {
-            this.channels.set(whatsapp.id, whatsapp);
         }
     }
 

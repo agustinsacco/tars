@@ -122,11 +122,6 @@ export async function setup() {
                     value: 'discord',
                     checked:
                         !!existingConfig.discordToken || !!existingConfig.channels?.discord?.enabled
-                },
-                {
-                    name: 'WhatsApp',
-                    value: 'whatsapp',
-                    checked: !!existingConfig.channels?.whatsapp?.enabled
                 }
             ]
         }
@@ -188,25 +183,6 @@ export async function setup() {
             token: discordToken,
             ownerId: existingConfig.discordOwnerId || undefined
         };
-    }
-
-    // WhatsApp Wizard
-    if (selectedChannels.includes('whatsapp')) {
-        const waAnswers = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'ownerNumber',
-                message: 'Enter your WhatsApp Phone Number (with country code, e.g., 15141234567):',
-                default: existingConfig.channels?.whatsapp?.ownerNumber || '',
-                validate: (input) =>
-                    /^\d{10,15}$/.test(input) ||
-                    'Please enter a valid number (digits only, 10-15 characters).'
-            }
-        ]);
-        channels.whatsapp = { enabled: true, ownerNumber: waAnswers.ownerNumber };
-        console.log(
-            chalk.dim('  Note: You will be prompted to scan a QR code on the first "tars start".')
-        );
     }
 
     const { primaryChannel } = await inquirer.prompt([
