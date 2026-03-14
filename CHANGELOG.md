@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/agustinsacco/tars/compare/v1.7.0...v1.7.1) (2026-03-14)
+
+
+### Bug Fixes
+
+* restore correct version 1.7.8 and prepare for 1.8.0 release ([#24](https://github.com/agustinsacco/tars/issues/24)) ([53a9090](https://github.com/agustinsacco/tars/commit/53a90901a53c90c5cb46618f06dd9382626ca4ea))
+
 ## [1.7.0](https://github.com/agustinsacco/tars/compare/v1.6.0...v1.7.0) (2026-03-14)
 
 
