@@ -21,7 +21,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "lint": "prettier --check .",
-        "format": "prettier --write ."
+        "format": "prettier --write .",
+        "prepare": "husky"
     },
     "files": [
         "dist/",
@@ -58,9 +59,14 @@
         "@types/qrcode-terminal": "^0.12.2",
         "@types/uuid": "^10.0.0",
         "@vitest/coverage-v8": "^2.1.9",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.4.0",
         "prettier": "^3.8.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
         "vitest": "^2.1.9"
+    },
+    "lint-staged": {
+        "**/*": "prettier --write --ignore-unknown"
     }
 }
