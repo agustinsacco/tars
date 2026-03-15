@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/agustinsacco/tars/compare/v1.8.0...v1.8.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* restore supervisor run loop and fix error serialization ([4a2cbce](https://github.com/agustinsacco/tars/commit/4a2cbcec41e3644fb1c95920858bf7695bebf4b0))
+
 ## [1.8.0](https://github.com/agustinsacco/tars/compare/v1.7.0...v1.8.0) (2026-03-14)
 
 ### Features
