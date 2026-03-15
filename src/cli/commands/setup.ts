@@ -410,17 +410,25 @@ export async function setup() {
 
     // Hydrate Dashboard if enabled
     if (dashConfig.enableDash) {
-        const dashDir = path.resolve(
+        const dashSrc = path.resolve(
             path.dirname(new URL(import.meta.url).pathname),
-            '../../../tars-dash'
+            '../../../dashboard'
         );
-        if (fsSync.existsSync(dashDir)) {
-            const dashSpinner = ora('Hydrating Tars Dashboard...').start();
+        const dashDest = path.join(tarsHome, 'dashboard');
+
+        if (fsSync.existsSync(dashSrc)) {
+            const dashSpinner = ora('Installing Tars Dashboard...').start();
             try {
-                execSync('npm install --production', { cwd: dashDir, stdio: 'pipe' });
+                if (fsSync.existsSync(dashDest)) {
+                    await fs.rm(dashDest, { recursive: true, force: true });
+                }
+                await fs.cp(dashSrc, dashDest, { recursive: true });
+
+                dashSpinner.text = 'Hydrating Dashboard dependencies...';
+                execSync('npm install --production', { cwd: dashDest, stdio: 'pipe' });
                 dashSpinner.succeed('Dashboard ready.');
             } catch (err: any) {
-                dashSpinner.warn(`Dashboard hydration failed: ${err.message}`);
+                dashSpinner.warn(`Dashboard installation failed: ${err.message}`);
             }
         }
     }
