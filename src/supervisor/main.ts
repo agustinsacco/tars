@@ -420,24 +420,23 @@ async function main() {
                         if (event.type === 'text' && event.content && event.role !== 'user') {
                             responseBuffer += event.content;
                         } else if (event.type === 'tool_call') {
-                            // If the model had something to say before calling a tool, send it now
-                            // so the user knows what's happening.
                             await flush();
                         } else if (event.type === 'error') {
                             await flush();
                             await message.reply(`❌ **Error:** ${event.error}`);
-                            message.stopTyping();
                         } else if (event.type === 'done') {
                             await flush();
-                            message.stopTyping();
                         }
                     },
                     undefined,
                     message.attachments
                 );
             } catch (error: any) {
-                logger.error(`Routing error: ${error.message}`);
-                await message.reply(`❌ **Supervisor Error:** ${error.message}`);
+                const errorMsg =
+                    error.message ||
+                    (typeof error === 'object' ? JSON.stringify(error) : String(error));
+                logger.error(`Routing error: ${errorMsg}`);
+                await message.reply(`❌ **Supervisor Error:** ${errorMsg}`);
             } finally {
                 message.stopTyping();
             }
@@ -463,7 +462,9 @@ async function main() {
             process.exit(0);
         });
     } catch (error: any) {
-        logger.error(`💥 Fatal error during startup: ${error.message}`);
+        const errorMsg =
+            error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        logger.error(`💥 Fatal error during startup: ${errorMsg}`);
         process.exit(1);
     }
 }
