@@ -480,8 +480,11 @@ export class GeminiEngine extends EventEmitter {
                 sessionId: sid
             });
         } catch (error: any) {
-            logger.error(`❌ Gemini Engine run error: ${error.message}`);
-            await onEvent({ type: 'error', error: error.message });
+            const errorMsg =
+                error.message ||
+                (typeof error === 'object' ? JSON.stringify(error) : String(error));
+            logger.error(`❌ Gemini Engine run error: ${errorMsg}`);
+            await onEvent({ type: 'error', error: errorMsg });
             throw error;
         } finally {
             process.env.HOME = savedHome;
@@ -576,9 +579,20 @@ export class GeminiEngine extends EventEmitter {
                 };
 
             case GeminiEventType.Error:
+                let errorDetails = '';
+                if (event.value instanceof Error) {
+                    errorDetails = event.value.message;
+                } else if (typeof event.value === 'object' && event.value !== null) {
+                    // Try to extract nested error message if it exists (common in Google API errors)
+                    const val = event.value as any;
+                    errorDetails = val.message || val.error?.message || JSON.stringify(event.value);
+                } else {
+                    errorDetails = String(event.value);
+                }
+
                 return {
                     type: 'error',
-                    error: event.value instanceof Error ? event.value.message : String(event.value),
+                    error: errorDetails,
                     sessionId
                 };
 
