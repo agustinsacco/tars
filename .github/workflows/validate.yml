@@ -17,7 +17,7 @@ jobs:
                   node-version: '22'
                   cache: 'npm'
             - run: npm ci
-            - run: npx prettier --check . --ignore-path <(echo "CHANGELOG.md")
+            - run: npx prettier --check .
 
     # Run core validation (build, test) only when code or its CI changes
     validate-core:
