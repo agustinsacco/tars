@@ -4,6 +4,7 @@ import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
 import { CronService } from './cron-service.js';
+import { DashboardService } from './dashboard-service.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
@@ -446,11 +447,13 @@ async function main() {
         // 7. Initialize Background Services
         const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
         const cron = new CronService(supervisor, config, channelManager);
+        const dashboard = new DashboardService(config);
 
         // Start everything
         await channelManager.start();
         await heartbeat.start();
         await cron.start();
+        await dashboard.start();
 
         logger.info('✨ Tars successfully initialized and running.');
 
@@ -460,6 +463,7 @@ async function main() {
             await channelManager.stop();
             heartbeat.stop();
             cron.stop();
+            dashboard.stop();
             process.exit(0);
         });
     } catch (error: any) {

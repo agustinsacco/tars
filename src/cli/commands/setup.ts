@@ -7,8 +7,10 @@ import fsSync from 'fs';
 import path from 'path';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { TarsOAuthService } from '../../auth/oauth-service.js';
+import { WorkspaceOAuthService } from '../../auth/workspace-auth-service.js';
 import { BrainAuditor } from '../../utils/brain-audit.js';
 import { getTarsHome } from '../../utils/paths.js';
+import { SecretsManager } from '../../utils/secrets-manager.js';
 
 /**
  * Check if the isolated tars environment is authenticated
@@ -16,6 +18,47 @@ import { getTarsHome } from '../../utils/paths.js';
 async function checkTarsAuth(tarsHome: string): Promise<boolean> {
     const oauthService = new TarsOAuthService(tarsHome);
     return await oauthService.isAuthenticated();
+}
+
+/**
+ * Helper to setup Workspace Auth
+ */
+async function setupWorkspaceAuth(tarsHome: string, wsService: WorkspaceOAuthService) {
+    const secretsManager = new SecretsManager(tarsHome);
+    const secrets = secretsManager.load();
+
+    if (!secrets.GOOGLE_WORKSPACE_CLIENT_ID || !secrets.GOOGLE_WORKSPACE_CLIENT_SECRET) {
+        console.log(
+            chalk.yellow('\n  Workspace integration requires an OAuth Client ID and Secret.')
+        );
+        console.log(chalk.dim('  Create one in the Google Cloud Console (Desktop App type).'));
+
+        const answers = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'clientId',
+                message: '  Enter Google Workspace Client ID:',
+                default: secrets.GOOGLE_WORKSPACE_CLIENT_ID,
+                validate: (i) => i.length > 10 || 'Required'
+            },
+            {
+                type: 'password',
+                name: 'clientSecret',
+                message: '  Enter Google Workspace Client Secret:',
+                default: secrets.GOOGLE_WORKSPACE_CLIENT_SECRET,
+                validate: (i) => i.length > 5 || 'Required'
+            }
+        ]);
+
+        secretsManager.set('GOOGLE_WORKSPACE_CLIENT_ID', answers.clientId);
+        secretsManager.set('GOOGLE_WORKSPACE_CLIENT_SECRET', answers.clientSecret);
+
+        // Refresh env for the service
+        process.env.GOOGLE_WORKSPACE_CLIENT_ID = answers.clientId;
+        process.env.GOOGLE_WORKSPACE_CLIENT_SECRET = answers.clientSecret;
+    }
+
+    await wsService.login();
 }
 
 /**
@@ -42,7 +85,7 @@ export async function setup() {
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
 
     // ── Step 1: Google OAuth ───────────────────────────────
-    console.log(chalk.bold('\nStep 1/5: Google Authentication'));
+    console.log(chalk.bold('\nStep 1/7: Google Authentication'));
     console.log(chalk.dim('────────────────────────────────'));
 
     let performAuth = false;
@@ -100,7 +143,7 @@ export async function setup() {
     }
 
     // ── Step 2: Discord Configuration ─────────────────────
-    console.log(chalk.bold('\nStep 2/5: Discord Bot Setup'));
+    console.log(chalk.bold('\nStep 2/7: Discord Bot Setup'));
     console.log(chalk.dim('───────────────────────────'));
 
     let existingConfig: any = {};
@@ -161,8 +204,10 @@ export async function setup() {
     }
 
     // ── Step 3: Configuration ─────────────────────────────
-    console.log(chalk.bold('\nStep 3/5: Identity & Engine'));
+    console.log(chalk.bold('\nStep 3/7: Identity & Engine'));
     console.log(chalk.dim('────────────────────────────'));
+    console.log(chalk.dim('  Tars is your personal assistant and sidekick.'));
+    console.log(chalk.dim('  Every Google account includes free Gemini inference!'));
 
     const config = await inquirer.prompt([
         {
@@ -210,8 +255,94 @@ export async function setup() {
         }
     ]);
 
-    // ── Step 4: Installation ──────────────────────────────
-    console.log(chalk.bold('\nStep 4/5: Installing'));
+    // ── Step 4: Google Workspace ──────────────────────────
+    console.log(chalk.bold('\nStep 4/7: Google Workspace Integration'));
+    console.log(chalk.dim('──────────────────────────────────────'));
+    console.log(chalk.dim('  Enables Tars to read verification emails, manage'));
+    console.log(chalk.dim('  your calendar, and interact with your files.'));
+
+    const wsService = new WorkspaceOAuthService(tarsHome);
+    const isWsAuthed = await wsService.isAuthenticated();
+
+    if (isWsAuthed) {
+        console.log(chalk.green('  ✓ Google Workspace already authenticated.'));
+        const { reAuthWs } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'reAuthWs',
+                message: 'Do you want to re-authenticate Workspace access?',
+                default: false
+            }
+        ]);
+        if (reAuthWs) await setupWorkspaceAuth(tarsHome, wsService);
+    } else {
+        const { setupWs } = await inquirer.prompt([
+            {
+                type: 'confirm',
+                name: 'setupWs',
+                message: 'Enable Google Workspace integration (Gmail, Drive, Calendar)?',
+                default: true
+            }
+        ]);
+        if (setupWs) await setupWorkspaceAuth(tarsHome, wsService);
+    }
+
+    // ── Step 5: Tars Dashboard ────────────────────────────
+    console.log(chalk.bold('\nStep 5/7: Tars Dashboard & Cloudflare'));
+    console.log(chalk.dim('─────────────────────────────────────'));
+
+    const secretsManager = new SecretsManager(tarsHome);
+    const secrets = secretsManager.load();
+
+    const dashConfig = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'enableDash',
+            message: 'Enable Tars Dashboard (Web UI)?',
+            default: true
+        },
+        {
+            type: 'input',
+            name: 'dashPort',
+            message: 'Dashboard Port:',
+            default: '3000',
+            when: (a) => a.enableDash
+        },
+        {
+            type: 'password',
+            name: 'dashPassword',
+            message: 'Set Dashboard Password:',
+            default: secrets.DASH_PASSWORD || 'tars123',
+            when: (a) => a.enableDash
+        },
+        {
+            type: 'confirm',
+            name: 'enableTunnel',
+            message: 'Expose Dashboard via Cloudflare Tunnel?',
+            default: false,
+            when: (a) => a.enableDash
+        },
+        {
+            type: 'password',
+            name: 'cfToken',
+            message: 'Enter Cloudflare Tunnel Token:',
+            when: (a) => a.enableTunnel,
+            validate: (i) => i.length > 20 || 'Please enter a valid Cloudflare token'
+        }
+    ]);
+
+    if (dashConfig.enableDash) {
+        secretsManager.set('DASH_ENABLED', 'true');
+        secretsManager.set('DASH_PORT', dashConfig.dashPort);
+        secretsManager.set('DASH_PASSWORD', dashConfig.dashPassword);
+        if (dashConfig.enableTunnel) {
+            secretsManager.set('CLOUDFLARE_TUNNEL_TOKEN', dashConfig.cfToken);
+        }
+        console.log(chalk.green('  ✓ Dashboard configuration saved.'));
+    }
+
+    // ── Step 6: Installing ──────────────────────────────
+    console.log(chalk.bold('\nStep 6/7: Installing'));
     console.log(chalk.dim('─────────────────────'));
 
     // 1. Audit and Heal
@@ -273,6 +404,23 @@ export async function setup() {
                 extSpinner.succeed(`Extension ready: ${finalExtName}`);
             } catch (err: any) {
                 extSpinner.warn(`Extension ${finalExtName} failed: ${err.message}`);
+            }
+        }
+    }
+
+    // Hydrate Dashboard if enabled
+    if (dashConfig.enableDash) {
+        const dashDir = path.resolve(
+            path.dirname(new URL(import.meta.url).pathname),
+            '../../../tars-dash'
+        );
+        if (fsSync.existsSync(dashDir)) {
+            const dashSpinner = ora('Hydrating Tars Dashboard...').start();
+            try {
+                execSync('npm install --production', { cwd: dashDir, stdio: 'pipe' });
+                dashSpinner.succeed('Dashboard ready.');
+            } catch (err: any) {
+                dashSpinner.warn(`Dashboard hydration failed: ${err.message}`);
             }
         }
     }
