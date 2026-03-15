@@ -1,0 +1,124 @@
+import pm2 from 'pm2';
+import path from 'path';
+import fs from 'fs';
+import logger from '../utils/logger.js';
+import { Config } from '../config/config.js';
+import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export class DashboardService {
+    private readonly dashDir: string;
+    private readonly dashName = 'tars-dashboard';
+    private readonly tunnelName = 'tars-tunnel';
+
+    constructor(private readonly config: Config) {
+        // Resolve dash directory relative to this file
+        // dist/supervisor/dashboard-service.js -> apps/tars-dash
+        this.dashDir = path.resolve(__dirname, '..', '..', '..', 'tars-dash');
+    }
+
+    public async start(): Promise<void> {
+        if (!fs.existsSync(this.dashDir)) {
+            logger.warn('⚠️ Tars Dashboard directory not found. Skipping dashboard start.');
+            return;
+        }
+
+        const dashEnabled = process.env.DASH_ENABLED === 'true';
+        if (!dashEnabled) return;
+
+        return new Promise((resolve) => {
+            pm2.connect((err) => {
+                if (err) {
+                    logger.error(`❌ PM2 connection failed for Dashboard: ${err.message}`);
+                    resolve();
+                    return;
+                }
+
+                this.startDash()
+                    .then(() => this.startTunnel())
+                    .finally(() => {
+                        pm2.disconnect();
+                        resolve();
+                    });
+            });
+        });
+    }
+
+    private async startDash(): Promise<void> {
+        return new Promise((resolve) => {
+            logger.info('🚀 Starting Tars Dashboard (PM2)...');
+
+            const port = process.env.DASH_PORT || '3000';
+
+            pm2.start(
+                {
+                    script: 'server.js',
+                    name: this.dashName,
+                    cwd: this.dashDir,
+                    env: {
+                        ...process.env,
+                        PORT: port,
+                        NODE_ENV: 'production'
+                    }
+                },
+                (err) => {
+                    if (err) {
+                        logger.error(`❌ Dashboard failed to start: ${err.message}`);
+                    } else {
+                        logger.info(`✨ Dashboard running on port ${port}`);
+                    }
+                    resolve();
+                }
+            );
+        });
+    }
+
+    private async startTunnel(): Promise<void> {
+        const cloudflareToken = process.env.CLOUDFLARE_TUNNEL_TOKEN;
+        if (!cloudflareToken) return;
+
+        // Check if cloudflared is installed
+        try {
+            execSync('which cloudflared', { stdio: 'ignore' });
+        } catch (e) {
+            logger.warn('⚠️ cloudflared not found in PATH. Skipping tunnel.');
+            return;
+        }
+
+        return new Promise((resolve) => {
+            logger.info('☁️ Starting Cloudflare Tunnel (PM2)...');
+
+            pm2.start(
+                {
+                    script: 'cloudflared',
+                    args: ['tunnel', '--no-autoupdate', 'run', '--token', cloudflareToken],
+                    name: this.tunnelName,
+                    interpreter: 'none'
+                },
+                (err) => {
+                    if (err) {
+                        logger.error(`❌ Cloudflare Tunnel failed: ${err.message}`);
+                    } else {
+                        logger.info('✅ Cloudflare Tunnel active.');
+                    }
+                    resolve();
+                }
+            );
+        });
+    }
+
+    public stop(): void {
+        pm2.connect((err) => {
+            if (err) return;
+
+            pm2.delete(this.dashName, () => {
+                pm2.delete(this.tunnelName, () => {
+                    pm2.disconnect();
+                });
+            });
+        });
+    }
+}

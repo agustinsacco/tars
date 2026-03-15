@@ -17,6 +17,10 @@ export function stop(): Promise<void> {
 
             // Use delete instead of stop to completely remove from PM2 list
             pm2.delete('tars-supervisor', (err) => {
+                // Also clean up auxiliary processes
+                pm2.delete('tars-dashboard', () => {});
+                pm2.delete('tars-tunnel', () => {});
+
                 pm2.disconnect();
                 if (err) {
                     console.log(chalk.yellow('⚠️ Tars was not managed by PM2.'));
