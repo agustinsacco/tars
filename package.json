@@ -30,7 +30,7 @@
         "src/prompts/",
         "extensions/",
         "!extensions/**/node_modules/",
-        "dashboard/",
+        "stock_apps/",
         "context/",
         "README.md",
         "!site/"
