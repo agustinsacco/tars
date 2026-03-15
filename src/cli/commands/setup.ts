@@ -355,11 +355,26 @@ export async function setup() {
 
     await fs.mkdir(path.join(tarsHome, 'data', 'uploads'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'logs'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'apps'), { recursive: true });
     await fs.mkdir(path.join(geminiDir, 'extensions'), { recursive: true });
     await fs.mkdir(path.join(geminiDir, 'tmp'), { recursive: true });
     await fs.mkdir(path.join(geminiDir, 'history'), { recursive: true });
 
     installSpinner.succeed('Directories created (~/.tars/.gemini/)');
+
+    // ── Legacy Cleanup ──────────────────────────────
+    const cleanupSpinner = ora('Checking for legacy components...').start();
+    const oldDash = path.join(tarsHome, 'dashboard');
+    if (fsSync.existsSync(oldDash)) {
+        await fs.rm(oldDash, { recursive: true, force: true });
+        cleanupSpinner.text = 'Cleaned up legacy dashboard directory.';
+    }
+    const oldStandaloneDash = path.resolve(tarsHome, '..', 'apps', 'tars-dash');
+    if (fsSync.existsSync(oldStandaloneDash)) {
+        await fs.rm(oldStandaloneDash, { recursive: true, force: true });
+        cleanupSpinner.text = 'Cleaned up legacy standalone dashboard.';
+    }
+    cleanupSpinner.succeed('Cleanup complete.');
 
     // ── Write Tars configuration ─────────────────────
     const saveSpinner = ora('Saving configuration...').start();
@@ -412,9 +427,9 @@ export async function setup() {
     if (dashConfig.enableDash) {
         const dashSrc = path.resolve(
             path.dirname(new URL(import.meta.url).pathname),
-            '../../../dashboard'
+            '../../../stock_apps/dashboard'
         );
-        const dashDest = path.join(tarsHome, 'dashboard');
+        const dashDest = path.join(tarsHome, 'apps', 'dashboard');
 
         if (fsSync.existsSync(dashSrc)) {
             const dashSpinner = ora('Installing Tars Dashboard...').start();

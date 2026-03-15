@@ -15,7 +15,8 @@ export class DashboardService {
     private readonly tunnelName = 'tars-tunnel';
 
     constructor(private readonly config: Config) {
-        this.dashDir = path.join(this.config.homeDir, 'dashboard');
+        // Dashboard is now located in ~/.tars/apps/dashboard
+        this.dashDir = path.join(this.config.homeDir, 'apps', 'dashboard');
     }
 
     public async start(): Promise<void> {
