@@ -15,9 +15,7 @@ export class DashboardService {
     private readonly tunnelName = 'tars-tunnel';
 
     constructor(private readonly config: Config) {
-        // Resolve dash directory relative to this file
-        // dist/supervisor/dashboard-service.js -> apps/tars-dash
-        this.dashDir = path.resolve(__dirname, '..', '..', '..', 'tars-dash');
+        this.dashDir = path.join(this.config.homeDir, 'dashboard');
     }
 
     public async start(): Promise<void> {

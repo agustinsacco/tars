@@ -1,0 +1,122 @@
+@import 'tailwindcss';
+
+:root {
+    --background: #050505;
+    --foreground: #ffffff;
+    --accent-primary: #3b82f6; /* Tars Docs Blue */
+    --accent-secondary: #10b981; /* Green */
+    --accent-warning: #f59e0b; /* Amber */
+    --accent-danger: #ef4444; /* Red */
+    --card-bg: #0c0c0c;
+    --card-border: #1f2937;
+    --text-muted: #9ca3af;
+}
+
+@theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-accent-primary: var(--accent-primary);
+    --color-accent-secondary: var(--accent-secondary);
+    --color-accent-warning: var(--accent-warning);
+    --color-accent-danger: var(--accent-danger);
+    --color-card-bg: var(--card-bg);
+    --color-card-border: var(--card-border);
+    --color-text-muted: var(--text-muted);
+}
+
+body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+
+    /* Subtle Docs-style Grid */
+    background-image: radial-gradient(
+        circle at 2px 2px,
+        rgba(255, 255, 255, 0.05) 1px,
+        transparent 0
+    );
+    background-size: 24px 24px;
+}
+
+.font-mono {
+    font-family: var(--font-geist-mono), ui-monospace, monospace !important;
+}
+
+.card {
+    border: 1px solid var(--card-border);
+    padding: 1.25rem;
+    background: var(--card-bg);
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+    position: relative; /* Ensure children can be absolute */
+}
+
+/* Maintain btop logic but with Docs skin */
+.card-header-btop {
+    position: absolute;
+    top: -10px;
+    left: 12px;
+    background: #050505; /* Use body background to cut the border */
+    padding: 0 10px;
+    font-weight: 900;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent-primary);
+    border: 1.5px solid var(--card-border);
+    border-radius: 6px;
+    z-index: 20;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Custom spacing for cards using btop headers to prevent clipping */
+.card-with-header {
+    margin-top: 12px;
+}
+
+/* Scrollbar styling - Clean & Minimal */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+}
+
+/* Selection */
+::selection {
+    background: var(--accent-primary);
+    color: white;
+}
+
+/* Fix visibility */
+.text-white {
+    color: #ffffff !important;
+}
+
+.font-black {
+    font-weight: 900 !important;
+}
+
+/* Custom Scrollbar for inner components */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-primary);
+}

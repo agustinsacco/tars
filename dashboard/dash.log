@@ -1,0 +1,134 @@
+[dotenv@17.3.1] injecting env (2) from .env -- tip: ⚙️  enable debug logging with { debug: true }
+ ⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /home/stark/package-lock.json as the root directory.
+ To silence this warning, set `outputFileTracingRoot` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/output#caveats for more information.
+ Detected additional lockfiles: 
+   * /home/stark/.tars/apps/tars-dash/package-lock.json
+
+> Ready on http://localhost:3030
+Client connected: x3Sxw--igN4Spo0fAAAB
+Client x3Sxw--igN4Spo0fAAAB subscribed to logs
+Client x3Sxw--igN4Spo0fAAAB subscribed to metrics
+Client x3Sxw--igN4Spo0fAAAB subscribed to fs
+Client x3Sxw--igN4Spo0fAAAB subscribed to intelligence
+Client disconnected
+Client connected: KBtE2_17obEVJIfKAAAD
+Client KBtE2_17obEVJIfKAAAD subscribed to logs
+Client KBtE2_17obEVJIfKAAAD subscribed to metrics
+Client KBtE2_17obEVJIfKAAAD subscribed to fs
+Client KBtE2_17obEVJIfKAAAD subscribed to intelligence
+Client disconnected
+Client connected: 2T6g2fSgCIcOJEJeAAAF
+Executing Tars Command: tars restart
+Error reading /home/stark/.tars/data/session.json: Unexpected end of JSON input
+Error reading /home/stark/.tars/data/session.json: Unexpected end of JSON input
+Executing Tars Command: tars restart
+Client disconnected
+Client connected: CeDDRRjK3uQ7xwzpAAAH
+Client CeDDRRjK3uQ7xwzpAAAH subscribed to logs
+Client CeDDRRjK3uQ7xwzpAAAH subscribed to metrics
+Client CeDDRRjK3uQ7xwzpAAAH subscribed to fs
+Client CeDDRRjK3uQ7xwzpAAAH subscribed to intelligence
+Client disconnected
+Client connected: 60iAdxiBjS3E21arAAAJ
+Client disconnected
+Client connected: YqDyHr2PlDLrU1VwAAAL
+Client disconnected
+Client connected: pp3LqV6y97KPXKaeAAAN
+Client disconnected
+Client connected: BJyZjdjLLXnbYMv0AAAP
+Client disconnected
+Client connected: to4kGi-ce_OZw7s9AAAR
+Client disconnected
+Client connected: bake2ykbK_5xiRX0AAAT
+Client disconnected
+Client connected: BDRAZefB4TY3UExaAAAV
+Client disconnected
+Client connected: Rst436fwAAKXuKl_AAAX
+Client disconnected
+Client connected: S_fMexwCsTibnmP-AAAZ
+Client disconnected
+Client connected: ajLVOzSHn1tPfSnmAAAb
+Client disconnected
+Client connected: Pl43DL1po0fu_w84AAAd
+Client disconnected
+Client connected: TrqRdhfnLb8iGg2CAAAf
+Client disconnected
+Client connected: kVRdgr78qmv-mcVjAAAh
+Client disconnected
+Client connected: qNVe8ORTmLcmgCwFAAAj
+Client disconnected
+Client connected: c9NX7ymS9HAZD450AAAl
+Client disconnected
+Client connected: 7ytCYDWYD_9rFAK0AAAn
+Client disconnected
+Error: ENOENT: no such file or directory, stat '/home/stark/.tars/data/session.json'
+    at FSWatcher.<anonymous> (server.js:330:12) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/home/stark/.tars/data/session.json'
+}
+ ⨯ uncaughtException:  Error: ENOENT: no such file or directory, stat '/home/stark/.tars/data/session.json'
+    at FSWatcher.<anonymous> (server.js:330:12) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/home/stark/.tars/data/session.json'
+}
+Client connected: oHVn4vh5c-AM-vZsAAAp
+Client disconnected
+Client connected: ergqouHsMU2b4LzlAAAr
+Client disconnected
+Client connected: VWoqJGWrgZiFliQxAAAt
+Client disconnected
+Client connected: OWHrNAp6VIcvTGpyAAAv
+Client disconnected
+Client connected: y26ps8VTSlUSDO0QAAAx
+Client disconnected
+Client connected: klaSjBnwoceA992JAAAz
+Client disconnected
+Client connected: ui5okA11Isw8z--ZAAA1
+Client disconnected
+Client connected: dxwOzxP39YJSBOXNAAA3
+Client disconnected
+Client connected: jG-NwasgsiX2b3JcAAA5
+Client disconnected
+Client connected: 1wEaloKg8mYd8a7UAAA7
+Client disconnected
+Client connected: vaPLUy4b8PUnN-X_AAA9
+Client disconnected
+Client connected: NwZx4hbQuMvnxxKFAAA_
+Client disconnected
+Client connected: PumQXUnGbTw0O5WrAABB
+Client disconnected
+Client connected: _juLWv_CCVY9Rnw0AABD
+Client disconnected
+Client connected: JuFg4Tt9THGegI1tAABF
+Client disconnected
+Client connected: YeEA9lfg0eIz1SdEAABH
+Client disconnected
+Client connected: YX70wC48UKsYvvFjAABJ
+Client disconnected
+Client connected: Rg7hK9H57NBmESxaAABL
+Client disconnected
+Client connected: N6ue2lQdiafrVLaoAABN
+Client disconnected
+Client connected: azp4bVfKT8MTU6WxAABP
+Client disconnected
+Client connected: TTKP3aPL3M5lAmLQAABR
+Client disconnected
+Client connected: 4Pj50dHDB1eWfTTmAABT
+Client disconnected
+Client connected: 20eolBEzGtjUk-OMAABV
+Client disconnected
+Client connected: D0O95vnUC5ly9MdIAABX
+Client disconnected
+Client connected: p_06IoSSoNQM1Q97AABZ
+Client disconnected
+Error reading /home/stark/.tars/.gemini/tmp/tars/chats/session-2026-03-14T23-17-2c952e05.json: Unterminated string in JSON at position 11193038 (line 5521 column 10618411)
+Client connected: ZuvmPr1QySyTcMN2AABb
+Client disconnected
+Client connected: 2L7tLqvz9EylFZ_cAABd
+Client disconnected
