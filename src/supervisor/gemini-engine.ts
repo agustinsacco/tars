@@ -313,13 +313,39 @@ export class GeminiEngine extends EventEmitter {
                 turnCount++;
                 const toolRequests: any[] = [];
 
-                const stream = await promptIdContext.run(sid, () => {
-                    return this.client.sendMessageStream(
-                        currentRequestParts,
-                        abortController.signal,
-                        'tars-request' // Proper promptId
-                    );
-                });
+                let stream: any;
+                let retryCount = 0;
+                const maxRetries = 5;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        stream = await promptIdContext.run(sid, () => {
+                            return this.client.sendMessageStream(
+                                currentRequestParts,
+                                abortController.signal,
+                                'tars-request' // Proper promptId
+                            );
+                        });
+                        break; // Success
+                    } catch (error: any) {
+                        retryCount++;
+                        const isTransient =
+                            error.message?.includes('429') ||
+                            error.message?.includes('503') ||
+                            error.message?.toLowerCase().includes('rate limit') ||
+                            error.message?.toLowerCase().includes('overloaded');
+
+                        if (isTransient && retryCount < maxRetries) {
+                            const delay = Math.pow(2, retryCount) * 1000 + Math.random() * 1000;
+                            logger.warn(
+                                `⚠️ Gemini API transient error (attempt ${retryCount}/${maxRetries}): ${error.message}. Retrying in ${Math.round(delay)}ms...`
+                            );
+                            await new Promise((resolve) => setTimeout(resolve, delay));
+                            continue;
+                        }
+                        throw error;
+                    }
+                }
 
                 for await (const event of stream) {
                     logger.debug(
