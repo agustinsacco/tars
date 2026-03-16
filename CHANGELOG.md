@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.9.0](https://github.com/agustinsacco/tars/compare/v1.8.1...v1.9.0) (2026-03-16)
+
+
+### Features
+
+* add gws-setup skill for automated workspace CLI management ([12cda08](https://github.com/agustinsacco/tars/commit/12cda0875a3ebaca06edccb8120427677de62b07))
+* add retry mechanism for Gemini API transient errors ([b000278](https://github.com/agustinsacco/tars/commit/b00027813ed468182a8d5cd386400864a559086f))
+* bundle Tars Dashboard and automate its installation in setup wizard ([926ca1a](https://github.com/agustinsacco/tars/commit/926ca1a1bd2c9f160a09de8fa6ce534c7f4c3cf9))
+* implement 'apps/' primitive and refactor dashboard as a stock app ([cacc65b](https://github.com/agustinsacco/tars/commit/cacc65b598935596641f9c2d79d95e60992a9340))
+* integrate Google Workspace and Tars Dashboard as core capabilities with robust process management ([be776c0](https://github.com/agustinsacco/tars/commit/be776c088641131b7bee89cab424870e42e27447))
+
 ## [1.8.1](https://github.com/agustinsacco/tars/compare/v1.8.0...v1.8.1) (2026-03-15)
 
 
