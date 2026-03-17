@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/agustinsacco/tars/compare/v1.9.1...v1.10.0) (2026-03-17)
+
+
+### Features
+
+* **prompts:** implement tiered memory system with Durable vs Active tiers ([#33](https://github.com/agustinsacco/tars/issues/33)) ([97f9ca8](https://github.com/agustinsacco/tars/commit/97f9ca8444c2c9dbf25bf7e5dce1933b3092393f))
+
 ## [1.9.1](https://github.com/agustinsacco/tars/compare/v1.9.0...v1.9.1) (2026-03-17)
 
 
