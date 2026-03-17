@@ -52,13 +52,25 @@ export class DashboardService {
 
             const port = process.env.DASH_PORT || '3000';
 
+            // Strip PM2 injected variables to prevent overwriting the parent process
+            const cleanEnv: Record<string, string | undefined> = { ...process.env };
+            for (const key of Object.keys(cleanEnv)) {
+                if (
+                    key.startsWith('PM2_') ||
+                    key.startsWith('pm_') ||
+                    ['name', 'status', 'unique_id', 'pm2_env'].includes(key)
+                ) {
+                    delete cleanEnv[key];
+                }
+            }
+
             pm2.start(
                 {
                     script: 'server.js',
                     name: this.dashName,
                     cwd: this.dashDir,
                     env: {
-                        ...process.env,
+                        ...cleanEnv,
                         PORT: port,
                         NODE_ENV: 'production'
                     }
