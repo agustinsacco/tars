@@ -69,6 +69,7 @@ export class GeminiEngine extends EventEmitter {
     private coreConfig!: CoreConfig;
     private client!: GeminiClient;
     private initialized = false;
+    private initializedWithFallback = false;
     private currentSessionId: string | null = null;
     private channelManager?: ChannelManager;
 
@@ -315,7 +316,8 @@ export class GeminiEngine extends EventEmitter {
 
                 let stream: any;
                 let retryCount = 0;
-                const maxRetries = 5;
+                const maxRetries = 8;
+                let lastError: any = null;
 
                 while (retryCount < maxRetries) {
                     try {
@@ -329,10 +331,13 @@ export class GeminiEngine extends EventEmitter {
                         break; // Success
                     } catch (error: any) {
                         retryCount++;
+                        lastError = error;
                         const isTransient =
                             error.message?.includes('429') ||
                             error.message?.includes('503') ||
                             error.message?.toLowerCase().includes('rate limit') ||
+                            error.message?.toLowerCase().includes('capacity') ||
+                            error.message?.toLowerCase().includes('quota') ||
                             error.message?.toLowerCase().includes('overloaded');
 
                         if (isTransient && retryCount < maxRetries) {
@@ -343,6 +348,25 @@ export class GeminiEngine extends EventEmitter {
                             await new Promise((resolve) => setTimeout(resolve, delay));
                             continue;
                         }
+
+                        // Fallback logic for 'auto' model on permanent error or final retry
+                        if (
+                            this.tarsConfig.geminiModel === 'auto' &&
+                            !this.initializedWithFallback
+                        ) {
+                            logger.warn(
+                                `🔄 'auto' model failed with error: ${error.message}. Attempting fallback to gemini-2.0-flash...`
+                            );
+                            this.initializedWithFallback = true;
+                            // @ts-ignore - modifying private config for fallback
+                            this.coreConfig.model = 'gemini-2.0-flash';
+                            // Re-initialize client with new model
+                            this.client = this.coreConfig.getGeminiClient();
+                            await this.client.initialize();
+                            retryCount = 0; // Reset retries for the fallback model
+                            continue;
+                        }
+
                         throw error;
                     }
                 }
