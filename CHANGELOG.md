@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/agustinsacco/tars/compare/v1.9.0...v1.9.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* **core:** improve Gemini API resilience with expanded retries and autonomous fallback ([#31](https://github.com/agustinsacco/tars/issues/31)) ([9c84bc4](https://github.com/agustinsacco/tars/commit/9c84bc4c55844067979d8e5cd48308c41e52c625))
+
 ## [1.9.0](https://github.com/agustinsacco/tars/compare/v1.8.1...v1.9.0) (2026-03-16)
 
 
