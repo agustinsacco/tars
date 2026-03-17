@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/agustinsacco/tars/compare/v1.10.1...v1.11.0) (2026-03-17)
+
+
+### Features
+
+* **dash:** add path-agnostic .env template ([#38](https://github.com/agustinsacco/tars/issues/38)) ([99eb459](https://github.com/agustinsacco/tars/commit/99eb459d0a279886de7ad98dae6a24414f8059d1))
+
 ## [1.10.1](https://github.com/agustinsacco/tars/compare/v1.10.0...v1.10.1) (2026-03-17)
 
 
