@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.1](https://github.com/agustinsacco/tars/compare/v1.11.0...v1.11.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* **dash:** strip PM2 internal env variables to prevent supervisor restart loop ([2cccc43](https://github.com/agustinsacco/tars/commit/2cccc43eaff658564448caa55c58f92082347678))
+
 ## [1.11.0](https://github.com/agustinsacco/tars/compare/v1.10.1...v1.11.0) (2026-03-17)
 
 
