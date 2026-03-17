@@ -91,22 +91,24 @@ app.prepare().then(() => {
     // Tars CLI Commands
     server.post('/api/tars/command', (req, res) => {
         const { action, key, value } = req.body;
+        const TARS_BIN = '/home/stark/.tars/apps/tars/dist/cli/index.js';
+        const NODE_PATH = '/home/stark/.local/share/fnm/node-versions/v22.22.0/installation/bin';
         let command = '';
 
         if (action === 'restart') {
-            command = 'tars restart';
+            command = `${TARS_BIN} restart`;
         } else if (action === 'secret' && key && value) {
             // Basic sanitization to prevent command injection
             const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '');
             const sanitizedValue = value.replace(/'/g, "'\\''");
-            command = `tars secret set ${sanitizedKey} '${sanitizedValue}'`;
+            command = `${TARS_BIN} secret set ${sanitizedKey} '${sanitizedValue}'`;
         } else {
             return res.status(400).json({ error: 'Invalid action or missing parameters' });
         }
 
         console.log(`Executing Tars Command: ${command}`);
-        // Use bash -lc to ensure tars is in the path
-        exec(`bash -lc "${command}"`, (error, stdout, stderr) => {
+        // Explicitly set PATH to include node
+        exec(`export PATH="${NODE_PATH}:$PATH" && ${command}`, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Tars Command Error: ${error.message}`);
                 return res.status(500).json({ error: error.message, stderr });
