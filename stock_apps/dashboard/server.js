@@ -6,6 +6,7 @@ const si = require('systeminformation');
 const chokidar = require('chokidar');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const dotenv = require('dotenv');
 const { exec } = require('child_process');
 
@@ -17,11 +18,12 @@ const handle = app.getRequestHandler();
 
 const port = process.env.PORT || 3000;
 const DASH_PASSWORD = process.env.DASH_PASSWORD || 'changeme';
-const BASE_DIR = process.env.BASE_DIR || '/home/stark/.tars';
+
+// Path Agnostic Configuration
+const REAL_HOME = process.env.REAL_HOME || os.homedir();
+const BASE_DIR = process.env.BASE_DIR || path.join(REAL_HOME, '.tars');
 const DATA_DIR = path.join(BASE_DIR, 'data');
 
-// Hardcoding the real home for PM2 logs as process.env.HOME is being overriden in the tars shell environment
-const REAL_HOME = '/home/stark';
 const OUT_LOG = path.join(REAL_HOME, '.pm2/logs/tars-supervisor-out.log');
 const ERR_LOG = path.join(REAL_HOME, '.pm2/logs/tars-supervisor-error.log');
 
@@ -91,22 +93,23 @@ app.prepare().then(() => {
     // Tars CLI Commands
     server.post('/api/tars/command', (req, res) => {
         const { action, key, value } = req.body;
+        const TARS_BIN = path.join(BASE_DIR, 'apps/tars/dist/cli/index.js');
         let command = '';
 
         if (action === 'restart') {
-            command = 'tars restart';
+            command = `${TARS_BIN} restart`;
         } else if (action === 'secret' && key && value) {
             // Basic sanitization to prevent command injection
             const sanitizedKey = key.replace(/[^a-zA-Z0-9_]/g, '');
             const sanitizedValue = value.replace(/'/g, "'\\''");
-            command = `tars secret set ${sanitizedKey} '${sanitizedValue}'`;
+            command = `${TARS_BIN} secret set ${sanitizedKey} '${sanitizedValue}'`;
         } else {
             return res.status(400).json({ error: 'Invalid action or missing parameters' });
         }
 
         console.log(`Executing Tars Command: ${command}`);
-        // Use bash -lc to ensure tars is in the path
-        exec(`bash -lc "${command}"`, (error, stdout, stderr) => {
+        // Inherit environment including PATH
+        exec(command, { env: process.env }, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Tars Command Error: ${error.message}`);
                 return res.status(500).json({ error: error.message, stderr });
