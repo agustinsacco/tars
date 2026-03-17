@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/agustinsacco/tars/compare/v1.10.0...v1.10.1) (2026-03-17)
+
+
+### Bug Fixes
+
+* make all scripts and dashboard path-agnostic ([#36](https://github.com/agustinsacco/tars/issues/36)) ([0643baa](https://github.com/agustinsacco/tars/commit/0643baac231a6108c240f525a9548583c7b5426d))
+
 ## [1.10.0](https://github.com/agustinsacco/tars/compare/v1.9.1...v1.10.0) (2026-03-17)
 
 
