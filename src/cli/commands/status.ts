@@ -95,6 +95,3 @@ export async function status() {
         });
     });
 }
-        });
-    });
-}
