@@ -28,19 +28,21 @@ export async function status() {
             process.exit(2);
         }
 
+        const instanceName = config.instanceName;
+
         pm2.list((err, list) => {
             pm2.disconnect();
             if (err || !list || list.length === 0) {
-                console.log(chalk.red('🔴 Tars supervisor is not running.'));
+                console.log(chalk.red(`🔴 Tars supervisor [${instanceName}] is not running.`));
                 return;
             }
 
-            const proc = list.find((p) => p.name === 'tars-supervisor');
-            const dashProc = list.find((p) => p.name === 'tars-dashboard');
-            const tunnelProc = list.find((p) => p.name === 'tars-tunnel');
+            const proc = list.find((p) => p.name === instanceName);
+            const dashProc = list.find((p) => p.name === `${instanceName}-dash`);
+            const tunnelProc = list.find((p) => p.name === `${instanceName}-tunnel`);
 
             if (!proc) {
-                console.log(chalk.red('🔴 Tars supervisor is not running.'));
+                console.log(chalk.red(`🔴 Tars supervisor [${instanceName}] is not running.`));
                 return;
             }
 

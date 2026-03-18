@@ -11,12 +11,14 @@ const __dirname = path.dirname(__filename);
 
 export class DashboardService {
     private readonly dashDir: string;
-    private readonly dashName = 'tars-dashboard';
-    private readonly tunnelName = 'tars-tunnel';
+    private readonly dashName: string;
+    private readonly tunnelName: string;
 
     constructor(private readonly config: Config) {
         // Dashboard is now located in ~/.tars/apps/dashboard
         this.dashDir = path.join(this.config.homeDir, 'apps', 'dashboard');
+        this.dashName = `${this.config.instanceName}-dash`;
+        this.tunnelName = `${this.config.instanceName}-tunnel`;
     }
 
     public async start(): Promise<void> {
