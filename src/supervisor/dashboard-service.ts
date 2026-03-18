@@ -79,7 +79,9 @@ export class DashboardService {
                 },
                 (err) => {
                     if (err) {
-                        logger.error(`❌ Dashboard [${this.dashName}] failed to start: ${err.message}`);
+                        logger.error(
+                            `❌ Dashboard [${this.dashName}] failed to start: ${err.message}`
+                        );
                     } else {
                         logger.info(`✨ Dashboard [${this.dashName}] active on port ${port}`);
                         logger.info(`🔗 Local URL: http://localhost:${port}`);

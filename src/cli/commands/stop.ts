@@ -1,10 +1,12 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
+import { Config } from '../../config/config.js';
 
 export function stop(): Promise<void> {
     return new Promise((resolve, reject) => {
-        const instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
+        const config = Config.getInstance();
+        const instanceName = config.instanceName;
         console.log(chalk.cyan(`🛑 Stopping Tars supervisor [${instanceName}]...`));
 
         pm2.connect((err) => {

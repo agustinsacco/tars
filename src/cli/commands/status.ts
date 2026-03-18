@@ -1,7 +1,5 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
-import fs from 'fs';
-import path from 'path';
 import { pkg, isDev } from '../../utils/version.js';
 import { Config } from '../../config/config.js';
 import { SessionManager } from '../../supervisor/session-manager.js';
