@@ -4,7 +4,8 @@ import { execSync } from 'child_process';
 
 export function stop(): Promise<void> {
     return new Promise((resolve, reject) => {
-        console.log(chalk.cyan('🛑 Stopping Tars supervisor...'));
+        const instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
+        console.log(chalk.cyan(`🛑 Stopping Tars supervisor [${instanceName}]...`));
 
         pm2.connect((err) => {
             if (err) {
@@ -16,16 +17,16 @@ export function stop(): Promise<void> {
             }
 
             // Use delete instead of stop to completely remove from PM2 list
-            pm2.delete('tars-supervisor', (err) => {
+            pm2.delete(instanceName, (err) => {
                 // Also clean up auxiliary processes
-                pm2.delete('tars-dashboard', () => {});
-                pm2.delete('tars-tunnel', () => {});
+                pm2.delete(`${instanceName}-dash`, () => {});
+                pm2.delete(`${instanceName}-tunnel`, () => {});
 
                 pm2.disconnect();
                 if (err) {
-                    console.log(chalk.yellow('⚠️ Tars was not managed by PM2.'));
+                    console.log(chalk.yellow(`⚠️ Tars [${instanceName}] was not managed by PM2.`));
                 } else {
-                    console.log(chalk.green('✅ PM2 process removed.'));
+                    console.log(chalk.green(`✅ PM2 process [${instanceName}] removed.`));
                 }
 
                 forceKill();

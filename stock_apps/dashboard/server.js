@@ -20,8 +20,25 @@ const port = process.env.PORT || 3000;
 const DASH_PASSWORD = process.env.DASH_PASSWORD || 'changeme';
 
 // Path Agnostic Configuration
-const REAL_HOME = process.env.REAL_HOME || os.homedir();
-const BASE_DIR = process.env.BASE_DIR || path.join(REAL_HOME, '.tars');
+const homedir = os.homedir();
+const TARS_HOME = process.env.TARS_HOME || process.env.BASE_DIR;
+
+let BASE_DIR;
+let REAL_HOME;
+
+if (TARS_HOME) {
+    BASE_DIR = TARS_HOME;
+    REAL_HOME = homedir.endsWith('.tars') ? path.dirname(homedir) : homedir;
+} else {
+    if (homedir.endsWith('.tars')) {
+        BASE_DIR = homedir;
+        REAL_HOME = path.dirname(homedir);
+    } else {
+        BASE_DIR = path.join(homedir, '.tars');
+        REAL_HOME = homedir;
+    }
+}
+
 const DATA_DIR = path.join(BASE_DIR, 'data');
 
 const OUT_LOG = path.join(REAL_HOME, '.pm2/logs/tars-supervisor-out.log');

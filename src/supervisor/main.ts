@@ -362,6 +362,73 @@ function patchSettings(config: Config): void {
 }
 
 /**
+ * Install the built-in dashboard into the Tars home directory.
+ * Safely copies the dashboard and hydrates it (npm install + npm build).
+ */
+function installDashboard(config: Config): void {
+    const repoDashSrc = path.join(__dirname, '..', '..', 'stock_apps', 'dashboard');
+    const targetDashDir = path.join(config.homeDir, 'apps', 'dashboard');
+
+    if (!fs.existsSync(repoDashSrc)) {
+        logger.warn('⚠️ Could not locate stock dashboard directory');
+        return;
+    }
+
+    // 1. Initial Copy if missing
+    if (!fs.existsSync(targetDashDir)) {
+        try {
+            fs.mkdirSync(path.dirname(targetDashDir), { recursive: true });
+            fs.cpSync(repoDashSrc, targetDashDir, { recursive: true });
+            logger.info(`🚚 Installed stock dashboard to ${targetDashDir}`);
+        } catch (error) {
+            logger.error(`❌ Failed to install stock dashboard: ${error}`);
+            return;
+        }
+    }
+
+    // 2. Setup Default .env if missing
+    const targetEnv = path.join(targetDashDir, '.env');
+    const templateEnv = path.join(targetDashDir, '.env.template');
+    if (!fs.existsSync(targetEnv) && fs.existsSync(templateEnv)) {
+        try {
+            fs.copyFileSync(templateEnv, targetEnv);
+            logger.info('⚙️ Created default dashboard .env');
+        } catch (e) {}
+    }
+
+    // 3. Hydration (npm install + build) if node_modules or .next missing
+    const nmPath = path.join(targetDashDir, 'node_modules');
+    const nextPath = path.join(targetDashDir, '.next');
+
+    if (!fs.existsSync(nmPath) || !fs.existsSync(nextPath)) {
+        logger.info('💧 Hydrating dashboard (this may take a minute)...');
+        try {
+            // Unset NODE_ENV temporarily to ensure devDependencies (like tailwind) are installed for build
+            const env = { ...process.env };
+            delete env.NODE_ENV;
+
+            execSync('npm install', {
+                cwd: targetDashDir,
+                stdio: 'pipe',
+                env
+            });
+
+            logger.info('🏗️ Building dashboard...');
+            execSync('npm run build', {
+                cwd: targetDashDir,
+                stdio: 'pipe',
+                env
+            });
+
+            logger.info('✅ Dashboard hydrated successfully.');
+        } catch (e: any) {
+            const out = e.stdout?.toString() || e.stderr?.toString() || e.message;
+            logger.error(`❌ Failed to hydrate dashboard: ${out}`);
+        }
+    }
+}
+
+/**
  * Tars Main Entry Point
  */
 async function main() {
@@ -378,6 +445,7 @@ async function main() {
         installSkills(config);
         installAgents(config);
         installExtensions(config);
+        installDashboard(config);
         installDefaultSettings(config);
         patchSettings(config);
 

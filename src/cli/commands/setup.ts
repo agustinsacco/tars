@@ -316,17 +316,21 @@ export async function setup() {
             when: (a) => a.enableDash
         },
         {
-            type: 'confirm',
-            name: 'enableTunnel',
-            message: 'Expose Dashboard via Cloudflare Tunnel?',
-            default: false,
+            type: 'list',
+            name: 'tunnelSetup',
+            message: 'Dashboard Exposure Method:',
+            choices: [
+                { name: 'Localhost Only (Default, no extra setup)', value: 'local' },
+                { name: 'Cloudflare Tunnel (Remote Access, needs Token)', value: 'tunnel' }
+            ],
+            default: 'local',
             when: (a) => a.enableDash
         },
         {
             type: 'password',
             name: 'cfToken',
             message: 'Enter Cloudflare Tunnel Token:',
-            when: (a) => a.enableTunnel,
+            when: (a) => a.tunnelSetup === 'tunnel',
             validate: (i) => i.length > 20 || 'Please enter a valid Cloudflare token'
         }
     ]);
@@ -335,7 +339,7 @@ export async function setup() {
         secretsManager.set('DASH_ENABLED', 'true');
         secretsManager.set('DASH_PORT', dashConfig.dashPort);
         secretsManager.set('DASH_PASSWORD', dashConfig.dashPassword);
-        if (dashConfig.enableTunnel) {
+        if (dashConfig.tunnelSetup === 'tunnel') {
             secretsManager.set('CLOUDFLARE_TUNNEL_TOKEN', dashConfig.cfToken);
         }
         console.log(chalk.green('  ✓ Dashboard configuration saved.'));
@@ -440,10 +444,16 @@ export async function setup() {
                 await fs.cp(dashSrc, dashDest, { recursive: true });
 
                 dashSpinner.text = 'Hydrating Dashboard dependencies...';
-                execSync('npm install --production', { cwd: dashDest, stdio: 'pipe' });
+                // We need devDependencies for npm run build (tailwind, etc.)
+                execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
+
+                dashSpinner.text = 'Building Dashboard...';
+                execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
+
                 dashSpinner.succeed('Dashboard ready.');
             } catch (err: any) {
-                dashSpinner.warn(`Dashboard installation failed: ${err.message}`);
+                const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
+                dashSpinner.fail(`Dashboard installation failed: ${out}`);
             }
         }
     }
