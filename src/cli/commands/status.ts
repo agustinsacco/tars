@@ -1,7 +1,5 @@
 import pm2 from 'pm2';
 import chalk from 'chalk';
-import fs from 'fs';
-import path from 'path';
 import { pkg, isDev } from '../../utils/version.js';
 import { Config } from '../../config/config.js';
 import { SessionManager } from '../../supervisor/session-manager.js';
@@ -93,27 +91,10 @@ export async function status() {
                 );
             }
 
-            // Health Audit Data
-            const sleepPath = path.join(config.homeDir, 'sleep_metric.json');
-            if (fs.existsSync(sleepPath)) {
-                try {
-                    const sleepData = JSON.parse(fs.readFileSync(sleepPath, 'utf-8'));
-                    const metrics = sleepData.object?.quick_metrics || [];
-                    const efficiency = metrics.find(
-                        (m: any) => m.type === 'sleep_efic'
-                    )?.display_text;
-                    const hrv = metrics.find((m: any) => m.type === 'avg_hrv')?.display_text;
-
-                    console.log(chalk.cyan('──────────────'));
-                    console.log(chalk.bold('🧘 Daily Audit'));
-                    if (efficiency) console.log(`Sleep Eff:    ${efficiency}`);
-                    if (hrv) console.log(`Avg HRV:      ${hrv}ms`);
-                } catch (e) {
-                    // Silently skip if file is malformed
-                }
-            }
-
             console.log(`\nLogs:    tars logs\n`);
+        });
+    });
+}
         });
     });
 }
