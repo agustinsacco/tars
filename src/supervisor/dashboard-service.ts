@@ -79,7 +79,11 @@ export class DashboardService {
                     if (err) {
                         logger.error(`❌ Dashboard failed to start: ${err.message}`);
                     } else {
-                        logger.info(`✨ Dashboard running on port ${port}`);
+                        logger.info(`✨ Dashboard active on port ${port}`);
+                        logger.info(`🔗 Local URL: http://localhost:${port}`);
+                        if (!process.env.CLOUDFLARE_TUNNEL_TOKEN) {
+                            logger.info('💡 Tip: To expose your dashboard remotely, set CLOUDFLARE_TUNNEL_TOKEN in your .env or run setup again.');
+                        }
                     }
                     resolve();
                 }

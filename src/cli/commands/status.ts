@@ -28,14 +28,22 @@ export async function status() {
             process.exit(2);
         }
 
-        pm2.describe('tars-supervisor', (err, list) => {
+        pm2.list((err, list) => {
             pm2.disconnect();
             if (err || !list || list.length === 0) {
                 console.log(chalk.red('🔴 Tars supervisor is not running.'));
                 return;
             }
 
-            const proc = list[0];
+            const proc = list.find((p) => p.name === 'tars-supervisor');
+            const dashProc = list.find((p) => p.name === 'tars-dashboard');
+            const tunnelProc = list.find((p) => p.name === 'tars-tunnel');
+
+            if (!proc) {
+                console.log(chalk.red('🔴 Tars supervisor is not running.'));
+                return;
+            }
+
             const status =
                 proc.pm2_env?.status === 'online'
                     ? chalk.green('online')
@@ -53,6 +61,23 @@ export async function status() {
                 `Uptime:  ${Math.floor((Date.now() - (proc.pm2_env?.pm_uptime || 0)) / 1000 / 60)} minutes`
             );
             console.log(`PID:     ${proc.pid}`);
+
+            if (dashProc) {
+                const dashStatus =
+                    dashProc.pm2_env?.status === 'online'
+                        ? chalk.green('online')
+                        : chalk.red(dashProc.pm2_env?.status);
+                const port = process.env.DASH_PORT || '3000';
+                console.log(`Dash:    ${dashStatus} (port ${port})`);
+            }
+
+            if (tunnelProc) {
+                const tunnelStatus =
+                    tunnelProc.pm2_env?.status === 'online'
+                        ? chalk.green('online')
+                        : chalk.red(tunnelProc.pm2_env?.status);
+                console.log(`Tunnel:  ${tunnelStatus}`);
+            }
 
             if (sessionStats) {
                 console.log(chalk.cyan('──────────────'));
