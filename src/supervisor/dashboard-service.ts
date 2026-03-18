@@ -50,7 +50,7 @@ export class DashboardService {
 
     private async startDash(): Promise<void> {
         return new Promise((resolve) => {
-            logger.info('🚀 Starting Tars Dashboard (PM2)...');
+            logger.info(`🚀 Starting Tars Dashboard [${this.dashName}] (PM2)...`);
 
             const port = process.env.DASH_PORT || '3000';
 
@@ -79,9 +79,9 @@ export class DashboardService {
                 },
                 (err) => {
                     if (err) {
-                        logger.error(`❌ Dashboard failed to start: ${err.message}`);
+                        logger.error(`❌ Dashboard [${this.dashName}] failed to start: ${err.message}`);
                     } else {
-                        logger.info(`✨ Dashboard active on port ${port}`);
+                        logger.info(`✨ Dashboard [${this.dashName}] active on port ${port}`);
                         logger.info(`🔗 Local URL: http://localhost:${port}`);
                         if (!process.env.CLOUDFLARE_TUNNEL_TOKEN) {
                             logger.info(
