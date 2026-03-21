@@ -109,7 +109,15 @@ export class GeminiEngine extends EventEmitter {
             const systemMdPath = path.join(this.tarsConfig.homeDir, '.gemini', 'system.md');
             process.env.GEMINI_SYSTEM_MD = systemMdPath;
 
-            const authType = getAuthTypeFromEnv() || AuthType.LOGIN_WITH_GOOGLE;
+            let authType = getAuthTypeFromEnv() || AuthType.LOGIN_WITH_GOOGLE;
+
+            // Prevent interactive Google login prompt if using local inference
+            if (this.tarsConfig.inferenceBackend === 'llamacpp') {
+                authType = AuthType.USE_GEMINI;
+                if (!process.env.GEMINI_API_KEY) {
+                    process.env.GEMINI_API_KEY = 'dummy_llama_key_to_bypass_sdk_auth';
+                }
+            }
             const discoveredExtensions = await this.discoverExtensions();
             const extensionLoader = new SimpleExtensionLoader(discoveredExtensions);
 
