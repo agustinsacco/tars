@@ -128,7 +128,10 @@ export class GeminiEngine extends EventEmitter {
                 model: this.tarsConfig.geminiModel,
                 debugMode: false,
                 approvalMode: ApprovalMode.YOLO,
-                disableModelRouterForAuth: [AuthType.USE_GEMINI],
+                disableModelRouterForAuth:
+                    this.tarsConfig.inferenceBackend === 'llamacpp'
+                        ? [AuthType.USE_GEMINI]
+                        : undefined,
                 policyEngineConfig: {
                     defaultDecision: PolicyDecision.ALLOW
                 },
