@@ -71,7 +71,8 @@ export class Config {
         this.assistantName = process.env.ASSISTANT_NAME || jsonConfig.assistantName || 'Tars';
         this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
         this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
-        this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
+        this.geminiModel =
+            process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'gemini-3.1-pro-preview';
         this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
             'gemini') as 'gemini' | 'llamacpp';

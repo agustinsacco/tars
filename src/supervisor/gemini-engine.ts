@@ -178,6 +178,36 @@ export class GeminiEngine extends EventEmitter {
             logger.info('🔌 Registered native tool: get_model_quota');
 
             this.client = this.coreConfig.getGeminiClient();
+
+            // Register model overrides for Gemini 3.1 features (Thinking/Chain-of-Thought)
+            const modelConfigService = this.coreConfig.modelConfigService;
+
+            // Gemini 3.1 Pro (Advanced Reasoning)
+            modelConfigService.registerRuntimeModelOverride({
+                match: { model: 'gemini-3.1-pro-preview' },
+                modelConfig: {
+                    generateContentConfig: {
+                        thinkingConfig: {
+                            includeThoughts: true,
+                            thinkingLevel: 'HIGH' as any
+                        }
+                    }
+                }
+            });
+
+            // Gemini 3.1 Flash-Lite (Fast, Cost-Effective Reasoning)
+            modelConfigService.registerRuntimeModelOverride({
+                match: { model: 'gemini-3.1-flash-lite-preview' },
+                modelConfig: {
+                    generateContentConfig: {
+                        thinkingConfig: {
+                            includeThoughts: true,
+                            thinkingLevel: 'LOW' as any
+                        }
+                    }
+                }
+            });
+
             this.initialized = true;
             this.currentSessionId = this.coreConfig.getSessionId();
             logger.info('✨ Gemini Engine initialized successfully.');
@@ -370,12 +400,13 @@ export class GeminiEngine extends EventEmitter {
                             this.tarsConfig.geminiModel === 'auto' &&
                             !this.initializedWithFallback
                         ) {
+                            const fallbackModel = 'gemini-3.1-flash-lite-preview';
                             logger.warn(
-                                `🔄 'auto' model failed with error: ${error.message}. Attempting fallback to gemini-2.0-flash...`
+                                `🔄 'auto' model failed with error: ${error.message}. Attempting fallback to ${fallbackModel}...`
                             );
                             this.initializedWithFallback = true;
                             // @ts-ignore - modifying private config for fallback
-                            this.coreConfig.model = 'gemini-2.0-flash';
+                            this.coreConfig.model = fallbackModel;
                             // Re-initialize client with new model
                             this.client = this.coreConfig.getGeminiClient();
                             await this.client.initialize();

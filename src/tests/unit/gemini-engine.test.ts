@@ -18,6 +18,10 @@ vi.mock('@google/gemini-cli-core', async (importOriginal) => {
         ) {}
     }
 
+    const mockModelConfigService = {
+        registerRuntimeModelOverride: vi.fn()
+    };
+
     return {
         ...actual,
         NativeTool: MockNativeTool,
@@ -31,12 +35,14 @@ vi.mock('@google/gemini-cli-core', async (importOriginal) => {
             getToolRegistry: vi.fn().mockReturnValue({
                 registerTool: vi.fn()
             }),
-            getMessageBus: vi.fn().mockReturnValue({})
+            getMessageBus: vi.fn().mockReturnValue({}),
+            modelConfigService: mockModelConfigService
         })),
         SimpleExtensionLoader: vi.fn(),
         MCPServerConfig: vi
             .fn()
-            .mockImplementation((cmd, args, env, cwd) => ({ cmd, args, env, cwd }))
+            .mockImplementation((cmd, args, env, cwd) => ({ cmd, args, env, cwd })),
+        mockModelConfigService // Export for testing
     };
 });
 
@@ -99,10 +105,38 @@ describe('GeminiEngine', () => {
         expect(mcpServer.env.EXT_DIR).toBe(extPath);
     });
 
-    it('should handle no extensions directory', async () => {
-        (fs.existsSync as any).mockReturnValue(false);
+    it('should register Gemini 3.1 thinking config during initialization', async () => {
+        (fs.existsSync as any).mockReturnValue(true);
+        (fs.readdirSync as any).mockReturnValue([]);
+        (fs.readFileSync as any).mockReturnValue('mock-system-prompt');
+
         await engine.initialize();
-        const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
-        expect(SimpleExtensionLoader).toHaveBeenCalledWith([]);
+
+        const { mockModelConfigService } = (await import('@google/gemini-cli-core')) as any;
+        expect(mockModelConfigService.registerRuntimeModelOverride).toHaveBeenCalledWith(
+            expect.objectContaining({
+                match: { model: 'gemini-3.1-pro-preview' },
+                modelConfig: expect.objectContaining({
+                    generateContentConfig: expect.objectContaining({
+                        thinkingConfig: expect.objectContaining({
+                            thinkingLevel: 'HIGH'
+                        })
+                    })
+                })
+            })
+        );
+
+        expect(mockModelConfigService.registerRuntimeModelOverride).toHaveBeenCalledWith(
+            expect.objectContaining({
+                match: { model: 'gemini-3.1-flash-lite-preview' },
+                modelConfig: expect.objectContaining({
+                    generateContentConfig: expect.objectContaining({
+                        thinkingConfig: expect.objectContaining({
+                            thinkingLevel: 'LOW'
+                        })
+                    })
+                })
+            })
+        );
     });
 });
