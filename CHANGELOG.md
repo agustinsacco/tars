@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.0](https://github.com/agustinsacco/tars/compare/v1.12.0...v1.13.0) (2026-03-21)
+
+
+### Features
+
+* overhaul session management — single persistent session with compression ([1fda468](https://github.com/agustinsacco/tars/commit/1fda468e595016731ef22f80988a09e3eeb2ddab))
+
 ## [1.12.0](https://github.com/agustinsacco/tars/compare/v1.11.2...v1.12.0) (2026-03-21)
 
 
