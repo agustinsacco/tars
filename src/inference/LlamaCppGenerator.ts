@@ -323,7 +323,9 @@ export class LlamaCppGenerator implements ContentGenerator {
                         role: 'model',
                         parts
                     },
-                    finishReason: this.mapFinishReason(choice.finish_reason) as any
+                    finishReason: this.mapFinishReason(
+                        choice.finish_reason || choice.finishReason
+                    ) as any
                 }
             ],
             usageMetadata: {
@@ -378,7 +380,9 @@ export class LlamaCppGenerator implements ContentGenerator {
                         role: 'model',
                         parts
                     },
-                    finishReason: this.mapFinishReason(choice.finish_reason) as any
+                    finishReason: this.mapFinishReason(
+                        choice.finish_reason || choice.finishReason
+                    ) as any
                 }
             ]
         } as GenerateContentResponse;
