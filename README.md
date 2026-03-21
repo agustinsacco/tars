@@ -38,6 +38,7 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 - **Multi-Agent Orchestration**: Delegates specialized tasks (like coding or research) to sub-agents for better accuracy.
 - **Native Gemini Core**: Integrated directly with the `@google/gemini-cli-core` library for high-speed, direct communication without subprocess overhead.
 - **Autonomous Persistence**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
+- **Local Inference Support**: Tars can now be configured to use local models via **LlamaCpp** (or any OpenAI-compatible API) as an alternative to Gemini, providing 100% privacy and offline capability.
 - **Context-Aware Memory**: Utilizes `GEMINI.md` files to maintain long-term awareness of project structures and decisions.
 
 ---

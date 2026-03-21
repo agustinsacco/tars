@@ -36,6 +36,7 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
             { title: 'Multi-Agent', href: '/capabilities/agents' },
             { title: 'Persistent Memory', href: '/capabilities/memory' },
+            { title: 'Local Inference', href: '/capabilities/local-inference' },
             { title: 'Scheduled Tasks', href: '/capabilities/automation' },
             { title: 'Skills System', href: '/capabilities/skills' },
             { title: 'MCP Extensions', href: '/capabilities/extensions' },

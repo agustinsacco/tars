@@ -240,6 +240,23 @@ export async function setup() {
         },
         {
             type: 'list',
+            name: 'inferenceBackend',
+            message: 'Select Inference Backend:',
+            choices: [
+                { name: 'Gemini (Cloud - Recommended)', value: 'gemini' },
+                { name: 'LlamaCpp (Local - OpenAI Compatible)', value: 'llamacpp' }
+            ],
+            default: existingConfig.inferenceBackend || 'gemini'
+        },
+        {
+            type: 'input',
+            name: 'localInferenceUrl',
+            message: 'Enter Local Inference URL:',
+            default: existingConfig.localInferenceUrl || 'http://localhost:8080',
+            when: (answers) => answers.inferenceBackend === 'llamacpp'
+        },
+        {
+            type: 'list',
             name: 'heartbeatMinutes',
             message: 'Heartbeat Interval (How often Tars checks in):',
             choices: [
@@ -392,6 +409,8 @@ export async function setup() {
         discordToken,
         discordOwnerId: existingConfig.discordOwnerId,
         geminiModel: finalModel,
+        inferenceBackend: config.inferenceBackend,
+        localInferenceUrl: config.localInferenceUrl,
         heartbeatIntervalSec: intervalSec
     };
 

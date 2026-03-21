@@ -9,7 +9,8 @@ import {
     ApprovalMode,
     PolicyDecision,
     SimpleExtensionLoader,
-    MCPServerConfig
+    MCPServerConfig,
+    BaseLlmClient
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
@@ -23,6 +24,7 @@ import { AttachmentContext } from '../types/index.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
+import { LlamaCppGenerator } from '../inference/LlamaCppGenerator.js';
 
 export interface GeminiEngineEvent {
     type: string;
@@ -136,6 +138,20 @@ export class GeminiEngine extends EventEmitter {
 
             await this.coreConfig.refreshAuth(authType);
             await this.coreConfig.initialize();
+
+            // Handle Local Inference Override
+            if (this.tarsConfig.inferenceBackend === 'llamacpp') {
+                logger.info(
+                    `🔌 Overriding Gemini Core with Local Inference: ${this.tarsConfig.localInferenceUrl}`
+                );
+                const localGenerator = new LlamaCppGenerator(this.tarsConfig.localInferenceUrl);
+                // We must override the private properties at runtime to bypass the SDK's internal Gemini calls
+                (this.coreConfig as any).contentGenerator = localGenerator;
+                (this.coreConfig as any).baseLlmClient = new BaseLlmClient(
+                    localGenerator,
+                    this.coreConfig
+                );
+            }
 
             // Register system prompt template for tars-request
             const promptProvider = (this.coreConfig as any).promptProvider;

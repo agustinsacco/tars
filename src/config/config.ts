@@ -38,6 +38,10 @@ export class Config {
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
 
+    // Inference Backend
+    public readonly inferenceBackend: 'gemini' | 'llamacpp';
+    public readonly localInferenceUrl: string;
+
     // System Prompt
     public readonly systemPromptPath: string;
 
@@ -68,6 +72,13 @@ export class Config {
         this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
         this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
+        this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
+            jsonConfig.inferenceBackend ||
+            'gemini') as 'gemini' | 'llamacpp';
+        this.localInferenceUrl =
+            process.env.LOCAL_INFERENCE_URL ||
+            jsonConfig.localInferenceUrl ||
+            'http://localhost:8080';
 
         const hbSec =
             process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
