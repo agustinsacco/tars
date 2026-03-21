@@ -108,6 +108,12 @@ export class CronService {
 
             await this.saveTasks(currentTasks);
         } catch (error: any) {
+            // Don't count busy skips as failures — the supervisor is temporarily occupied
+            if (error.message?.includes('busy')) {
+                logger.info(`⏳ [CRON] Task ${task.id} skipped — supervisor busy`);
+                return;
+            }
+
             logger.error(`❌ [CRON] Task ${task.id} failed: ${error.message}`);
 
             const currentTasks = await this.loadTasks();

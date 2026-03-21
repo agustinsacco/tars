@@ -17,6 +17,7 @@ export interface SessionData {
     lastInputTokens: number;
     totalNetTokens: number;
     lastUserInteractionAt?: string;
+    compressionCount: number;
 }
 
 /**
@@ -55,18 +56,8 @@ export class SessionManager {
             if (this.sessionData.totalNetTokens === undefined) {
                 this.sessionData.totalNetTokens = this.sessionData.totalInputTokens || 0;
             }
-
-            // Check idle timeout — if exceeded, clear and force a new session
-            if (this.sessionData.lastUserInteractionAt) {
-                const lastActivity = new Date(this.sessionData.lastUserInteractionAt).getTime();
-                const elapsed = Date.now() - lastActivity;
-                if (elapsed > this.idleTimeoutMs) {
-                    logger.info(
-                        `[SessionManager] Session idle for ${Math.round(elapsed / 60000)}m (threshold: ${Math.round(this.idleTimeoutMs / 60000)}m). Expiring session.`
-                    );
-                    await this.clear();
-                    return null;
-                }
+            if (this.sessionData.compressionCount === undefined) {
+                this.sessionData.compressionCount = 0;
             }
 
             return this.sessionData.sessionId;
@@ -95,7 +86,8 @@ export class SessionManager {
                 interactionCount: 0,
                 lastInteractionAt: new Date().toISOString(),
                 lastInputTokens: 0,
-                totalNetTokens: 0
+                totalNetTokens: 0,
+                compressionCount: 0
             };
 
             await this.atomicWrite();
@@ -154,12 +146,14 @@ export class SessionManager {
     }
 
     /**
-     * Force invalidate the session (e.g. after a memory update).
-     * The next interaction will start a fresh session.
+     * Force invalidate has been deprecated.
+     * Sessions now persist across memory changes. System instruction is refreshed in-place.
+     * @deprecated No longer destroys the session. Kept for API compatibility.
      */
     async forceInvalidate(): Promise<void> {
-        logger.info('[SessionManager] Force-invalidating session (memory changed)');
-        await this.clear();
+        logger.debug(
+            '[SessionManager] forceInvalidate() called but is now a no-op. Sessions persist across memory changes.'
+        );
     }
 
     /**
@@ -215,5 +209,106 @@ export class SessionManager {
     getLastUserInteraction(): Date | null {
         if (!this.sessionData?.lastUserInteractionAt) return null;
         return new Date(this.sessionData.lastUserInteractionAt);
+    }
+
+    /**
+     * Returns the fraction of the context window currently consumed.
+     */
+    getContextUsagePercent(contextWindowTokens: number): number {
+        if (!this.sessionData || contextWindowTokens <= 0) return 0;
+        return this.sessionData.totalInputTokens / contextWindowTokens;
+    }
+
+    /**
+     * Checks if the session needs compression based on threshold.
+     */
+    needsCompression(contextWindowTokens: number, threshold: number): boolean {
+        return this.getContextUsagePercent(contextWindowTokens) >= threshold;
+    }
+
+    /**
+     * Returns the session uptime in milliseconds.
+     */
+    getSessionUptime(): number {
+        if (!this.sessionData) return 0;
+        return Date.now() - new Date(this.sessionData.createdAt).getTime();
+    }
+
+    /**
+     * Increment the compression counter.
+     */
+    async recordCompression(): Promise<void> {
+        if (!this.sessionData) return;
+        this.sessionData.compressionCount = (this.sessionData.compressionCount || 0) + 1;
+        try {
+            await this.atomicWrite();
+        } catch (e) {
+            logger.error(`[SessionManager] Failed to record compression: ${e}`);
+        }
+    }
+
+    /**
+     * Garbage-collects old session chat files from the given tmp directory.
+     * Keeps the newest `maxCount` files and deletes anything older than `maxAgeDays`.
+     */
+    async garbageCollect(
+        tmpDir: string,
+        maxAgeDays: number = 3,
+        maxCount: number = 50
+    ): Promise<number> {
+        let deleted = 0;
+        try {
+            // Find all chats directories recursively
+            const entries = await fs.promises.readdir(tmpDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (!entry.isDirectory()) continue;
+                const chatsDir = path.join(tmpDir, entry.name, 'chats');
+                try {
+                    await fs.promises.access(chatsDir);
+                } catch {
+                    continue;
+                }
+
+                const files = await fs.promises.readdir(chatsDir);
+                const jsonFiles = files.filter((f) => f.endsWith('.json'));
+
+                // Get stats and sort by mtime descending
+                const fileStats = await Promise.all(
+                    jsonFiles.map(async (f) => {
+                        const filePath = path.join(chatsDir, f);
+                        const stat = await fs.promises.stat(filePath);
+                        return { path: filePath, mtime: stat.mtimeMs };
+                    })
+                );
+                fileStats.sort((a, b) => b.mtime - a.mtime);
+
+                const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+                const now = Date.now();
+
+                for (let i = 0; i < fileStats.length; i++) {
+                    const file = fileStats[i];
+                    const isOverCount = i >= maxCount;
+                    const isOverAge = now - file.mtime > maxAgeMs;
+
+                    if (isOverCount || isOverAge) {
+                        try {
+                            await fs.promises.unlink(file.path);
+                            deleted++;
+                        } catch (e) {
+                            logger.warn(`[SessionManager] Failed to delete ${file.path}: ${e}`);
+                        }
+                    }
+                }
+            }
+
+            if (deleted > 0) {
+                logger.info(`[SessionManager] Garbage collected ${deleted} old session files`);
+            }
+        } catch (e: any) {
+            if (e.code !== 'ENOENT') {
+                logger.warn(`[SessionManager] GC failed: ${e.message}`);
+            }
+        }
+        return deleted;
     }
 }

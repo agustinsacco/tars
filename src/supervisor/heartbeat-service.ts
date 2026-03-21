@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import path from 'path';
 import { Task } from '../types/index.js';
 import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
@@ -87,6 +88,16 @@ export class HeartbeatService {
             this.lastSyncTime = now;
         } catch (error: any) {
             logger.error(`❌ Memory sync failed: ${error.message}`);
+        }
+
+        // Session file garbage collection (rate-limited by the same sync interval)
+        if (this.sessionManager) {
+            const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
+            try {
+                await this.sessionManager.garbageCollect(tmpDir, 3, 50);
+            } catch (e: any) {
+                logger.warn(`⚠️ Session GC failed: ${e.message}`);
+            }
         }
     }
 
