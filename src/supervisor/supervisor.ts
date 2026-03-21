@@ -32,7 +32,9 @@ export class Supervisor {
         attachments?: AttachmentContext[]
     ): Promise<void> {
         if (this.isProcessing) {
-            throw new Error('Supervisor is busy. Please wait for the current response to finish.');
+            throw new Error(
+                "I'm currently working on a task. Please retry in a moment — I should be free within 30-60 seconds."
+            );
         }
 
         logger.info(
@@ -119,9 +121,25 @@ export class Supervisor {
                     // Extract data for session tracking
                     if (event.type === 'done') {
                         if (event.usageStats) {
-                            this.sessionManager
-                                .updateUsage(event.usageStats)
-                                .catch((e) => logger.error(`Failed to update usage: ${e}`));
+                            await this.sessionManager.updateUsage(event.usageStats);
+
+                            // Proactive compression check
+                            if (
+                                this.sessionManager.needsCompression(
+                                    this.config.contextWindowTokens,
+                                    this.config.compressionThreshold
+                                )
+                            ) {
+                                logger.info(
+                                    '[Supervisor] Context threshold exceeded — triggering compression'
+                                );
+                                try {
+                                    await this.gemini.compressSession();
+                                    await this.sessionManager.recordCompression();
+                                } catch (e: any) {
+                                    logger.warn(`[Supervisor] Compression failed: ${e.message}`);
+                                }
+                            }
                         }
                     }
                     await onEvent(event as any);
@@ -130,11 +148,11 @@ export class Supervisor {
                 attachments
             );
 
-            // If a memory-mutating tool was used, invalidate the session so the
-            // next turn starts fresh and picks up the updated facts
+            // If a memory-mutating tool was used, refresh system instruction in-place
+            // instead of destroying the session
             if (memoryMutated) {
-                logger.debug('[Supervisor] Memory was mutated this turn — invalidating session');
-                await this.sessionManager.forceInvalidate();
+                logger.info('[Supervisor] Memory mutated — refreshing system instruction in-place');
+                this.gemini.refreshSystemInstruction();
             }
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
@@ -146,8 +164,8 @@ export class Supervisor {
 
     /**
      * Specialized execution for background tasks.
-     * Runs in ephemeral sessions (no --resume) to avoid bloating the main conversation.
-     * Optionally injects the summary back into the main timeline so Tars remembers what it did.
+     * Runs in the active session so the model retains context of what it did.
+     * No more orphan sessions or dangerous history injection.
      */
     public async executeTask(prompt: string): Promise<string> {
         if (this.isProcessing) {
@@ -160,16 +178,9 @@ export class Supervisor {
         try {
             this.isProcessing = true;
 
-            // Check if there is an active session we should inject into later
+            // Run in the active session so context is shared
             const activeSessionId = await this.sessionManager.load();
-
-            // Run without session ID — ephemeral session that won't bloat main context with raw execution tool calls
-            const result = await this.gemini.runSync(prompt);
-
-            // If we have an active session, inject a synthetic summary so the user can ask about it
-            if (activeSessionId) {
-                await this.gemini.injectBackgroundHistory(activeSessionId, prompt, result);
-            }
+            const result = await this.gemini.runSync(prompt, activeSessionId || undefined);
 
             return result;
         } catch (error: any) {

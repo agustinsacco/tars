@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LlamaCppGenerator } from '../../inference/LlamaCppGenerator.js';
-import { LlmRole } from '@google/gemini-cli-core';
 
 describe('LlamaCppGenerator', () => {
     let generator: LlamaCppGenerator;
@@ -41,7 +40,7 @@ describe('LlamaCppGenerator', () => {
             config: { temperature: 0.5 }
         };
 
-        const result = await generator.generateContent(request, 'prompt-id', LlmRole.MAIN);
+        const result = await generator.generateContent(request, 'prompt-id');
 
         expect(global.fetch).toHaveBeenCalledWith(
             `${baseUrl}/v1/chat/completions`,
@@ -98,7 +97,7 @@ describe('LlamaCppGenerator', () => {
             }
         };
 
-        const result = await generator.generateContent(request, 'prompt-id', LlmRole.MAIN);
+        const result = await generator.generateContent(request, 'prompt-id');
 
         const functionCall = result.candidates?.[0]?.content?.parts?.[0]?.functionCall;
         expect(functionCall?.name).toBe('get_weather');

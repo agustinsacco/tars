@@ -1,4 +1,4 @@
-import { ContentGenerator, LlmRole } from '@google/gemini-cli-core';
+import { ContentGenerator } from '@google/gemini-cli-core';
 import {
     type CountTokensResponse,
     type GenerateContentResponse,
@@ -21,8 +21,7 @@ export class LlamaCppGenerator implements ContentGenerator {
 
     async generateContent(
         request: GenerateContentParameters,
-        userPromptId: string,
-        role: LlmRole
+        userPromptId: string
     ): Promise<GenerateContentResponse> {
         logger.debug(`[LlamaCppGenerator] Generating content for model: ${request.model}`);
 
@@ -53,8 +52,7 @@ export class LlamaCppGenerator implements ContentGenerator {
 
     async generateContentStream(
         request: GenerateContentParameters,
-        userPromptId: string,
-        role: LlmRole
+        userPromptId: string
     ): Promise<AsyncGenerator<GenerateContentResponse>> {
         logger.debug(`[LlamaCppGenerator] Generating content stream for model: ${request.model}`);
 

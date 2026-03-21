@@ -17,18 +17,23 @@ describe('Supervisor', () => {
 
     beforeEach(() => {
         mockGemini = {
-            run: vi.fn().mockImplementation(async (content, onEvent) => {
+            run: vi.fn().mockImplementation(async (content: string, onEvent: any) => {
                 onEvent({ type: 'done' });
             }),
             runSync: vi.fn().mockResolvedValue('task output'),
-            injectBackgroundHistory: vi.fn().mockResolvedValue(undefined)
+            compressSession: vi.fn().mockResolvedValue(undefined),
+            refreshSystemInstruction: vi.fn()
         };
         mockSessionManager = {
             load: vi.fn().mockResolvedValue('existing-session'),
             save: vi.fn().mockResolvedValue(undefined),
             updateUsage: vi.fn().mockResolvedValue(undefined),
             clear: vi.fn().mockResolvedValue(undefined),
-            touchActivity: vi.fn().mockResolvedValue(undefined)
+            touchActivity: vi.fn().mockResolvedValue(undefined),
+            forceInvalidate: vi.fn().mockResolvedValue(undefined),
+            needsCompression: vi.fn().mockReturnValue(false),
+            recordCompression: vi.fn().mockResolvedValue(undefined),
+            getStats: vi.fn().mockReturnValue(null)
         };
         supervisor = new Supervisor(mockGemini as any, mockSessionManager as any);
     });
@@ -62,11 +67,11 @@ describe('Supervisor', () => {
         );
     });
 
-    it('should execute tasks in ephemeral sessions (no --resume)', async () => {
+    it('should execute tasks in the active session (no more orphan sessions)', async () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
-        // Should not pass session ID — ephemeral session
-        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt');
+        // Should pass active session ID to runSync
+        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session');
     });
 
     it('should track user activity on run', async () => {
@@ -103,5 +108,78 @@ describe('Supervisor', () => {
         await supervisor.run('hello', vi.fn());
 
         expect(mockSessionManager.updateUsage).toHaveBeenCalledWith(usageStats);
+    });
+
+    it('should refresh system instruction on memory mutation instead of invalidating session', async () => {
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({
+                type: 'tool_call',
+                toolName: 'tars-memory_memory_store_fact',
+                toolArgs: { key: 'test', value: 'data' }
+            });
+            onEvent({ type: 'done' });
+        });
+
+        await supervisor.run('store test fact', vi.fn());
+
+        expect(mockGemini.refreshSystemInstruction).toHaveBeenCalled();
+        expect(mockSessionManager.forceInvalidate).not.toHaveBeenCalled();
+    });
+
+    it('should trigger compression when context threshold is exceeded', async () => {
+        mockSessionManager.needsCompression.mockReturnValue(true);
+        const usageStats = { inputTokens: 600000, outputTokens: 5000 };
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({ type: 'done', usageStats });
+        });
+
+        await supervisor.run('hello', vi.fn());
+
+        expect(mockGemini.compressSession).toHaveBeenCalled();
+        expect(mockSessionManager.recordCompression).toHaveBeenCalled();
+    });
+
+    it('should NOT trigger compression when under threshold', async () => {
+        mockSessionManager.needsCompression.mockReturnValue(false);
+        const usageStats = { inputTokens: 100, outputTokens: 50 };
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({ type: 'done', usageStats });
+        });
+
+        await supervisor.run('hello', vi.fn());
+
+        expect(mockGemini.compressSession).not.toHaveBeenCalled();
+    });
+
+    it('should gracefully handle compression failure', async () => {
+        mockSessionManager.needsCompression.mockReturnValue(true);
+        mockGemini.compressSession.mockRejectedValue(new Error('Compression timeout'));
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({ type: 'done', usageStats: { inputTokens: 600000, outputTokens: 5000 } });
+        });
+
+        // Should not throw
+        await expect(supervisor.run('hello', vi.fn())).resolves.not.toThrow();
+    });
+
+    it('should show user-friendly busy message', async () => {
+        // Start a long-running operation
+        let resolveRun: () => void;
+        const runPromise = new Promise<void>((resolve) => {
+            resolveRun = resolve;
+        });
+        mockGemini.run.mockImplementation(async () => {
+            await runPromise;
+        });
+
+        // Start first run (will hang)
+        const firstRun = supervisor.run('first', vi.fn());
+
+        // Try second run while first is processing
+        await expect(supervisor.run('second', vi.fn())).rejects.toThrow(/retry in a moment/);
+
+        // Clean up
+        resolveRun!();
+        await firstRun;
     });
 });

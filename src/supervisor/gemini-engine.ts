@@ -10,7 +10,7 @@ import {
     PolicyDecision,
     SimpleExtensionLoader,
     MCPServerConfig,
-    BaseLlmClient
+    CompressionStatus
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
@@ -145,12 +145,8 @@ export class GeminiEngine extends EventEmitter {
                     `🔌 Overriding Gemini Core with Local Inference: ${this.tarsConfig.localInferenceUrl}`
                 );
                 const localGenerator = new LlamaCppGenerator(this.tarsConfig.localInferenceUrl);
-                // We must override the private properties at runtime to bypass the SDK's internal Gemini calls
+                // Override the content generator at runtime to bypass the SDK's internal Gemini calls
                 (this.coreConfig as any).contentGenerator = localGenerator;
-                (this.coreConfig as any).baseLlmClient = new BaseLlmClient(
-                    localGenerator,
-                    this.coreConfig
-                );
             }
 
             // Register system prompt template for tars-request
@@ -575,6 +571,35 @@ export class GeminiEngine extends EventEmitter {
     }
 
     /**
+     * Proactively compress the session history to reclaim context window space.
+     * Delegates to Gemini Core's built-in compression.
+     */
+    public async compressSession(force: boolean = false): Promise<void> {
+        if (!this.initialized || !this.client) return;
+        const sid = this.currentSessionId || 'unknown';
+        logger.info(`🗜️ Triggering session compression (force=${force})...`);
+        try {
+            const result = await this.client.tryCompressChat(sid, force);
+            logger.info(
+                `🗜️ Compression result: status=${result.compressionStatus}, ` +
+                    `${result.originalTokenCount} → ${result.newTokenCount} tokens`
+            );
+        } catch (e: any) {
+            logger.warn(`⚠️ Compression failed: ${e.message}`);
+        }
+    }
+
+    /**
+     * Refreshes the system instruction in-place without destroying the session.
+     * Used after memory mutations so the model sees updated facts.
+     */
+    public refreshSystemInstruction(): void {
+        if (!this.initialized || !this.client) return;
+        this.client.updateSystemInstruction();
+        logger.debug('🔄 System instruction refreshed in-place');
+    }
+
+    /**
      * Maps native core events to Tars-compatible event format.
      */
     private normalizeEvent(
@@ -668,6 +693,35 @@ export class GeminiEngine extends EventEmitter {
                     sessionId
                 };
 
+            case GeminiEventType.ChatCompressed: {
+                const info = event.value;
+                if (info && info.compressionStatus === CompressionStatus.COMPRESSED) {
+                    return {
+                        type: 'compressed',
+                        content: `🗜️ Session compressed: ${info.originalTokenCount.toLocaleString()} → ${info.newTokenCount.toLocaleString()} tokens`,
+                        sessionId
+                    };
+                }
+                return null;
+            }
+
+            case GeminiEventType.ContextWindowWillOverflow:
+                logger.warn(
+                    `⚠️ Context window near overflow: ${event.value.estimatedRequestTokenCount} tokens, ${event.value.remainingTokenCount} remaining`
+                );
+                return {
+                    type: 'context_warning',
+                    content: `⚠️ Context window near capacity (${event.value.remainingTokenCount.toLocaleString()} tokens remaining)`,
+                    sessionId
+                };
+
+            case GeminiEventType.MaxSessionTurns:
+                return {
+                    type: 'max_turns',
+                    content: '⚠️ Maximum session turns reached. Consider compressing the session.',
+                    sessionId
+                };
+
             default:
                 return null;
         }
@@ -737,55 +791,6 @@ export class GeminiEngine extends EventEmitter {
         } catch (e) {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
-        }
-    }
-
-    /**
-     * Injects a synthetic conversational turn into the core CLI history file.
-     * Used to append background/cron task summaries so the engine "remembers" them
-     * in the next interactive session.
-     */
-    public async injectBackgroundHistory(
-        sessionId: string,
-        taskPrompt: string,
-        taskResult: string
-    ): Promise<void> {
-        try {
-            const sessionData = await this.loadResumedSessionData(sessionId);
-            if (!sessionData || !sessionData.filePath || !sessionData.conversation) {
-                logger.warn(
-                    `⚠️ Could not find session file to inject background history for: ${sessionId}`
-                );
-                return;
-            }
-
-            const history = sessionData.conversation;
-
-            // Core CLI history format relies on 'User ' and 'Model ' tags,
-            // or raw parts. We adhere to the standard format.
-            const userTurn = {
-                role: 'user',
-                parts: [{ text: `[BACKGROUND TASK TRIGGERED]\n${taskPrompt}` }]
-            };
-
-            const modelTurn = {
-                role: 'model',
-                parts: [{ text: `[BACKGROUND TASK COMPLETED autonomously]\n${taskResult}` }]
-            };
-
-            // Assuming history is an array of messages
-            if (Array.isArray(history)) {
-                history.push(userTurn);
-                history.push(modelTurn);
-            }
-
-            // Write back to disk
-            fs.writeFileSync(sessionData.filePath, JSON.stringify(history, null, 2));
-            logger.info(
-                `💾 Injected background execution summary into session history: ${sessionId}`
-            );
-        } catch (e: any) {
-            logger.error(`❌ Failed to inject background history: ${e.message}`);
         }
     }
 }

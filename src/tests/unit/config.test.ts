@@ -34,4 +34,26 @@ describe('Config', () => {
         const config = Config.getInstance();
         expect(config.heartbeatIntervalMs).toBe(300000); // Default 300s
     });
+
+    it('should default contextWindowTokens to 1048576', () => {
+        const config = Config.getInstance();
+        expect(config.contextWindowTokens).toBe(1048576);
+    });
+
+    it('should override contextWindowTokens from env var', () => {
+        vi.stubEnv('CONTEXT_WINDOW_TOKENS', '8192');
+        const config = Config.getInstance();
+        expect(config.contextWindowTokens).toBe(8192);
+    });
+
+    it('should default compressionThreshold to 0.5', () => {
+        const config = Config.getInstance();
+        expect(config.compressionThreshold).toBe(0.5);
+    });
+
+    it('should override compressionThreshold from env var', () => {
+        vi.stubEnv('COMPRESSION_THRESHOLD', '0.7');
+        const config = Config.getInstance();
+        expect(config.compressionThreshold).toBe(0.7);
+    });
 });

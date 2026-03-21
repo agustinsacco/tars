@@ -42,6 +42,10 @@ export class Config {
     public readonly inferenceBackend: 'gemini' | 'llamacpp';
     public readonly localInferenceUrl: string;
 
+    // Context & Compression
+    public readonly contextWindowTokens: number;
+    public readonly compressionThreshold: number;
+
     // System Prompt
     public readonly systemPromptPath: string;
 
@@ -83,6 +87,16 @@ export class Config {
         const hbSec =
             process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
         this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
+
+        this.contextWindowTokens = parseInt(
+            String(
+                process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '1048576'
+            ),
+            10
+        );
+        this.compressionThreshold = parseFloat(
+            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.5')
+        );
 
         // 4. Initialize Channels
         this.channels = jsonConfig.channels || {};
