@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0](https://github.com/agustinsacco/tars/compare/v1.11.2...v1.12.0) (2026-03-21)
+
+
+### Features
+
+* add local inference support via LlamaCpp ([#47](https://github.com/agustinsacco/tars/issues/47)) ([c6244cb](https://github.com/agustinsacco/tars/commit/c6244cb615224456a3bb1965faa887c017111f37))
+
 ## [1.11.2](https://github.com/agustinsacco/tars/compare/v1.11.1...v1.11.2) (2026-03-21)
 
 
