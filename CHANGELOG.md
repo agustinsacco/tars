@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.1](https://github.com/agustinsacco/tars/compare/v1.13.0...v1.13.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* resolve llamacpp initialization crash and extension hydration ([0e4e764](https://github.com/agustinsacco/tars/commit/0e4e764543c74186cce84ee6e05bf362ea7b2eb0))
+
 ## [1.13.0](https://github.com/agustinsacco/tars/compare/v1.12.0...v1.13.0) (2026-03-21)
 
 
