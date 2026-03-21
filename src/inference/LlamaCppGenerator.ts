@@ -384,7 +384,11 @@ export class LlamaCppGenerator implements ContentGenerator {
         } as GenerateContentResponse;
     }
 
-    private mapFinishReason(reason: string): string {
+    private mapFinishReason(reason: string | null | undefined): string | undefined {
+        if (!reason) {
+            return undefined; // Must return undefined for incomplete stream chunks, not 'OTHER'!
+        }
+
         switch (reason) {
             case 'stop':
                 return 'STOP';
