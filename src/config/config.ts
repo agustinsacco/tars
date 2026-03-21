@@ -33,6 +33,7 @@ export class Config {
 
     // Gemini
     public readonly geminiModel: string;
+    public readonly contextWindowLimit: number;
     public readonly assistantName: string;
     public readonly instanceName: string;
     public readonly instanceRole: string;
@@ -73,6 +74,17 @@ export class Config {
         this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
         this.geminiModel =
             process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'gemini-3.1-pro-preview';
+
+        const defaultContextLimit =
+            (process.env.INFERENCE_BACKEND || jsonConfig.inferenceBackend) === 'llamacpp'
+                ? 32768
+                : 1000000;
+        this.contextWindowLimit = parseInt(
+            process.env.CONTEXT_WINDOW_LIMIT ||
+                jsonConfig.contextWindowLimit ||
+                defaultContextLimit.toString()
+        );
+
         this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
             'gemini') as 'gemini' | 'llamacpp';

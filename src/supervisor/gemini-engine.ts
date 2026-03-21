@@ -633,6 +633,15 @@ export class GeminiEngine extends EventEmitter {
                     sessionId
                 };
 
+            case GeminiEventType.ChatCompressed:
+                const compressed = event.value as any;
+                return {
+                    type: 'text',
+                    role: 'system',
+                    content: `📦 **Context Management**: Chat history was automatically compressed by Gemini Core to maintain performance. (Previous: ${compressed.originalTokenCount} tokens, New: ${compressed.newTokenCount} tokens)`,
+                    sessionId
+                };
+
             case GeminiEventType.ToolCallRequest:
                 return {
                     type: 'tool_call',
