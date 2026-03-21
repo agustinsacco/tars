@@ -74,6 +74,8 @@ export class LlamaCppGenerator implements ContentGenerator {
 
         const self = this;
         async function* streamGenerator() {
+            const pendingToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+
             try {
                 const response = await fetch(self.resolveEndpoint(), {
                     method: 'POST',
@@ -111,12 +113,72 @@ export class LlamaCppGenerator implements ContentGenerator {
                         if (cleanLine.startsWith('data: ')) {
                             try {
                                 const data = JSON.parse(cleanLine.slice(6));
-                                yield self.mapFromOpenAiStream(data);
-                            } catch (e) {
-                                logger.warn(`Failed to parse SSE line: ${cleanLine}`);
+                                const choice = data.choices && data.choices[0];
+
+                                // 1. Aggregate partial tool calls from OpenAI stream format
+                                if (choice && choice.delta && choice.delta.tool_calls) {
+                                    for (const tc of choice.delta.tool_calls) {
+                                        let pending = pendingToolCalls.get(tc.index);
+                                        if (!pending) {
+                                            pending = {
+                                                name: tc.function?.name || '',
+                                                arguments: ''
+                                            };
+                                            pendingToolCalls.set(tc.index, pending);
+                                        }
+                                        if (tc.function?.arguments) {
+                                            pending.arguments += tc.function.arguments;
+                                        }
+                                    }
+                                    // Strip partial tool calls so we don't accidentally parse/yield them yet
+                                    delete choice.delta.tool_calls;
+                                }
+
+                                // 2. When the turn finishes, inject fully assembled tool calls into the payload
+                                if (choice && choice.finish_reason) {
+                                    if (pendingToolCalls.size > 0) {
+                                        choice.delta.tool_calls = Array.from(
+                                            pendingToolCalls.entries()
+                                        ).map(([_, tc]) => ({
+                                            function: {
+                                                name: tc.name,
+                                                arguments: tc.arguments
+                                            }
+                                        }));
+                                        pendingToolCalls.clear();
+                                    }
+                                }
+
+                                const mapped = self.mapFromOpenAiStream(data);
+                                if (mapped) yield mapped;
+                            } catch (e: any) {
+                                logger.debug(
+                                    `Failed to parse/map SSE line: ${cleanLine} - ${e.message}`
+                                );
                             }
                         }
                     }
+                }
+
+                // Cleanup in case stream ended without finish_reason
+                if (pendingToolCalls.size > 0) {
+                    const finalData = {
+                        choices: [
+                            {
+                                delta: {
+                                    tool_calls: Array.from(pendingToolCalls.entries()).map(
+                                        ([_, tc]) => ({
+                                            function: { name: tc.name, arguments: tc.arguments }
+                                        })
+                                    )
+                                },
+                                finish_reason: 'tool_calls'
+                            }
+                        ]
+                    };
+                    const mapped = self.mapFromOpenAiStream(finalData);
+                    if (mapped) yield mapped;
+                    pendingToolCalls.clear();
                 }
             } catch (error: any) {
                 logger.error(`[LlamaCppGenerator] Stream Error: ${error.message}`);
@@ -272,9 +334,11 @@ export class LlamaCppGenerator implements ContentGenerator {
         } as GenerateContentResponse;
     }
 
-    private mapFromOpenAiStream(data: any): GenerateContentResponse {
-        const choice = data.choices[0];
-        const delta = choice.delta;
+    private mapFromOpenAiStream(data: any): GenerateContentResponse | null {
+        const choice = data.choices && data.choices[0];
+        if (!choice) return null;
+
+        const delta = choice.delta || {};
 
         const parts: Part[] = [];
         if (delta.content) {
@@ -284,14 +348,27 @@ export class LlamaCppGenerator implements ContentGenerator {
         if (delta.tool_calls) {
             for (const tc of delta.tool_calls) {
                 if (tc.function) {
-                    parts.push({
-                        functionCall: {
-                            name: tc.function.name,
-                            args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {}
-                        }
-                    } as any);
+                    try {
+                        const parsedArgs = tc.function.arguments
+                            ? JSON.parse(tc.function.arguments)
+                            : {};
+                        parts.push({
+                            functionCall: {
+                                name: tc.function.name,
+                                args: parsedArgs
+                            }
+                        } as any);
+                    } catch (err) {
+                        logger.warn(
+                            `Invalid tool call JSON arguments format: ${tc.function.arguments}`
+                        );
+                    }
                 }
             }
+        }
+
+        if (parts.length === 0 && !choice.finish_reason) {
+            return null; // Don't yield empty chunks unless it carries the finish_reason
         }
 
         return {
