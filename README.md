@@ -44,8 +44,9 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 
 ## Documentation
 
-Full documentation is available in the `site/` directory or at the deployed site.
+Full documentation is available at [tars.saccolabs.com](https://tars.saccolabs.com) or in the `site/` directory.
 
+- **Website**: [tars.saccolabs.com](https://tars.saccolabs.com)
 - **Development**: `npm run docs:dev`
 - **Build**: `npm run docs:build`
 - **Live Deployment**: `http://<ULTRON_IP>:5252`
