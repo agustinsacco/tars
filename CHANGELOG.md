@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/agustinsacco/tars/compare/v1.14.0...v1.14.1) (2026-03-21)
+
+
+### Bug Fixes
+
+* make local LlamaCpp mode bypass Gemini auth natively and resolve URLs robustly ([5af6919](https://github.com/agustinsacco/tars/commit/5af6919c46a1988b92b856deecdf3d63a5ff1f33))
+
 ## [1.14.0](https://github.com/agustinsacco/tars/compare/v1.13.1...v1.14.0) (2026-03-21)
 
 
