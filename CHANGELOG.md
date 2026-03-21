@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2](https://github.com/agustinsacco/tars/compare/v1.14.1...v1.14.2) (2026-03-21)
+
+
+### Bug Fixes
+
+* correctly assemble chunked tool call streams from OpenAI-compatible backends ([a42ac05](https://github.com/agustinsacco/tars/commit/a42ac05d3df6e2beaee0c1548923050580917bd9))
+
 ## [1.14.0](https://github.com/agustinsacco/tars/compare/v1.13.1...v1.14.0) (2026-03-21)
 
 
