@@ -431,29 +431,35 @@ export async function setup() {
     if (dashConfig.enableDash) {
         const dashSrc = path.resolve(
             path.dirname(new URL(import.meta.url).pathname),
-            '../../../stock_apps/dashboard'
+            '../../../dash'
         );
         const dashDest = path.join(tarsHome, 'apps', 'dashboard');
 
         if (fsSync.existsSync(dashSrc)) {
-            const dashSpinner = ora('Installing Tars Dashboard...').start();
-            try {
-                if (fsSync.existsSync(dashDest)) {
-                    await fs.rm(dashDest, { recursive: true, force: true });
+            // Check if dashboard already exists to prevent overwrite
+            if (fsSync.existsSync(dashDest)) {
+                console.log(
+                    chalk.dim(
+                        '  Dashboard already exists, skipping installation to prevent overwriting custom changes.'
+                    )
+                );
+            } else {
+                const dashSpinner = ora('Installing Tars Dashboard...').start();
+                try {
+                    await fs.cp(dashSrc, dashDest, { recursive: true });
+
+                    dashSpinner.text = 'Hydrating Dashboard dependencies...';
+                    // We need devDependencies for npm run build (tailwind, etc.)
+                    execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
+
+                    dashSpinner.text = 'Building Dashboard...';
+                    execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
+
+                    dashSpinner.succeed('Dashboard ready.');
+                } catch (err: any) {
+                    const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
+                    dashSpinner.fail(`Dashboard installation failed: ${out}`);
                 }
-                await fs.cp(dashSrc, dashDest, { recursive: true });
-
-                dashSpinner.text = 'Hydrating Dashboard dependencies...';
-                // We need devDependencies for npm run build (tailwind, etc.)
-                execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
-
-                dashSpinner.text = 'Building Dashboard...';
-                execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
-
-                dashSpinner.succeed('Dashboard ready.');
-            } catch (err: any) {
-                const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
-                dashSpinner.fail(`Dashboard installation failed: ${out}`);
             }
         }
     }

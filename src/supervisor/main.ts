@@ -366,7 +366,7 @@ function patchSettings(config: Config): void {
  * Safely copies the dashboard and hydrates it (npm install + npm build).
  */
 function installDashboard(config: Config): void {
-    const repoDashSrc = path.join(__dirname, '..', '..', 'stock_apps', 'dashboard');
+    const repoDashSrc = path.join(__dirname, '..', '..', 'dash');
     const targetDashDir = path.join(config.homeDir, 'apps', 'dashboard');
 
     if (!fs.existsSync(repoDashSrc)) {
