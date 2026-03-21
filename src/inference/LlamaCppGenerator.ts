@@ -19,6 +19,17 @@ import logger from '../utils/logger.js';
 export class LlamaCppGenerator implements ContentGenerator {
     constructor(private readonly baseUrl: string = 'http://localhost:8080') {}
 
+    private resolveEndpoint(): string {
+        let endpoint = this.baseUrl.replace(/\/$/, '');
+        if (!endpoint.endsWith('/chat/completions')) {
+            if (!endpoint.endsWith('/v1')) {
+                endpoint += '/v1';
+            }
+            endpoint += '/chat/completions';
+        }
+        return endpoint;
+    }
+
     async generateContent(
         request: GenerateContentParameters,
         userPromptId: string
@@ -28,7 +39,7 @@ export class LlamaCppGenerator implements ContentGenerator {
         const openAiRequest = this.mapToOpenAi(request);
 
         try {
-            const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+            const response = await fetch(this.resolveEndpoint(), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -64,7 +75,7 @@ export class LlamaCppGenerator implements ContentGenerator {
         const self = this;
         async function* streamGenerator() {
             try {
-                const response = await fetch(`${self.baseUrl}/v1/chat/completions`, {
+                const response = await fetch(self.resolveEndpoint(), {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

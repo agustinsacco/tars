@@ -128,6 +128,7 @@ export class GeminiEngine extends EventEmitter {
                 model: this.tarsConfig.geminiModel,
                 debugMode: false,
                 approvalMode: ApprovalMode.YOLO,
+                disableModelRouterForAuth: [AuthType.USE_GEMINI],
                 policyEngineConfig: {
                     defaultDecision: PolicyDecision.ALLOW
                 },
