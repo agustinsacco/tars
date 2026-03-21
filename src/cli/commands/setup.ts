@@ -438,7 +438,8 @@ export async function setup() {
                     await fs.rm(linkTarget, { recursive: true, force: true });
                 await fs.cp(extSrc, linkTarget, { recursive: true });
                 extSpinner.text = `Hydrating ${finalExtName}...`;
-                execSync('npm install --production', { cwd: linkTarget, stdio: 'pipe' });
+                execSync('npm install', { cwd: linkTarget, stdio: 'pipe' });
+                execSync('npm run build', { cwd: linkTarget, stdio: 'pipe' });
                 extSpinner.succeed(`Extension ready: ${finalExtName}`);
             } catch (err: any) {
                 extSpinner.warn(`Extension ${finalExtName} failed: ${err.message}`);
