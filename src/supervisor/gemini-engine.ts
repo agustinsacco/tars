@@ -89,7 +89,7 @@ export class GeminiEngine extends EventEmitter {
     /**
      * Initializes the core Gemini client with proper auth and config.
      */
-    public async initialize(): Promise<void> {
+    public async initialize(initialSessionId?: string): Promise<void> {
         if (this.initialized) return;
 
         logger.info('🚀 Initializing Gemini Engine (Native Core)...');
@@ -122,7 +122,7 @@ export class GeminiEngine extends EventEmitter {
             const extensionLoader = new SimpleExtensionLoader(discoveredExtensions);
 
             this.coreConfig = new CoreConfig({
-                sessionId: uuidv4(),
+                sessionId: initialSessionId || uuidv4(),
                 targetDir: this.tarsConfig.homeDir,
                 cwd: this.tarsConfig.homeDir,
                 model: this.tarsConfig.geminiModel,
@@ -279,7 +279,7 @@ export class GeminiEngine extends EventEmitter {
         attachments?: AttachmentContext[]
     ): Promise<void> {
         if (!this.initialized) {
-            await this.initialize();
+            await this.initialize(sessionId);
         }
 
         const sid = sessionId || this.coreConfig.getSessionId();
