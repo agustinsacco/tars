@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.11.2](https://github.com/agustinsacco/tars/compare/v1.11.1...v1.11.2) (2026-03-21)
+
+
+### Bug Fixes
+
+* **cli:** unify instance name resolution and add health status ([#44](https://github.com/agustinsacco/tars/issues/44)) ([57da6a4](https://github.com/agustinsacco/tars/commit/57da6a444adbb4eaef083d54e54c8ca3bb4ffca0))
+* **dash:** refine dashboard start logs and stabilize path detection ([#42](https://github.com/agustinsacco/tars/issues/42)) ([bae55a8](https://github.com/agustinsacco/tars/commit/bae55a80ec00dc95c3f6afcb30901e734b75c016))
+
 ## [1.11.1](https://github.com/agustinsacco/tars/compare/v1.11.0...v1.11.1) (2026-03-17)
 
 
