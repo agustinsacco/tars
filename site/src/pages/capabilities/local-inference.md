@@ -16,9 +16,7 @@ Tars is designed to be flexible with its intelligence layer. While it uses Googl
 
 ### Configuration
 
-You can switch to local inference during the initial setup or by manually editing your environment.
-
-#### 1. Using Tars Setup
+You can enable local inference exclusively through the Tars CLI. Do not manually edit your environment files.
 
 Run the setup wizard and select "LlamaCpp" when prompted for the inference backend:
 
@@ -26,15 +24,36 @@ Run the setup wizard and select "LlamaCpp" when prompted for the inference backe
 tars setup
 ```
 
-#### 2. Manual Configuration
+The wizard will explicitly guide you to configure:
 
-Add or update the following keys in your `~/.tars/.env` file:
+1. **Inference Backend:** Select `llamacpp`.
+2. **Endpoint URL:** Enter your server address (e.g., `http://localhost:8080`).
+3. **Model Name:** Enter the exact model ID loaded (e.g., `llama3` or `qwen-35b`).
 
-```env
-INFERENCE_BACKEND="llamacpp"
-LOCAL_INFERENCE_URL="http://localhost:8080"
-GEMINI_MODEL="llama3" # The name of the local model to request
+> [!WARNING]  
+> **Crucial Router Decoupling:** When using local inference, you **must not** leave `GEMINI_MODEL` set to `auto` (the default). If set to `auto`, the internal Gemini SDK will attempt to ping Google's servers to calculate prompt complexity routing (which will fail with a 400 error if you don't have a valid Google API key). Specifying any concrete model name (like `llama3` or `local`) successfully forces the internal router to bypass Google and stream directly from your local hardware!
+
+### Recommended Model Setup: Qwen
+
+For optimal performance with Tars agentic tool-calling capabilities and complex routing, we highly recommend the **Qwen** series of models (specifically variants like `Qwen3.5-35B-A3B` / `30B MoE` or the highly efficient `Qwen3.5 9B Opus Instruct`).
+
+These models are heavily optimized for coding, instruction following, and natively output extremely reliable strict JSON parameter payloads when utilizing Tars tools.
+
+#### Example: Running Qwen via Llama.cpp
+
+To boot the Qwen model on your local inference server (`stark:8086` for example), you can download the `.gguf` bindings (such as `Qwen3.5-35B-A3B-Q6_K.gguf`) from HuggingFace and run `llama-server` like this:
+
+```bash
+./llama-server -m models/Qwen3.5-35B-A3B-Q6_K.gguf --port 8086 --ctx-size 8192 --parallel 1
 ```
+
+Then update your Tars configuration by running the interactive setup wizard:
+
+```bash
+tars setup
+```
+
+Select `LlamaCpp`, enter `http://stark:8086`, and provide the explicit model name (`qwen-35b`).
 
 ### Protocol Bridge
 
