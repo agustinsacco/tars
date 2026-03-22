@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.3](https://github.com/agustinsacco/tars/compare/v1.14.2...v1.14.3) (2026-03-21)
+
+
+### Bug Fixes
+
+* **core:** link restored session ID and prevent premature streaming aborts ([#58](https://github.com/agustinsacco/tars/issues/58)) ([f394911](https://github.com/agustinsacco/tars/commit/f3949118b3d0cddccd886e17033e2ae098ea7a7b))
+
 ## [1.14.2](https://github.com/agustinsacco/tars/compare/v1.14.1...v1.14.2) (2026-03-21)
 
 
