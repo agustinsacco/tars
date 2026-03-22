@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.4](https://github.com/agustinsacco/tars/compare/v1.14.3...v1.14.4) (2026-03-22)
+
+
+### Bug Fixes
+
+* Local LlamaCpp Tool Execution, Routing & Session Tracking ([#60](https://github.com/agustinsacco/tars/issues/60)) ([eb3dee5](https://github.com/agustinsacco/tars/commit/eb3dee5a4b80a5e7b7e862d125e6a10170fbc344))
+
 ## [1.14.3](https://github.com/agustinsacco/tars/compare/v1.14.2...v1.14.3) (2026-03-21)
 
 
