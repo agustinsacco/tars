@@ -16,9 +16,7 @@ Tars is designed to be flexible with its intelligence layer. While it uses Googl
 
 ### Configuration
 
-You can switch to local inference during the initial setup or by manually editing your environment.
-
-#### 1. Using Tars Setup
+You can enable local inference exclusively through the Tars CLI. Do not manually edit your environment files.
 
 Run the setup wizard and select "LlamaCpp" when prompted for the inference backend:
 
@@ -26,15 +24,11 @@ Run the setup wizard and select "LlamaCpp" when prompted for the inference backe
 tars setup
 ```
 
-#### 2. Manual Configuration
+The wizard will explicitly guide you to configure:
 
-Add or update the following keys in your `~/.tars/.env` file:
-
-```env
-INFERENCE_BACKEND="llamacpp"
-LOCAL_INFERENCE_URL="http://localhost:8080"
-GEMINI_MODEL="llama3" # Defines the model requested from your local server
-```
+1. **Inference Backend:** Select `llamacpp`.
+2. **Endpoint URL:** Enter your server address (e.g., `http://localhost:8080`).
+3. **Model Name:** Enter the exact model ID loaded (e.g., `llama3` or `qwen-35b`).
 
 > [!WARNING]  
 > **Crucial Router Decoupling:** When using local inference, you **must not** leave `GEMINI_MODEL` set to `auto` (the default). If set to `auto`, the internal Gemini SDK will attempt to ping Google's servers to calculate prompt complexity routing (which will fail with a 400 error if you don't have a valid Google API key). Specifying any concrete model name (like `llama3` or `local`) successfully forces the internal router to bypass Google and stream directly from your local hardware!
@@ -53,13 +47,13 @@ To boot the Qwen model on your local inference server (`stark:8086` for example)
 ./llama-server -m models/Qwen3.5-35B-A3B-Q6_K.gguf --port 8086 --ctx-size 8192 --parallel 1
 ```
 
-Then in Tars, update your `~/.tars/.env` file:
+Then update your Tars configuration by running the interactive setup wizard:
 
-```env
-INFERENCE_BACKEND="llamacpp"
-LOCAL_INFERENCE_URL="http://stark:8086"
-GEMINI_MODEL="qwen-35b"
+```bash
+tars setup
 ```
+
+Select `LlamaCpp`, enter `http://stark:8086`, and provide the explicit model name (`qwen-35b`).
 
 ### Protocol Bridge
 
