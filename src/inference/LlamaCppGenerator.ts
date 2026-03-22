@@ -145,12 +145,22 @@ export class LlamaCppGenerator implements ContentGenerator {
                                                 arguments: tc.arguments
                                             }
                                         }));
+                                        console.log(
+                                            '🚧 COMPLETED TOOL CALLS BEFORE MAP:',
+                                            JSON.stringify(choice.delta.tool_calls, null, 2)
+                                        );
                                         pendingToolCalls.clear();
                                     }
                                 }
 
                                 const mapped = self.mapFromOpenAiStream(data);
-                                if (mapped) yield mapped;
+                                if (mapped) {
+                                    console.log(
+                                        '🚧 MAPPED OUTPUT TO CORE:',
+                                        JSON.stringify(mapped, null, 2)
+                                    );
+                                    yield mapped;
+                                }
                             } catch (e: any) {
                                 logger.debug(
                                     `Failed to parse/map SSE line: ${cleanLine} - ${e.message}`
@@ -316,7 +326,10 @@ export class LlamaCppGenerator implements ContentGenerator {
             }
         }
 
+        const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
+
         return {
+            functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
             candidates: [
                 {
                     content: {
@@ -373,7 +386,10 @@ export class LlamaCppGenerator implements ContentGenerator {
             return null; // Don't yield empty chunks unless it carries the finish_reason
         }
 
+        const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
+
         return {
+            functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
             candidates: [
                 {
                     content: {
