@@ -33,8 +33,11 @@ Add or update the following keys in your `~/.tars/.env` file:
 ```env
 INFERENCE_BACKEND="llamacpp"
 LOCAL_INFERENCE_URL="http://localhost:8080"
-GEMINI_MODEL="llama3" # The name of the local model to request
+GEMINI_MODEL="llama3" # Defines the model requested from your local server
 ```
+
+> [!WARNING]  
+> **Crucial Router Decoupling:** When using local inference, you **must not** leave `GEMINI_MODEL` set to `auto` (the default). If set to `auto`, the internal Gemini SDK will attempt to ping Google's servers to calculate prompt complexity routing (which will fail with a 400 error if you don't have a valid Google API key). Specifying any concrete model name (like `llama3` or `local`) successfully forces the internal router to bypass Google and stream directly from your local hardware!
 
 ### Protocol Bridge
 
