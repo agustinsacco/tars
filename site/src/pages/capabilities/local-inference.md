@@ -39,6 +39,28 @@ GEMINI_MODEL="llama3" # Defines the model requested from your local server
 > [!WARNING]  
 > **Crucial Router Decoupling:** When using local inference, you **must not** leave `GEMINI_MODEL` set to `auto` (the default). If set to `auto`, the internal Gemini SDK will attempt to ping Google's servers to calculate prompt complexity routing (which will fail with a 400 error if you don't have a valid Google API key). Specifying any concrete model name (like `llama3` or `local`) successfully forces the internal router to bypass Google and stream directly from your local hardware!
 
+### Recommended Model Setup: Qwen
+
+For optimal performance with Tars agentic tool-calling capabilities and complex routing, we highly recommend the **Qwen** series of models (specifically variants like `Qwen3.5-35B-A3B` / `30B MoE` or the highly efficient `Qwen3.5 9B Opus Instruct`).
+
+These models are heavily optimized for coding, instruction following, and natively output extremely reliable strict JSON parameter payloads when utilizing Tars tools.
+
+#### Example: Running Qwen via Llama.cpp
+
+To boot the Qwen model on your local inference server (`stark:8086` for example), you can download the `.gguf` bindings (such as `Qwen3.5-35B-A3B-Q6_K.gguf`) from HuggingFace and run `llama-server` like this:
+
+```bash
+./llama-server -m models/Qwen3.5-35B-A3B-Q6_K.gguf --port 8086 --ctx-size 8192 --parallel 1
+```
+
+Then in Tars, update your `~/.tars/.env` file:
+
+```env
+INFERENCE_BACKEND="llamacpp"
+LOCAL_INFERENCE_URL="http://stark:8086"
+GEMINI_MODEL="qwen-35b"
+```
+
 ### Protocol Bridge
 
 Tars uses a custom `LlamaCppGenerator` that acts as a bridge between the **Gemini CLI Core SDK** and your local provider. It handles the following translations automatically:
