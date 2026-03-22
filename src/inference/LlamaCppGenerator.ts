@@ -69,7 +69,8 @@ export class LlamaCppGenerator implements ContentGenerator {
 
         const openAiRequest = {
             ...this.mapToOpenAi(request),
-            stream: true
+            stream: true,
+            stream_options: { include_usage: true }
         };
 
         const self = this;
@@ -350,11 +351,12 @@ export class LlamaCppGenerator implements ContentGenerator {
     }
 
     private mapFromOpenAiStream(data: any): GenerateContentResponse | null {
-        const choice = data.choices && data.choices[0];
-        if (!choice) return null;
+        const choice = data.choices && data.choices.length > 0 ? data.choices[0] : null;
 
-        const delta = choice.delta || {};
+        // If no choice and no usage info, skip
+        if (!choice && !data.usage && !data.timings) return null;
 
+        const delta = choice?.delta || {};
         const parts: Part[] = [];
         if (delta.content) {
             parts.push({ text: delta.content });
@@ -382,25 +384,47 @@ export class LlamaCppGenerator implements ContentGenerator {
             }
         }
 
-        if (parts.length === 0 && !choice.finish_reason) {
-            return null; // Don't yield empty chunks unless it carries the finish_reason
+        if (
+            parts.length === 0 &&
+            (!choice || !choice.finish_reason) &&
+            !data.usage &&
+            !data.timings
+        ) {
+            return null; // Don't yield empty chunks unless it carries the finish_reason or telemetry
         }
 
         const functionCalls = parts.filter((p) => p.functionCall).map((p) => p.functionCall);
 
+        const promptTokens = data.usage?.prompt_tokens || data.timings?.prompt_n;
+        const completionTokens = data.usage?.completion_tokens || data.timings?.predicted_n;
+        const totalTokens =
+            promptTokens !== undefined && completionTokens !== undefined
+                ? promptTokens + completionTokens
+                : data.usage?.total_tokens;
+
         return {
             functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
-            candidates: [
-                {
-                    content: {
-                        role: 'model',
-                        parts
-                    },
-                    finishReason: this.mapFinishReason(
-                        choice.finish_reason || choice.finishReason
-                    ) as any
-                }
-            ]
+            candidates: choice
+                ? [
+                      {
+                          content: {
+                              role: 'model',
+                              parts
+                          },
+                          finishReason: this.mapFinishReason(
+                              choice.finish_reason || choice.finishReason
+                          ) as any
+                      }
+                  ]
+                : [],
+            usageMetadata:
+                promptTokens !== undefined || completionTokens !== undefined
+                    ? {
+                          promptTokenCount: promptTokens,
+                          candidatesTokenCount: completionTokens,
+                          totalTokenCount: totalTokens
+                      }
+                    : undefined
         } as GenerateContentResponse;
     }
 
