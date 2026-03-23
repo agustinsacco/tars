@@ -1,7 +1,8 @@
 ---
-layout: ../../layouts/MainLayout.astro
+layout: ../../layouts/DocLayout.astro
 title: Security & Sovereignty
 description: How Tars protects your data and ensures agent integrity.
+section: Capabilities
 ---
 
 # Security & Sovereignty
