@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.5](https://github.com/agustinsacco/tars/compare/v1.14.4...v1.14.5) (2026-03-22)
+
+
+### Bug Fixes
+
+* **core:** final bridge for local LlamaCpp router and tool-calling ([#62](https://github.com/agustinsacco/tars/issues/62)) ([ddb5c4f](https://github.com/agustinsacco/tars/commit/ddb5c4f453ce2bf379d698d0b09fee8c60cb764a))
+
 ## [1.14.4](https://github.com/agustinsacco/tars/compare/v1.14.3...v1.14.4) (2026-03-22)
 
 
