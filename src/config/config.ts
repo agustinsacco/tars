@@ -13,6 +13,14 @@ export interface ChannelConfig {
     ownerId?: string;
 }
 
+export interface SwarmConfig {
+    enabled: boolean;
+    port: number;
+    description: string;
+    skills: string[];
+    apiKey: string;
+}
+
 export class Config {
     private static instance: Config;
 
@@ -41,6 +49,9 @@ export class Config {
     // Inference Backend
     public readonly inferenceBackend: 'gemini' | 'llamacpp';
     public readonly localInferenceUrl: string;
+
+    // Swarm (A2A)
+    public readonly swarm: SwarmConfig;
 
     // Context & Compression
     public readonly contextWindowTokens: number;
@@ -98,6 +109,19 @@ export class Config {
             String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.5')
         );
 
+        // Swarm Config (A2A remote agent support)
+        const swarmJson = jsonConfig.swarm || {};
+        this.swarm = {
+            enabled:
+                (process.env.SWARM_ENABLED || swarmJson.enabled) === true ||
+                process.env.SWARM_ENABLED === 'true' ||
+                swarmJson.enabled === true,
+            port: parseInt(String(process.env.SWARM_PORT || swarmJson.port || '3100'), 10),
+            description: process.env.SWARM_DESCRIPTION || swarmJson.description || '',
+            skills: swarmJson.skills || [],
+            apiKey: ''
+        };
+
         // 4. Initialize Channels
         this.channels = jsonConfig.channels || {};
         this.primaryChannel = jsonConfig.primaryChannel || 'discord';
@@ -120,6 +144,14 @@ export class Config {
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
         this.systemPromptPath = path.join(this.homeDir, '.gemini', 'system.md');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
+
+        // Load swarm API key from secrets (after secrets are loaded into env)
+        if (this.swarm.enabled) {
+            this.swarm = {
+                ...this.swarm,
+                apiKey: process.env.SWARM_API_KEY || secrets.SWARM_API_KEY || ''
+            };
+        }
 
         if (!this.discordToken && !Object.values(this.channels).some((c) => c.enabled)) {
             logger.warn('⚠️ No active communication channels found. Please run `tars setup`.');

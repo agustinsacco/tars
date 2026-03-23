@@ -97,6 +97,16 @@ program
     });
 
 program
+    .command('swarm')
+    .description('Manage Swarm peers (remote A2A agents)')
+    .argument('<action>', 'Action to perform (status, add, remove, list)')
+    .argument('[args...]', 'Additional arguments')
+    .action(async (action, args) => {
+        const { swarm } = await import('./commands/swarm.js');
+        return swarm(action, ...args);
+    });
+
+program
     .command('uninstall')
     .description('Uninstall the assistant and remove all data')
     .action(uninstall);
