@@ -256,7 +256,7 @@ export async function setup() {
     if (isLocal) {
         console.log(chalk.dim('  Configure your local inference endpoint and context limits.'));
         console.log(
-            chalk.dim('  Use a model with tool-calling support (Hermes 3, Qwen 2.5, etc.).')
+            chalk.dim('  Use a model with tool-calling support (Qwen 3.5, Llama 3.1, etc.).')
         );
 
         config = await inquirer.prompt([
@@ -288,7 +288,7 @@ export async function setup() {
                     { name: '4K tokens  — Small models (TinyLlama)', value: 4096 },
                     { name: '8K tokens  — Standard (Llama 3 8B)', value: 8192 },
                     { name: '16K tokens — Extended (Mistral 7B)', value: 16384 },
-                    { name: '32K tokens — Large context (Qwen 2.5)', value: 32768 },
+                    { name: '32K tokens — Large context (Qwen 3.5)', value: 32768 },
                     {
                         name: '128K tokens — Very large context (Llama 3.1 70B)',
                         value: 131072

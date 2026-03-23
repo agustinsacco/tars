@@ -68,7 +68,7 @@ npm install -g @saccolabs/tars
 
 ### Initial Setup
 
-Run the setup wizard to authorize Gemini and connect your communication channels (Discord, WhatsApp, or both):
+Run the setup wizard to authorize Gemini and connect your Discord bot:
 
 ```bash
 tars setup
@@ -89,11 +89,9 @@ tars setup
 
 ### Interaction
 
-Tars communicates through a multi-channel architecture. You can interact via **Discord**, **WhatsApp**, or both simultaneously. It supports file uploads, long-running task management, and complex multi-step instructions.
+Tars communicates primarily through **Discord**. It supports file uploads, long-running task management, and complex multi-step instructions.
 
 > **Discord**: `!tars Analyze the logs in /var/log/syslog and summarize any critical errors.`
->
-> **WhatsApp**: Just send a message directly — no prefix needed.
 
 ---
 
@@ -102,7 +100,7 @@ Tars communicates through a multi-channel architecture. You can interact via **D
 Tars utilizes a Supervisor-Orchestrator model:
 
 1. **Supervisor**: Manages persistent sessions and multi-channel communication.
-2. **Channel Manager**: Orchestrates communication across Discord and WhatsApp with automatic notification routing.
+2. **Channel Manager**: Orchestrates communication with Discord.
 3. **Subagents**: Specialized expert agents invoked dynamically for specific technical domains.
 4. **Heartbeat**: Cron-based engine for autonomous execution and cleanup.
 5. **Extensions**: MCP servers that provide tool-level capabilities to the intelligence core.

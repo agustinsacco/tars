@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 
 /**
- * Orchestrates all communication channels (Discord, WhatsApp, etc.)
+ * Orchestrates all communication channels (Discord, etc.)
  */
 export class ChannelManager {
     private readonly channels: Map<string, CommunicationChannel> = new Map();
