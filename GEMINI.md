@@ -10,11 +10,11 @@ Tars is an autonomous AI assistant built with a **Supervisor-Orchestrator** mode
 
 - **Process Management**: Managed by **PM2**. The CLI (`tars start/stop`) acts as a wrapper around PM2.
 - **Brain vs. Home**:
-    - `~/.tars/`: Operational data (config, tasks, session metadata).
-    - `~/.gemini/`: The actual "Intelligence" (System Prompt, Skills, MCP Extensions, Session History).
+    - `~/.tars/`: The primary workspace for Tars.
+    - `~/.tars/.gemini/`: The actual "Intelligence" (System Prompt, Skills, MCP Extensions, Session History), isolated within the workspace.
 - **Core Logic**: `src/supervisor/` handles session management, token tracking, and the heartbeat loop.
-- **Communication**: Multi-channel architecture via `ChannelManager` (Discord via `discord.js`, WhatsApp via `@whiskeysockets/baileys`). See `src/channels/`.
-- **Data Layout**: `~/.tars` (operational data, config, tasks) vs `~/.gemini` (the AI brain, prompt, skills, extensions).
+- **Communication**: Primary channel via Discord (`discord.js`). See `src/channels/`.
+- **Data Layout**: `~/.tars` (operational data, config, tasks) vs `~/.tars/.gemini` (the AI brain, prompt, skills, extensions).
 - **Agency**: `HeartbeatService.ts` runs on an interval (default 300s) to execute scheduled tasks and perform "Autonomous Health Checks".
 
 ### 💻 Development Standards

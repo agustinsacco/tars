@@ -36,7 +36,6 @@ export class DiscordChannel implements CommunicationChannel {
 
     get isEnabled(): boolean {
         // For backward compatibility, if no explicit channels are configured but discordToken exists, it's enabled.
-        // Once WhatsApp is added, we'll use structured config.
         return !!this.config.discordToken;
     }
 

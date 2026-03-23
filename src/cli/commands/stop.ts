@@ -44,7 +44,7 @@ function forceKill() {
         // Find and kill any process running our supervisor, but NOT the CLI itself
         // Use pkill -f to match the script path
         execSync('pkill -9 -f "supervisor/main.js" || true');
-        console.log(chalk.green('✨ All supervisor instances terminated.'));
+        console.log(chalk.green('✨ Assistant supervisor terminated.'));
     } catch (e) {
         // Ignore errors if no processes were found
     }

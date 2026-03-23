@@ -16,7 +16,7 @@ export interface ChannelMessage {
 }
 
 /**
- * Interface for communication platforms (Discord, WhatsApp, etc.)
+ * Interface for communication platforms (Discord, etc.)
  */
 export interface CommunicationChannel {
     readonly id: string;
