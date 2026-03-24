@@ -22,7 +22,8 @@
         "test:watch": "vitest",
         "lint": "prettier --check .",
         "format": "prettier --write .",
-        "prepare": "husky"
+        "prepare": "husky",
+        "prepack": "npm run build"
     },
     "files": [
         "dist/",
