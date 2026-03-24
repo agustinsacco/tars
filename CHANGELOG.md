@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/agustinsacco/tars/compare/v1.14.5...v1.15.0) (2026-03-24)
+
+
+### Features
+
+* implement Data Loss Prevention (DLP) and security guardrails ([#66](https://github.com/agustinsacco/tars/issues/66)) ([b86aa84](https://github.com/agustinsacco/tars/commit/b86aa8402924aaf3eaea967a16c2e8691ea82c6c))
+
 ## [1.14.5](https://github.com/agustinsacco/tars/compare/v1.14.4...v1.14.5) (2026-03-22)
 
 
