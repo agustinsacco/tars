@@ -8,6 +8,7 @@ on:
             - 'site/**'
             - '.github/workflows/deploy-docs.yml'
             - 'docs/**'
+    workflow_dispatch:
 
 permissions:
     contents: write
