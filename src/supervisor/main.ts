@@ -269,7 +269,9 @@ function installExtensions(config: Config): void {
                 }
                 logger.info(`✅ Extension ${finalExtName} hydrated successfully.`);
             } catch (e: any) {
-                const out = e.stdout?.toString() || e.stderr?.toString() || e.message;
+                const stdout = e.stdout?.toString();
+                const stderr = e.stderr?.toString();
+                const out = stderr || stdout || e.message;
                 logger.error(`❌ Failed to hydrate extension ${finalExtName}: ${out}`);
             }
         }

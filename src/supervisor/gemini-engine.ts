@@ -210,7 +210,7 @@ export class GeminiEngine extends EventEmitter {
             const entries = fs.readdirSync(extensionsDir, { withFileTypes: true });
 
             for (const entry of entries) {
-                if (!entry.isDirectory()) continue;
+                if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
                 const extPath = path.resolve(extensionsDir, entry.name);
                 const configPath = path.join(extPath, 'gemini-extension.json');
 
