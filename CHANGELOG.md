@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.17.0](https://github.com/agustinsacco/tars/compare/v1.16.1...v1.17.0) (2026-03-25)
+
+
+### Features
+
+* implement Data Loss Prevention (DLP) and security guardrails ([#66](https://github.com/agustinsacco/tars/issues/66)) ([b86aa84](https://github.com/agustinsacco/tars/commit/b86aa8402924aaf3eaea967a16c2e8691ea82c6c))
+* Tars Swarm — A2A Remote Agent Support ([#65](https://github.com/agustinsacco/tars/issues/65)) ([63fda4c](https://github.com/agustinsacco/tars/commit/63fda4c06622309914dadc6d0dd902dde08315e3))
+
+
+### Bug Fixes
+
+* **core:** bridge Google genai structural prototype gap for functionCalls root mapping ([9fa4d25](https://github.com/agustinsacco/tars/commit/9fa4d25bc2c90d2ebfd18fc28f9e8f5013f9f373))
+* **core:** enable stream_options to capture and route native usage_metadata tokens for dashboard telemetry ([819d403](https://github.com/agustinsacco/tars/commit/819d403ca690db2c13389f073bd214b62450ba02))
+* **core:** final bridge for local LlamaCpp router and tool-calling ([#62](https://github.com/agustinsacco/tars/issues/62)) ([ddb5c4f](https://github.com/agustinsacco/tars/commit/ddb5c4f453ce2bf379d698d0b09fee8c60cb764a))
+* **core:** link restored session ID and prevent premature streaming aborts ([#58](https://github.com/agustinsacco/tars/issues/58)) ([f394911](https://github.com/agustinsacco/tars/commit/f3949118b3d0cddccd886e17033e2ae098ea7a7b))
+* **core:** link restored session ID with coreconfig and cleanly map null completion finish_reasons ([24177d2](https://github.com/agustinsacco/tars/commit/24177d22ff497c92d3c459321d5c6c9a897fcbdb))
+* **core:** make disableModelRouterForAuth strictly conditional to llamacpp mode to preserve early API key validation for native gemini mode ([2d15ca7](https://github.com/agustinsacco/tars/commit/2d15ca7a4da6a04d4d7a3e19bcf8f1b08ea9e953))
+* **llamacpp:** correctly map null finish_reasons in stream chunks to prevent early aborts ([85d1f6c](https://github.com/agustinsacco/tars/commit/85d1f6cb027a7612504e491482ed047687f42f59))
+* Local LlamaCpp Tool Execution, Routing & Session Tracking ([#60](https://github.com/agustinsacco/tars/issues/60)) ([eb3dee5](https://github.com/agustinsacco/tars/commit/eb3dee5a4b80a5e7b7e862d125e6a10170fbc344))
+* **supervisor:** support symlinked extensions and pre-build in distribution ([#69](https://github.com/agustinsacco/tars/issues/69)) ([d2e96b0](https://github.com/agustinsacco/tars/commit/d2e96b039b5102d2ea7ef92adf4449002fa69d52))
+
 ## [1.16.1](https://github.com/agustinsacco/tars/compare/v1.16.0...v1.16.1) (2026-03-25)
 
 
