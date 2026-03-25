@@ -555,7 +555,9 @@ export class GeminiEngine extends EventEmitter {
                             };
                         }
 
-                        const completedCall = completedCalls.find((c) => c.callId === callId);
+                        const completedCall = completedCalls.find(
+                            (c) => (c.request?.callId || c.callId) === callId
+                        );
                         if (!completedCall) return null;
 
                         const part = completedCall.response.responseParts.find(
@@ -731,20 +733,24 @@ export class GeminiEngine extends EventEmitter {
 
             case GeminiEventType.ToolCallResponse:
                 // resultDisplay can be string | FileDiff | AnsiOutput | TodoList
-                const display = event.value.resultDisplay;
+                // Support both ToolCallResponseInfo and CompletedToolCall payloads
+                const val = event.value as any;
+                const callInfo = val.response ? val.response : val;
+
+                const display = callInfo.resultDisplay;
                 let content = '';
 
                 if (typeof display === 'string') {
                     content = display;
                 } else if (display) {
                     content = JSON.stringify(display);
-                } else if (event.value.error) {
-                    content = event.value.error.message;
+                } else if (callInfo.error) {
+                    content = callInfo.error.message;
                 }
 
                 return {
                     type: 'tool_response',
-                    toolName: event.value.callId,
+                    toolName: val.request?.callId || callInfo.callId,
                     content: DLPService.scrub(content),
                     sessionId
                 };
