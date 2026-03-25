@@ -61,6 +61,7 @@ When building features or troubleshooting, follow this checklist:
 4.  **Session Integrity**: Review `~/.tars/data/session.json`. Tars uses **Session Swapping** in `GeminiEngine.ts` to isolate context between users/tasks.
 5.  **Memory Store**: Durable facts are stored in `~/.tars/data/memory/facts.json`.
 6.  **Dev Mode**: Use `npm run dev` to run the supervisor in the foreground with `tsx watch` for immediate feedback during development.
+7.  **Remote SSH Debugging**: If requested to debug a remote instance (e.g., `stark@stark`), use `sshpass -p <password> ssh` combined with `pm2 logs tars-supervisor --raw`. Note that the remote installation is a global NPM package, typically located at `/home/<user>/.local/share/fnm/node-versions/<version>/installation/lib/node_modules/@saccolabs/tars/`. To apply an emergency live patch, use `sed` over SSH or tell the user to run `npm install -g @saccolabs/tars@latest && pm2 restart tars-supervisor`.
 
 ### ⚠️ Critical Gotchas
 

@@ -105,4 +105,47 @@ describe('GeminiEngine', () => {
         const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
         expect(SimpleExtensionLoader).toHaveBeenCalledWith([]);
     });
+
+    describe('buildToolResponseParts', () => {
+        it('should correctly map tool responses using nested request.callId', () => {
+            const toolRequests = [{ callId: 'call-1', name: 'my_tool' }];
+
+            const completedCalls = [
+                {
+                    request: { callId: 'call-1' },
+                    response: {
+                        responseParts: [
+                            { functionResponse: { name: 'my_tool', response: { result: 'ok' } } }
+                        ]
+                    }
+                }
+            ];
+
+            const result = GeminiEngine.buildToolResponseParts(
+                toolRequests,
+                completedCalls,
+                new Map(),
+                new Set()
+            );
+
+            expect(result).toHaveLength(1);
+            expect(result[0].functionResponse.response.result).toBe('ok');
+        });
+
+        it('should generate synthetic responses for blocked tool calls', () => {
+            const toolRequests = [{ callId: 'call-2', name: 'blocked_tool' }];
+
+            const blockedResponses = new Map([['call-2', 'Access restricted by DLP']]);
+
+            const result = GeminiEngine.buildToolResponseParts(
+                toolRequests,
+                [],
+                blockedResponses,
+                new Set()
+            );
+
+            expect(result).toHaveLength(1);
+            expect(result[0].functionResponse.response.error).toBe('Access restricted by DLP');
+        });
+    });
 });
