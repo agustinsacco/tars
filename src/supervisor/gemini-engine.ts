@@ -450,6 +450,9 @@ export class GeminiEngine extends EventEmitter {
 
                 // Runtime Safety Filter: Prevent self-destructive commands and unauthorized path access
                 const filteredToolRequests: any[] = [];
+                const blockedResponses = new Map<string, string>();
+                const sensitiveCalls = new Set<string>();
+
                 for (const req of toolRequests) {
                     const toolName = req.name;
                     const args = req.args || {};
@@ -470,6 +473,10 @@ export class GeminiEngine extends EventEmitter {
                             content: `\n\n⚠️ **Safety Interruption**: I attempted to run a command that would stop my own supervisor process (${commandLine}). To prevent a loss of connection or state, I have blocked this action. If you really want me to stop, please run \`tars stop\` manually in your terminal.`,
                             sessionId: sid
                         });
+                        blockedResponses.set(
+                            req.callId,
+                            'Execution blocked: Self-destructive command detected.'
+                        );
                         continue;
                     }
 
@@ -482,61 +489,109 @@ export class GeminiEngine extends EventEmitter {
                             content: `\n\n⚠️ **Security Interruption**: I attempted to access a protected file or directory (${filePath}). Access to this path is restricted by the Tars Data Loss Prevention (DLP) policy.`,
                             sessionId: sid
                         });
+                        blockedResponses.set(
+                            req.callId,
+                            `Access to ${filePath} is restricted by DLP policy.`
+                        );
                         continue;
+                    }
+
+                    // 3. Mark sensitive paths for aggressive scrubbing
+                    if (
+                        (filePath && DLPService.isSensitivePath(filePath)) ||
+                        (commandLine && DLPService.isSensitivePath(commandLine))
+                    ) {
+                        sensitiveCalls.add(req.callId);
                     }
 
                     filteredToolRequests.push(req);
                 }
 
-                if (filteredToolRequests.length === 0 && toolRequests.length > 0) {
-                    // All tools were blocked by safety filter, break the loop
-                    break;
-                }
-
-                logger.debug(`🛠️ Executing ${filteredToolRequests.length} tool calls...`);
-
                 // Execute tools using Scheduler
-                const scheduler = new Scheduler({
-                    config: this.coreConfig,
-                    messageBus: this.coreConfig.getMessageBus(),
-                    getPreferredEditor: () => undefined,
-                    schedulerId: sid
-                });
+                let completedCalls: any[] = [];
+                if (filteredToolRequests.length > 0) {
+                    logger.debug(`🛠️ Executing ${filteredToolRequests.length} tool calls...`);
+                    const scheduler = new Scheduler({
+                        config: this.coreConfig,
+                        messageBus: this.coreConfig.getMessageBus(),
+                        getPreferredEditor: () => undefined,
+                        schedulerId: sid
+                    });
 
-                const completedCalls = await scheduler.schedule(
-                    filteredToolRequests,
-                    abortController.signal
-                );
-
-                // Emit tool responses so the Supervisor can log them
-                for (const call of completedCalls) {
-                    const normalized = this.normalizeEvent(
-                        {
-                            type: GeminiEventType.ToolCallResponse,
-                            value: call
-                        } as any,
-                        sid
+                    completedCalls = await scheduler.schedule(
+                        filteredToolRequests,
+                        abortController.signal
                     );
-                    if (normalized) await onEvent(normalized);
+
+                    // Emit tool responses so the Supervisor can log them
+                    for (const call of completedCalls) {
+                        const normalized = this.normalizeEvent(
+                            {
+                                type: GeminiEventType.ToolCallResponse,
+                                value: call
+                            } as any,
+                            sid
+                        );
+                        if (normalized) await onEvent(normalized);
+                    }
+
+                    // Record results in chat recording service for persistence/memory
+                    const model = this.tarsConfig.geminiModel;
+                    this.client.getChat().recordCompletedToolCalls(model, completedCalls);
                 }
 
-                // Record results in chat recording service for persistence/memory
-                const model = this.tarsConfig.geminiModel;
-                this.client.getChat().recordCompletedToolCalls(model, completedCalls);
+                // Prepare next request with tool results (Scrubbed via DLP and mapped back to 1:1)
+                currentRequestParts = toolRequests
+                    .map((req) => {
+                        const callId = req.callId;
 
-                // Prepare next request with tool results (Scrubbed via DLP)
-                currentRequestParts = completedCalls
-                    .map((call) => {
-                        // Extract the functionResponse part
-                        const part = call.response.responseParts.find(
-                            (p) => 'functionResponse' in (p as any)
+                        if (blockedResponses.has(callId)) {
+                            // Synthetic error response
+                            return {
+                                functionResponse: {
+                                    name: req.name,
+                                    response: { error: blockedResponses.get(callId) }
+                                }
+                            };
+                        }
+
+                        const completedCall = completedCalls.find((c) => c.callId === callId);
+                        if (!completedCall) return null;
+
+                        const part = completedCall.response.responseParts.find(
+                            (p: any) => 'functionResponse' in p
                         ) as any;
 
                         if (part?.functionResponse?.response) {
-                            // Deep scrub the tool response data
-                            part.functionResponse.response = DLPService.scrubDeep(
+                            let scrubbedResponse = DLPService.scrubDeep(
                                 part.functionResponse.response
                             );
+
+                            // Aggressive scrubbing for sensitive paths
+                            if (
+                                sensitiveCalls.has(callId) &&
+                                typeof scrubbedResponse === 'object' &&
+                                scrubbedResponse !== null
+                            ) {
+                                if (
+                                    scrubbedResponse.content &&
+                                    typeof scrubbedResponse.content === 'string'
+                                ) {
+                                    scrubbedResponse.content = DLPService.scrubEnvContent(
+                                        scrubbedResponse.content
+                                    );
+                                }
+                                if (
+                                    scrubbedResponse.stdout &&
+                                    typeof scrubbedResponse.stdout === 'string'
+                                ) {
+                                    scrubbedResponse.stdout = DLPService.scrubEnvContent(
+                                        scrubbedResponse.stdout
+                                    );
+                                }
+                            }
+
+                            part.functionResponse.response = scrubbedResponse;
                         }
 
                         return part;

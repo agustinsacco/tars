@@ -26,14 +26,25 @@ Tars automatically scans all tool outputs (e.g., from reading files or running s
 
 If a secret is detected, it is replaced with a placeholder (e.g., `[REDACTED_SECRET_sk-...]`), ensuring that **even if the agent reads a secret file, it never enters the model's context or conversation history.**
 
-### Path Restriction
+### Path Restrictions & Sensitive Data
 
-Tars maintains a strict blacklist of files and directories that the agent is forbidden from accessing, such as:
+Tars maintains a dual-tier approach to filesystem access to protect your secrets while retaining operational context:
 
-- `~/.ssh/`
+**1. Blocked Paths (Zero Access)**
+Tars is strictly forbidden from accessing highly critical files. Any attempt to read or modify them will be blocked immediately, and a security warning will be emitted.
+
+- `~/.ssh/` directories
+- RSA / ED25519 private keys
+- Shell histories (`.bash_history`, `.zsh_history`)
+
+**2. Sensitive Paths (Aggressive Scrubbing)**
+For configuration files that Tars requires for its daily operations, access is permitted, but the output undergoes an **aggressive scrubbing protocol** before reaching the model:
+
 - `.env` files
-- Shell histories (`.bash_history`)
-- Internal Tars configuration files
+- `config.json` (Internal Tars configuration)
+- `secrets.*`
+
+When Tars reads a `.env` file, the DLP Service extracts and redacts the values while preserving the key names (e.g., `OPENAI_API_KEY=[REDACTED]`). This allows Tars to check _if_ a service is configured without ever seeing the actual credentials.
 
 ## 2. Rollback Protection (SIP-001)
 
