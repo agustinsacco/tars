@@ -27,13 +27,12 @@ Tars is an autonomous AI assistant built with a **Supervisor-Orchestrator** mode
 
 ### 📦 Versioning & Release
 
-To update and release a new version of the `@saccolabs/tars` package:
+Tars uses **Release Please** for automated versioning and publishing. **Never manually update the version in `package.json`.**
 
-1.  **Update Version**: Update the version number in `package.json` (e.g., `1.0.10`).
-2.  **Commit**: Commit the change using conventional commits (e.g., `chore: bump version to 1.0.10`).
-3.  **Tag**: Create a git tag matching the version (e.g., `git tag v1.0.10`).
-4.  **Push**: Push the commit and the tag to origin (`git push && git push origin v1.0.10`).
-5.  **CI/CD**: The `.github/workflows/publish.yml` workflow will automatically build and publish the package to NPM when a tag starting with `v` is pushed.
+1.  **Merge Features**: Merge your feature/fix PRs into `main` using conventional commits.
+2.  **Release PR**: `release-please` will automatically create/update a "Release" PR on `main` that aggregates all changes.
+3.  **Approve Release**: When ready to publish, merge the **Release PR**.
+4.  **Automatic Publish**: The `.github/workflows/release-please.yml` workflow will automatically tag the release and publish `@saccolabs/tars` to NPM.
 
 ### 📚 Documentation
 
@@ -68,4 +67,4 @@ When building features or troubleshooting, follow this checklist:
 - **Session Swapping**: `GeminiEngine.ts` hot-swaps sessions. If you change a session mid-run, you must call `startChat` to re-initialize the core client with the correct history.
 - **Node Warnings**: Experimental SQLite warnings are silenced globally via `NODE_NO_WARNINGS=1` in `tars start`.
 - **MCP Enablement**: New extensions must be added to `~/.gemini/extensions/extension-enablement.json`. The `installExtensions` function in `main.ts` handles this automatically for repository-managed extensions.
-- **Publish Safety**: **CRITICAL**: Before pushing a new tag (e.g., `v1.0.47`), you MUST verify that the `version` field in `package.json` matches the tag exactly. NPM will reject the publish with a `403 Forbidden` error if the version in `package.json` has already been published. ALWAYS bump `package.json` first, commit it, and then tag.
+- **Publish Safety**: The automated release process handles versioning. If you need to force a release, ensure all pending PRs are merged so `release-please` can aggregate them into a single version bump. NPM will reject duplicate versions, but the automated PR prevents this by always incrementing from the latest valid tag.

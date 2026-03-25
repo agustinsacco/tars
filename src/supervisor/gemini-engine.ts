@@ -25,6 +25,7 @@ import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
 import { LlamaCppGenerator } from '../inference/LlamaCppGenerator.js';
+import { DLPService } from '../utils/dlp-service.js';
 
 export interface GeminiEngineEvent {
     type: string;
@@ -447,12 +448,15 @@ export class GeminiEngine extends EventEmitter {
                     break;
                 }
 
-                // Runtime Safety Filter: Prevent self-destructive commands
+                // Runtime Safety Filter: Prevent self-destructive commands and unauthorized path access
                 const filteredToolRequests: any[] = [];
                 for (const req of toolRequests) {
                     const toolName = req.name;
-                    const commandLine = req.args?.CommandLine || req.args?.command || '';
+                    const args = req.args || {};
+                    const commandLine = args.CommandLine || args.command || '';
+                    const filePath = args.file_path || args.path || args.dir_path || '';
 
+                    // 1. Block self-destructive commands
                     if (
                         (toolName.includes('run_command') ||
                             toolName.includes('run_shell_command')) &&
@@ -468,6 +472,19 @@ export class GeminiEngine extends EventEmitter {
                         });
                         continue;
                     }
+
+                    // 2. Block blacklisted path access
+                    if (filePath && DLPService.isPathBlacklisted(filePath)) {
+                        logger.warn(`🛑 INTERCEPTED unauthorized path access: ${filePath}`);
+                        await onEvent({
+                            type: 'text',
+                            role: 'assistant',
+                            content: `\n\n⚠️ **Security Interruption**: I attempted to access a protected file or directory (${filePath}). Access to this path is restricted by the Tars Data Loss Prevention (DLP) policy.`,
+                            sessionId: sid
+                        });
+                        continue;
+                    }
+
                     filteredToolRequests.push(req);
                 }
 
@@ -507,13 +524,22 @@ export class GeminiEngine extends EventEmitter {
                 const model = this.tarsConfig.geminiModel;
                 this.client.getChat().recordCompletedToolCalls(model, completedCalls);
 
-                // Prepare next request with tool results
+                // Prepare next request with tool results (Scrubbed via DLP)
                 currentRequestParts = completedCalls
                     .map((call) => {
                         // Extract the functionResponse part
-                        return call.response.responseParts.find(
+                        const part = call.response.responseParts.find(
                             (p) => 'functionResponse' in (p as any)
                         ) as any;
+
+                        if (part?.functionResponse?.response) {
+                            // Deep scrub the tool response data
+                            part.functionResponse.response = DLPService.scrubDeep(
+                                part.functionResponse.response
+                            );
+                        }
+
+                        return part;
                     })
                     .filter(Boolean);
 
@@ -635,7 +661,7 @@ export class GeminiEngine extends EventEmitter {
 
                 return {
                     type: 'thought',
-                    content: thoughtText,
+                    content: DLPService.scrub(thoughtText),
                     sessionId
                 };
 
@@ -643,7 +669,7 @@ export class GeminiEngine extends EventEmitter {
                 return {
                     type: 'tool_call',
                     toolName: event.value.name,
-                    toolArgs: event.value.args,
+                    toolArgs: DLPService.scrubDeep(event.value.args),
                     callId: event.value.callId,
                     sessionId
                 };
@@ -664,7 +690,7 @@ export class GeminiEngine extends EventEmitter {
                 return {
                     type: 'tool_response',
                     toolName: event.value.callId,
-                    content,
+                    content: DLPService.scrub(content),
                     sessionId
                 };
 
