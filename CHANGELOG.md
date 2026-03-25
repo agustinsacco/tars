@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.1](https://github.com/agustinsacco/tars/compare/v1.17.0...v1.17.1) (2026-03-25)
+
+
+### Bug Fixes
+
+* **dlp:** resolve blank tool response crash and soften config access ([#72](https://github.com/agustinsacco/tars/issues/72)) ([833fdfe](https://github.com/agustinsacco/tars/commit/833fdfed04e4134687c0ada1147d27eb44372a03))
+
 ## [1.17.0](https://github.com/agustinsacco/tars/compare/v1.16.1...v1.17.0) (2026-03-25)
 
 
