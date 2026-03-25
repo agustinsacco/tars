@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/agustinsacco/tars/compare/v1.16.0...v1.16.1) (2026-03-25)
+
+
+### Bug Fixes
+
+* **supervisor:** support symlinked extensions and pre-build in distribution ([#69](https://github.com/agustinsacco/tars/issues/69)) ([d2e96b0](https://github.com/agustinsacco/tars/commit/d2e96b039b5102d2ea7ef92adf4449002fa69d52))
+
 ## [1.16.0](https://github.com/agustinsacco/tars/compare/v1.15.0...v1.16.0) (2026-03-24)
 
 
