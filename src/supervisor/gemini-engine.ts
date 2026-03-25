@@ -541,64 +541,12 @@ export class GeminiEngine extends EventEmitter {
                 }
 
                 // Prepare next request with tool results (Scrubbed via DLP and mapped back to 1:1)
-                currentRequestParts = toolRequests
-                    .map((req) => {
-                        const callId = req.callId;
-
-                        if (blockedResponses.has(callId)) {
-                            // Synthetic error response
-                            return {
-                                functionResponse: {
-                                    name: req.name,
-                                    response: { error: blockedResponses.get(callId) }
-                                }
-                            };
-                        }
-
-                        const completedCall = completedCalls.find(
-                            (c) => (c.request?.callId || c.callId) === callId
-                        );
-                        if (!completedCall) return null;
-
-                        const part = completedCall.response.responseParts.find(
-                            (p: any) => 'functionResponse' in p
-                        ) as any;
-
-                        if (part?.functionResponse?.response) {
-                            let scrubbedResponse = DLPService.scrubDeep(
-                                part.functionResponse.response
-                            );
-
-                            // Aggressive scrubbing for sensitive paths
-                            if (
-                                sensitiveCalls.has(callId) &&
-                                typeof scrubbedResponse === 'object' &&
-                                scrubbedResponse !== null
-                            ) {
-                                if (
-                                    scrubbedResponse.content &&
-                                    typeof scrubbedResponse.content === 'string'
-                                ) {
-                                    scrubbedResponse.content = DLPService.scrubEnvContent(
-                                        scrubbedResponse.content
-                                    );
-                                }
-                                if (
-                                    scrubbedResponse.stdout &&
-                                    typeof scrubbedResponse.stdout === 'string'
-                                ) {
-                                    scrubbedResponse.stdout = DLPService.scrubEnvContent(
-                                        scrubbedResponse.stdout
-                                    );
-                                }
-                            }
-
-                            part.functionResponse.response = scrubbedResponse;
-                        }
-
-                        return part;
-                    })
-                    .filter(Boolean);
+                currentRequestParts = GeminiEngine.buildToolResponseParts(
+                    toolRequests,
+                    completedCalls,
+                    blockedResponses,
+                    sensitiveCalls
+                );
 
                 if (currentRequestParts.length === 0) {
                     logger.warn('⚠️ No tool responses generated after execution.');
@@ -663,6 +611,71 @@ export class GeminiEngine extends EventEmitter {
             sessionId
         );
         return fullContent;
+    }
+
+    /**
+     * Rebuilds the response array for Gemini ensuring 1:1 parity with function calls.
+     */
+    public static buildToolResponseParts(
+        toolRequests: any[],
+        completedCalls: any[],
+        blockedResponses: Map<string, string>,
+        sensitiveCalls: Set<string>
+    ): any[] {
+        return toolRequests
+            .map((req) => {
+                const callId = req.callId;
+
+                if (blockedResponses.has(callId)) {
+                    return {
+                        functionResponse: {
+                            name: req.name,
+                            response: { error: blockedResponses.get(callId) }
+                        }
+                    };
+                }
+
+                const completedCall = completedCalls.find(
+                    (c) => (c.request?.callId || c.callId) === callId
+                );
+                if (!completedCall) return null;
+
+                const part = completedCall.response?.responseParts?.find(
+                    (p: any) => 'functionResponse' in p
+                ) as any;
+
+                if (part?.functionResponse?.response) {
+                    let scrubbedResponse = DLPService.scrubDeep(part.functionResponse.response);
+
+                    if (
+                        sensitiveCalls.has(callId) &&
+                        typeof scrubbedResponse === 'object' &&
+                        scrubbedResponse !== null
+                    ) {
+                        if (
+                            scrubbedResponse.content &&
+                            typeof scrubbedResponse.content === 'string'
+                        ) {
+                            scrubbedResponse.content = DLPService.scrubEnvContent(
+                                scrubbedResponse.content
+                            );
+                        }
+                        if (
+                            scrubbedResponse.stdout &&
+                            typeof scrubbedResponse.stdout === 'string'
+                        ) {
+                            scrubbedResponse.stdout = DLPService.scrubEnvContent(
+                                scrubbedResponse.stdout
+                            );
+                        }
+                    }
+
+                    part.functionResponse.response = scrubbedResponse;
+                }
+
+                return part;
+            })
+            .filter(Boolean);
     }
 
     /**
