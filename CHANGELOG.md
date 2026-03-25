@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.2](https://github.com/agustinsacco/tars/compare/v1.17.1...v1.17.2) (2026-03-25)
+
+
+### Bug Fixes
+
+* **dlp:** resolve blank tool response from completed calls by querying request.callId ([019b615](https://github.com/agustinsacco/tars/commit/019b6156e0131985a059d3b22bcab8d7a358e01a))
+
 ## [1.17.1](https://github.com/agustinsacco/tars/compare/v1.17.0...v1.17.1) (2026-03-25)
 
 
