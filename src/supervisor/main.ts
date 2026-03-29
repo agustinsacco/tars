@@ -492,7 +492,8 @@ async function main() {
                         if (event.type === 'text' && event.content && event.role !== 'user') {
                             responseBuffer += event.content;
                         } else if (event.type === 'tool_call') {
-                            await flush();
+                            // Local models emit reasoning before a tool call. By clearing the buffer, we suppress it.
+                            responseBuffer = '';
                         } else if (event.type === 'error') {
                             await flush();
                             await message.reply(`❌ **Error:** ${event.error}`);
