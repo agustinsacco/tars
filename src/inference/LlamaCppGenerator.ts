@@ -76,6 +76,7 @@ export class LlamaCppGenerator implements ContentGenerator {
         const self = this;
         async function* streamGenerator() {
             const pendingToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+            const streamState = { isThinking: false };
 
             try {
                 const response = await fetch(self.resolveEndpoint(), {
@@ -154,7 +155,7 @@ export class LlamaCppGenerator implements ContentGenerator {
                                     }
                                 }
 
-                                const mapped = self.mapFromOpenAiStream(data);
+                                const mapped = self.mapFromOpenAiStream(data, streamState);
                                 if (mapped) {
                                     console.log(
                                         '🚧 MAPPED OUTPUT TO CORE:',
@@ -187,7 +188,7 @@ export class LlamaCppGenerator implements ContentGenerator {
                             }
                         ]
                     };
-                    const mapped = self.mapFromOpenAiStream(finalData);
+                    const mapped = self.mapFromOpenAiStream(finalData, streamState);
                     if (mapped) yield mapped;
                     pendingToolCalls.clear();
                 }
@@ -350,7 +351,10 @@ export class LlamaCppGenerator implements ContentGenerator {
         } as GenerateContentResponse;
     }
 
-    private mapFromOpenAiStream(data: any): GenerateContentResponse | null {
+    private mapFromOpenAiStream(
+        data: any,
+        state: { isThinking: boolean }
+    ): GenerateContentResponse | null {
         const choice = data.choices && data.choices.length > 0 ? data.choices[0] : null;
 
         // If no choice and no usage info, skip
@@ -359,7 +363,36 @@ export class LlamaCppGenerator implements ContentGenerator {
         const delta = choice?.delta || {};
         const parts: Part[] = [];
         if (delta.content) {
-            parts.push({ text: delta.content });
+            let textSnippet = delta.content;
+
+            if (state.isThinking) {
+                const endTagIndex = textSnippet.indexOf('</think>');
+                if (endTagIndex !== -1) {
+                    state.isThinking = false;
+                    textSnippet = textSnippet.substring(endTagIndex + 8);
+                } else {
+                    textSnippet = '';
+                }
+            } else {
+                const startTagIndex = textSnippet.indexOf('<think>');
+                if (startTagIndex !== -1) {
+                    state.isThinking = true;
+                    // Check if it ends in the same snippet
+                    const endTagIndex = textSnippet.indexOf('</think>');
+                    if (endTagIndex !== -1) {
+                        state.isThinking = false;
+                        textSnippet =
+                            textSnippet.substring(0, startTagIndex) +
+                            textSnippet.substring(endTagIndex + 8);
+                    } else {
+                        textSnippet = textSnippet.substring(0, startTagIndex);
+                    }
+                }
+            }
+
+            if (textSnippet) {
+                parts.push({ text: textSnippet });
+            }
         }
 
         if (delta.tool_calls) {
@@ -375,10 +408,19 @@ export class LlamaCppGenerator implements ContentGenerator {
                                 args: parsedArgs
                             }
                         } as any);
-                    } catch (err) {
+                    } catch (err: any) {
                         logger.warn(
                             `Invalid tool call JSON arguments format: ${tc.function.arguments}`
                         );
+                        parts.push({
+                            functionCall: {
+                                name: tc.function.name || 'unknown_tool',
+                                args: {
+                                    _error: 'Invalid JSON format generated',
+                                    raw: tc.function.arguments
+                                }
+                            }
+                        } as any);
                     }
                 }
             }

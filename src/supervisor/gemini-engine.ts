@@ -160,6 +160,12 @@ export class GeminiEngine extends EventEmitter {
                 const localGenerator = new LlamaCppGenerator(this.tarsConfig.localInferenceUrl);
                 // Override the content generator at runtime to bypass the SDK's internal Gemini calls
                 (this.coreConfig as any).contentGenerator = localGenerator;
+
+                // Disable Loop Detection external calls that crash without a valid GEMINI_API_KEY
+                const loopService = (this.coreConfig as any).loopDetectionService;
+                if (loopService) {
+                    loopService.queryLoopDetectionModel = async () => null;
+                }
             }
 
             // Register system prompt template for tars-request
