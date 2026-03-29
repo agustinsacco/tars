@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.1](https://github.com/agustinsacco/tars/compare/v1.18.0...v1.18.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* **llamacpp:** agent tool calling resilience and loop detection bypass ([#76](https://github.com/agustinsacco/tars/issues/76)) ([f30030c](https://github.com/agustinsacco/tars/commit/f30030cd68394f68c251fbed275d3b7f6fd0c692))
+
 ## [1.18.0](https://github.com/agustinsacco/tars/compare/v1.17.2...v1.18.0) (2026-03-25)
 
 
