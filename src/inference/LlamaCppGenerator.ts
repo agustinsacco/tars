@@ -234,10 +234,30 @@ export class LlamaCppGenerator implements ContentGenerator {
 
             // Map parts to content
             let messageContent: any;
-            const textParts = content.parts?.filter((p) => p.text).map((p) => p.text);
 
-            if (textParts && textParts.length > 0) {
-                messageContent = textParts.join('\n');
+            const hasImages = content.parts?.some((p) => p.inlineData);
+
+            if (hasImages) {
+                messageContent = content.parts
+                    ?.map((p) => {
+                        if (p.text) {
+                            return { type: 'text', text: p.text };
+                        }
+                        if (p.inlineData) {
+                            return {
+                                type: 'image_url',
+                                image_url: {
+                                    url: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`
+                                }
+                            };
+                        }
+                    })
+                    .filter(Boolean);
+            } else {
+                const textParts = content.parts?.filter((p) => p.text).map((p) => p.text);
+                if (textParts && textParts.length > 0) {
+                    messageContent = textParts.join('\n');
+                }
             }
 
             // Handle tool calls/responses
