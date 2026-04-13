@@ -113,6 +113,36 @@ export class DiscordChannel implements CommunicationChannel {
         });
 
         this.client.on('messageCreate', this.handleIncomingMessage.bind(this));
+
+        // --- DM Rescue Fallback ---
+        // discord.js v14 silently drops DMs if the user/channel has no prior cache history
+        // on the current instance runtime. We intercept raw packets to rescue them.
+        this.client.on('raw', async (packet) => {
+            if (packet.t !== 'MESSAGE_CREATE') return;
+            
+            const data = packet.d;
+            
+            // Only rescue DMs (they lack a guild_id) from real users
+            if (data.guild_id || data.author?.bot) return;
+
+            // If the channel IS cached, discord.js will successfully emit the standard 
+            // 'messageCreate' event. We step entirely out of the way.
+            const isCached = this.client.channels.cache.has(data.channel_id);
+            if (isCached) return;
+
+            // Channel is uncached. discord.js will drop this. Rescue it manually.
+            try {
+                logger.debug(`[DM Rescue] Intercepted dropped payload from ${data.author.username}. Hydrating...`);
+                const channel = await this.client.channels.fetch(data.channel_id);
+                if (channel && channel.isTextBased()) {
+                    const message = await channel.messages.fetch(data.id);
+                    logger.info(`[DM Rescue] Successfully hydrated message. Forwarding to bot logic.`);
+                    await this.handleIncomingMessage(message);
+                }
+            } catch (err: any) {
+                logger.error(`❌ [DM Rescue] Failed to hydrate dropped message: ${err.message}`);
+            }
+        });
     }
 
     /**
