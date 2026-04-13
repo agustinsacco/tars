@@ -120,6 +120,8 @@ export class DiscordChannel implements CommunicationChannel {
      */
     private async handleIncomingMessage(message: Message): Promise<void> {
         try {
+            logger.debug(`📥 Received Discord message: "${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}" from ${message.author?.tag || 'Unknown'} (Guild: ${message.guildId || 'DM'})`);
+
             // Guard against partial messages with missing author data
             if (!message.author || message.author.bot || !this.messageHandler) return;
 
