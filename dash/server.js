@@ -408,6 +408,7 @@ app.prepare().then(() => {
     );
 
     dataWatcher.on('all', (event, filePath) => {
+        if (!fs.existsSync(filePath)) return;
         if (fs.statSync(filePath).isDirectory()) return;
 
         const fileName = path.basename(filePath);

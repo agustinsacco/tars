@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.2](https://github.com/agustinsacco/tars/compare/v1.18.1...v1.18.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* **dash:** prevent crash loop on file deletion in watcher ([#78](https://github.com/agustinsacco/tars/issues/78)) ([7eb83f9](https://github.com/agustinsacco/tars/commit/7eb83f98c39162f866b00005e5fb8f95c25f3501))
+
 ## [1.18.1](https://github.com/agustinsacco/tars/compare/v1.18.0...v1.18.1) (2026-03-29)
 
 
