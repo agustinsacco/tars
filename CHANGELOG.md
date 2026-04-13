@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/agustinsacco/tars/compare/v1.19.5...v1.20.0) (2026-04-13)
+
+
+### Features
+
+* **discord:** Add raw event fallback rescue mechanism for uncached DMs ([#93](https://github.com/agustinsacco/tars/issues/93)) ([4dac2b0](https://github.com/agustinsacco/tars/commit/4dac2b0572cfd3d19210eee7341186d22aa59b68))
+
 ## [1.19.5](https://github.com/agustinsacco/tars/compare/v1.19.4...v1.19.5) (2026-04-13)
 
 
