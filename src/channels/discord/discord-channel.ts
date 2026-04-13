@@ -219,7 +219,9 @@ export class DiscordChannel implements CommunicationChannel {
      * Extract prompt and handle prefix
      */
     private extractPrompt(message: Message): string | null {
-        const isDM = message.channel.type === ChannelType.DM;
+        // Safer check for DMs: uncached partial channels might not have a .type hydrated,
+        // but guildId is directly attached to the message payload.
+        const isDM = !message.guildId;
         const isMentioned = this.client.user && message.mentions.has(this.client.user);
 
         const customPrefix = `!${this.config.assistantName.toLowerCase()}`;
