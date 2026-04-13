@@ -35,6 +35,7 @@ export class TarsOAuthService {
                 sessionId: 'setup-session',
                 model: 'auto',
                 debugMode: false,
+                interactive: true,
                 noBrowser: true // Native manual flow (Option 2)
             });
 
