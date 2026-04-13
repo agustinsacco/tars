@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.2](https://github.com/agustinsacco/tars/compare/v1.19.1...v1.19.2) (2026-04-13)
+
+
+### Bug Fixes
+
+* include Partials.User to prevent discord.js from silently dropping DMs from uncached users ([#84](https://github.com/agustinsacco/tars/issues/84)) ([3eb0a96](https://github.com/agustinsacco/tars/commit/3eb0a96f521807af1bf856dbb61fa72992d3ee26))
+
 ## [1.19.1](https://github.com/agustinsacco/tars/compare/v1.19.0...v1.19.1) (2026-04-13)
 
 
