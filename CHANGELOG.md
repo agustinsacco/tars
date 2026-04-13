@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.4](https://github.com/agustinsacco/tars/compare/v1.19.3...v1.19.4) (2026-04-13)
+
+
+### Bug Fixes
+
+* **discord:** completely revert all discord routing changes back to 1.18.2 stable base ([#88](https://github.com/agustinsacco/tars/issues/88)) ([5338038](https://github.com/agustinsacco/tars/commit/53380385bea6683c60b1295e2e548f19365cd2bd))
+
 ## [1.19.3](https://github.com/agustinsacco/tars/compare/v1.19.2...v1.19.3) (2026-04-13)
 
 
