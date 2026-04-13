@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.5](https://github.com/agustinsacco/tars/compare/v1.19.4...v1.19.5) (2026-04-13)
+
+
+### Bug Fixes
+
+* definitive Discord DM routing fix v2 ([#91](https://github.com/agustinsacco/tars/issues/91)) ([39b5199](https://github.com/agustinsacco/tars/commit/39b5199523a8f9a52bf54f3da96f8f8c18c15716))
+
 ## [1.19.4](https://github.com/agustinsacco/tars/compare/v1.19.3...v1.19.4) (2026-04-13)
 
 
