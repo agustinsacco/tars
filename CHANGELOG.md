@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.3](https://github.com/agustinsacco/tars/compare/v1.19.2...v1.19.3) (2026-04-13)
+
+
+### Bug Fixes
+
+* revert Partials.User and add defensive error handling to Discord message handler ([#86](https://github.com/agustinsacco/tars/issues/86)) ([4461da0](https://github.com/agustinsacco/tars/commit/4461da043a0bc890f57bc6509e67dedf424918f2))
+
 ## [1.19.2](https://github.com/agustinsacco/tars/compare/v1.19.1...v1.19.2) (2026-04-13)
 
 
