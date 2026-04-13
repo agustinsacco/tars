@@ -28,7 +28,7 @@ export class DiscordChannel implements CommunicationChannel {
                 GatewayIntentBits.MessageContent,
                 GatewayIntentBits.DirectMessages
             ],
-            partials: [Partials.Channel, Partials.Message]
+            partials: [Partials.Channel, Partials.Message, Partials.User]
         });
 
         this.setupEventHandlers();
