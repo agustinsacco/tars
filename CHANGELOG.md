@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/agustinsacco/tars/compare/v1.20.0...v1.20.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* **discord:** empty commit to force patch release after formatting fix ([#96](https://github.com/agustinsacco/tars/issues/96)) ([c26d780](https://github.com/agustinsacco/tars/commit/c26d7808ea2f22325c2c2f79c4bdec7a80af587e))
+
 ## [1.20.0](https://github.com/agustinsacco/tars/compare/v1.19.5...v1.20.0) (2026-04-13)
 
 
