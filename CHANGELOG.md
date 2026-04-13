@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.1](https://github.com/agustinsacco/tars/compare/v1.19.0...v1.19.1) (2026-04-13)
+
+
+### Bug Fixes
+
+* resolve Discord DM routing bugs and hydration failures ([#82](https://github.com/agustinsacco/tars/issues/82)) ([83ffe97](https://github.com/agustinsacco/tars/commit/83ffe9750353fd083e22f2c8b89f1ad35d734194))
+
 ## [1.19.0](https://github.com/agustinsacco/tars/compare/v1.18.2...v1.19.0) (2026-04-13)
 
 
