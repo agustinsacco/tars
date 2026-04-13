@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/agustinsacco/tars/compare/v1.18.2...v1.19.0) (2026-04-13)
+
+
+### Features
+
+* add local inference image support ([#79](https://github.com/agustinsacco/tars/issues/79)) ([59da29c](https://github.com/agustinsacco/tars/commit/59da29c383b182915414752f498353790f02fb00))
+
 ## [1.18.2](https://github.com/agustinsacco/tars/compare/v1.18.1...v1.18.2) (2026-04-13)
 
 
