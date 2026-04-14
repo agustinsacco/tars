@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.2](https://github.com/agustinsacco/tars/compare/v1.20.1...v1.20.2) (2026-04-14)
+
+
+### Bug Fixes
+
+* ensure setup re-authentication clears cached credentials ([#98](https://github.com/agustinsacco/tars/issues/98)) ([b79bb41](https://github.com/agustinsacco/tars/commit/b79bb41ca5ffed585cb93ea75f648dfabeefe864))
+
 ## [1.20.1](https://github.com/agustinsacco/tars/compare/v1.20.0...v1.20.1) (2026-04-13)
 
 
