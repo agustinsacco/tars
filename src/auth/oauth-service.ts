@@ -16,8 +16,13 @@ export class TarsOAuthService {
     /**
      * Executes the OAuth login flow.
      * This will open a browser for the user to authenticate.
+     * @param force If true, clears existing credentials before starting the flow.
      */
-    public async login(): Promise<void> {
+    public async login(force: boolean = false): Promise<void> {
+        if (force) {
+            await this.logout();
+        }
+
         logger.info('🔑 Starting native Google OAuth flow...');
 
         const savedHome = process.env.HOME;

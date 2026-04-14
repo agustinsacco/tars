@@ -170,7 +170,7 @@ export async function setup() {
 
             try {
                 const oauthService = new TarsOAuthService(tarsHome);
-                await oauthService.login();
+                await oauthService.login(isAuthed);
 
                 const freshStatus = await oauthService.isAuthenticated();
                 if (freshStatus) {
