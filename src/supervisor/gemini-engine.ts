@@ -24,6 +24,7 @@ import { AttachmentContext } from '../types/index.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
+import { SessionManager } from './session-manager.js';
 import { LlamaCppGenerator } from '../inference/LlamaCppGenerator.js';
 import { DLPService } from '../utils/dlp-service.js';
 
@@ -75,6 +76,7 @@ export class GeminiEngine extends EventEmitter {
     private initializedWithFallback = false;
     private currentSessionId: string | null = null;
     private channelManager?: ChannelManager;
+    private sessionManager?: SessionManager;
 
     constructor(private readonly tarsConfig: TarsConfig) {
         super();
@@ -85,6 +87,13 @@ export class GeminiEngine extends EventEmitter {
      */
     public setChannelManager(channelManager: ChannelManager): void {
         this.channelManager = channelManager;
+    }
+
+    /**
+     * Provide the SessionManager instance to the engine for session-aware tools
+     */
+    public setSessionManager(sessionManager: SessionManager): void {
+        this.sessionManager = sessionManager;
     }
 
     /**
@@ -161,11 +170,7 @@ export class GeminiEngine extends EventEmitter {
                 // Override the content generator at runtime to bypass the SDK's internal Gemini calls
                 (this.coreConfig as any).contentGenerator = localGenerator;
 
-                // Disable Loop Detection external calls that crash without a valid GEMINI_API_KEY
-                const loopService = (this.coreConfig as any).loopDetectionService;
-                if (loopService) {
-                    loopService.queryLoopDetectionModel = async () => null;
-                }
+                // We'll disable the LoopDetectionService below, after the client is created
             }
 
             // Register system prompt template for tars-request
@@ -188,11 +193,25 @@ export class GeminiEngine extends EventEmitter {
                 logger.info('🔌 Registered native tool: send_notification');
             }
 
-            const getQuotaTool = new GetQuotaTool(this.coreConfig);
+            const getQuotaTool = new GetQuotaTool(this.coreConfig, this.sessionManager, {
+                inferenceBackend: this.tarsConfig.inferenceBackend,
+                contextWindowTokens: this.tarsConfig.contextWindowTokens,
+                geminiModel: this.tarsConfig.geminiModel,
+                localInferenceUrl: this.tarsConfig.localInferenceUrl
+            });
             toolRegistry.registerTool(getQuotaTool);
             logger.info('🔌 Registered native tool: get_model_quota');
 
             this.client = this.coreConfig.getGeminiClient();
+
+            // The loop detector runs concurrently in the background and causes 400 crashes for dummy API keys.
+            if (this.tarsConfig.inferenceBackend === 'llamacpp') {
+                const loopService = this.client.getLoopDetectionService() as any;
+                if (loopService) {
+                    loopService.queryLoopDetectionModel = async () => null;
+                }
+            }
+
             this.initialized = true;
             this.currentSessionId = this.coreConfig.getSessionId();
             logger.info('✨ Gemini Engine initialized successfully.');
@@ -338,6 +357,13 @@ export class GeminiEngine extends EventEmitter {
             const maxTurns = 100; // Increased to handle complex autonomous tasks
             const abortController = new AbortController();
             let finalUsageStats: any = undefined;
+            // Accumulate usage across multi-turn interactions.
+            // For local models, each turn reports only its own tokens. For Gemini Cloud,
+            // promptTokenCount is cumulative (total context). We keep the maximum
+            // promptTokenCount seen (last turn = largest context) and sum outputTokens.
+            let accumulatedInputTokens = 0;
+            let accumulatedOutputTokens = 0;
+            let accumulatedCachedTokens = 0;
             let loopDetected = false;
             let hasRealContent = false;
 
@@ -416,7 +442,28 @@ export class GeminiEngine extends EventEmitter {
                     }
 
                     if (event.type === GeminiEventType.Finished) {
-                        finalUsageStats = event.value.usageMetadata;
+                        const usage = event.value.usageMetadata;
+                        if (usage) {
+                            // promptTokenCount reflects total context size (cumulative)
+                            // so we always take the latest (highest) value
+                            if (usage.promptTokenCount) {
+                                accumulatedInputTokens = Math.max(
+                                    accumulatedInputTokens,
+                                    usage.promptTokenCount
+                                );
+                            }
+                            // candidatesTokenCount is per-turn, so we accumulate
+                            if (usage.candidatesTokenCount) {
+                                accumulatedOutputTokens += usage.candidatesTokenCount;
+                            }
+                            if (usage.cachedContentTokenCount) {
+                                accumulatedCachedTokens = Math.max(
+                                    accumulatedCachedTokens,
+                                    usage.cachedContentTokenCount
+                                );
+                            }
+                            finalUsageStats = usage;
+                        }
                         continue; // Don't emit done yet
                     }
 
@@ -581,13 +628,20 @@ export class GeminiEngine extends EventEmitter {
             // Always emit final done event when exiting the loop
             await onEvent({
                 type: 'done',
-                usageStats: finalUsageStats
-                    ? {
-                          inputTokens: finalUsageStats.promptTokenCount || 0,
-                          outputTokens: finalUsageStats.candidatesTokenCount || 0,
-                          cachedTokens: finalUsageStats.cachedContentTokenCount || 0
-                      }
-                    : undefined,
+                usageStats:
+                    accumulatedInputTokens > 0 || accumulatedOutputTokens > 0
+                        ? {
+                              inputTokens: accumulatedInputTokens,
+                              outputTokens: accumulatedOutputTokens,
+                              cachedTokens: accumulatedCachedTokens
+                          }
+                        : finalUsageStats
+                          ? {
+                                inputTokens: finalUsageStats.promptTokenCount || 0,
+                                outputTokens: finalUsageStats.candidatesTokenCount || 0,
+                                cachedTokens: finalUsageStats.cachedContentTokenCount || 0
+                            }
+                          : undefined,
                 sessionId: sid
             });
         } catch (error: any) {
@@ -688,18 +742,105 @@ export class GeminiEngine extends EventEmitter {
      * Proactively compress the session history to reclaim context window space.
      * Delegates to Gemini Core's built-in compression.
      */
-    public async compressSession(force: boolean = false): Promise<void> {
-        if (!this.initialized || !this.client) return;
+    public async compressSession(force: boolean = false): Promise<boolean> {
+        if (!this.initialized || !this.client) return false;
         const sid = this.currentSessionId || 'unknown';
         logger.info(`🗜️ Triggering session compression (force=${force})...`);
         try {
+            if (this.tarsConfig.inferenceBackend === 'llamacpp') {
+                const history = this.client.getHistory();
+                // We keep the most recent ~60% and ensure the boundary lands on a 'user' role
+                // to maintain proper turn alternation (no orphaned tool responses).
+                if (history && history.length > 20) {
+                    const keepCount = Math.ceil(history.length * 0.6);
+                    let cutIndex = history.length - keepCount;
+
+                    // Walk forward to find a 'user' role entry for clean boundary
+                    while (cutIndex < history.length && history[cutIndex]?.role !== 'user') {
+                        cutIndex++;
+                    }
+
+                    if (cutIndex < history.length) {
+                        const historyToCompress = history.slice(0, cutIndex);
+                        const tail = history.slice(cutIndex);
+
+                        logger.info(
+                            `🗜️ Local inference compaction: Summarizing oldest ${historyToCompress.length} turns...`
+                        );
+
+                        // Use the local generator non-streamed to summarize the truncated chunk
+                        const generator = (this.coreConfig as any).contentGenerator;
+                        const hasPreviousSnapshot = historyToCompress.some((c: any) =>
+                            c.parts?.some((p: any) => p.text?.includes('<state_snapshot>'))
+                        );
+
+                        const anchorInstruction = hasPreviousSnapshot
+                            ? 'A previous <state_snapshot> exists in the history. You MUST integrate all still-relevant information from that snapshot into the new one, updating it with the more recent events.'
+                            : 'Generate a new <state_snapshot> based on the provided history.';
+
+                        const summaryPrompt = `${anchorInstruction}\nExtract all important constraints, configs, details and tool results from this chunk of history. Format your response cleanly.`;
+
+                        let summaryContent = '';
+                        try {
+                            const response = await generator.generateContent(
+                                {
+                                    model: this.tarsConfig.geminiModel,
+                                    contents: [
+                                        ...historyToCompress,
+                                        { role: 'user', parts: [{ text: summaryPrompt }] }
+                                    ]
+                                },
+                                sid
+                            );
+
+                            summaryContent =
+                                response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        } catch (err: any) {
+                            logger.warn(`Semantic compression inference failed: ${err.message}`);
+                        }
+
+                        if (!summaryContent) {
+                            summaryContent =
+                                '*(Summary generation failed, falling back to raw truncation)*';
+                        }
+
+                        const newHistory = [
+                            {
+                                role: 'user',
+                                parts: [
+                                    {
+                                        text: `<state_snapshot>\n${summaryContent.trim()}\n</state_snapshot>`
+                                    }
+                                ]
+                            },
+                            {
+                                role: 'model',
+                                parts: [
+                                    { text: 'Got it. I will keep this historical context in mind.' }
+                                ]
+                            },
+                            ...tail
+                        ];
+
+                        this.client.setHistory(newHistory as any);
+                        logger.info(
+                            `🗜️ Local inference context compacted: retained tail of ${tail.length} turns + snapshot.`
+                        );
+                        return true;
+                    }
+                }
+                return false;
+            }
+
             const result = await this.client.tryCompressChat(sid, force);
             logger.info(
                 `🗜️ Compression result: status=${result.compressionStatus}, ` +
                     `${result.originalTokenCount} → ${result.newTokenCount} tokens`
             );
+            return String(result.compressionStatus) === 'COMPRESSED';
         } catch (e: any) {
             logger.warn(`⚠️ Compression failed: ${e.message}`);
+            return false;
         }
     }
 

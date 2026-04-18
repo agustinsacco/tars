@@ -134,8 +134,18 @@ export class Supervisor {
                                     '[Supervisor] Context threshold exceeded — triggering compression'
                                 );
                                 try {
-                                    await this.gemini.compressSession();
+                                    const didCompress = await this.gemini.compressSession();
                                     await this.sessionManager.recordCompression();
+
+                                    if (didCompress) {
+                                        await onEvent({
+                                            type: 'text',
+                                            role: 'assistant',
+                                            content:
+                                                '\n\n✨ *Session memory compacted to optimally save context space while retaining historical facts.*',
+                                            sessionId: sessionIdToUse
+                                        } as any);
+                                    }
                                 } catch (e: any) {
                                     logger.warn(`[Supervisor] Compression failed: ${e.message}`);
                                 }

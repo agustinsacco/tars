@@ -238,10 +238,17 @@ app.prepare().then(() => {
                         const files = fs
                             .readdirSync(CHATS_DIR)
                             .filter((f) => f.endsWith('.json'))
-                            .map((f) => ({
-                                name: f,
-                                mtime: fs.statSync(path.join(CHATS_DIR, f)).mtime
-                            }))
+                            .map((f) => {
+                                try {
+                                    return {
+                                        name: f,
+                                        mtime: fs.statSync(path.join(CHATS_DIR, f)).mtime
+                                    };
+                                } catch (err) {
+                                    return null;
+                                }
+                            })
+                            .filter(Boolean)
                             .sort((a, b) => b.mtime - a.mtime);
 
                         sessionStats.total = files.length;
@@ -408,8 +415,12 @@ app.prepare().then(() => {
     );
 
     dataWatcher.on('all', (event, filePath) => {
-        if (!fs.existsSync(filePath)) return;
-        if (fs.statSync(filePath).isDirectory()) return;
+        try {
+            if (!fs.existsSync(filePath)) return;
+            if (fs.statSync(filePath).isDirectory()) return;
+        } catch (err) {
+            return;
+        }
 
         const fileName = path.basename(filePath);
         const data = readJson(filePath);
@@ -430,10 +441,17 @@ app.prepare().then(() => {
                     const files = fs
                         .readdirSync(CHATS_DIR)
                         .filter((f) => f.endsWith('.json'))
-                        .map((f) => ({
-                            name: f,
-                            mtime: fs.statSync(path.join(CHATS_DIR, f)).mtime
-                        }))
+                        .map((f) => {
+                            try {
+                                return {
+                                    name: f,
+                                    mtime: fs.statSync(path.join(CHATS_DIR, f)).mtime
+                                };
+                            } catch (e) {
+                                return null;
+                            }
+                        })
+                        .filter(Boolean)
                         .sort((a, b) => b.mtime - a.mtime);
 
                     io.to('intelligence').emit('intelligence_update', {
