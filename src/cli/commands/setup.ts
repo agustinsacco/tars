@@ -260,7 +260,8 @@ export async function setup() {
             chalk.dim('  Use a model with tool-calling support (Qwen 3.5, Llama 3.1, etc.).')
         );
 
-        config = await inquirer.prompt([
+        // Step 4a: Collect basic identity + endpoint URL
+        const basicConfig = await inquirer.prompt([
             {
                 type: 'input',
                 name: 'assistantName',
@@ -280,16 +281,99 @@ export async function setup() {
                         return 'Please enter a valid URL (e.g., http://localhost:8080)';
                     }
                 }
-            },
-            {
-                type: 'input',
-                name: 'geminiModel',
-                message:
-                    'Model Name (sent in the OpenAI `model` field — use the name your server expects):',
-                default: existingConfig.geminiModel || 'auto',
-                validate: (input: string) =>
-                    input.length > 0 || 'Model name is required'
-            },
+            }
+        ]);
+
+        // Step 4b: Probe the endpoint for health + available models
+        const { probeEndpoint } = await import('../../utils/endpoint-probe.js');
+        const probeSpinner = ora(
+            `Testing endpoint ${basicConfig.localInferenceUrl}...`
+        ).start();
+        const probe = await probeEndpoint(basicConfig.localInferenceUrl);
+
+        let selectedModel = existingConfig.geminiModel || 'auto';
+
+        if (probe.reachable) {
+            if (probe.models.length > 0) {
+                probeSpinner.succeed(
+                    `Endpoint reachable! Found ${probe.models.length} model(s).`
+                );
+
+                // Build choices from discovered models + custom option
+                const modelChoices = probe.models.map((m) => ({
+                    name: `${m}`,
+                    value: m
+                }));
+                modelChoices.push({
+                    name: chalk.dim('Custom (enter manually)'),
+                    value: '__custom__'
+                });
+
+                const { modelChoice } = await inquirer.prompt([
+                    {
+                        type: 'list',
+                        name: 'modelChoice',
+                        message: 'Which model should Tars use?',
+                        choices: modelChoices,
+                        default: probe.models.includes(selectedModel) ? selectedModel : probe.models[0]
+                    }
+                ]);
+
+                if (modelChoice === '__custom__') {
+                    const { customModel } = await inquirer.prompt([
+                        {
+                            type: 'input',
+                            name: 'customModel',
+                            message: 'Enter model name:',
+                            default: selectedModel,
+                            validate: (input: string) =>
+                                input.length > 0 || 'Model name is required'
+                        }
+                    ]);
+                    selectedModel = customModel;
+                } else {
+                    selectedModel = modelChoice;
+                }
+            } else {
+                probeSpinner.succeed('Endpoint reachable! (no model list available)');
+                const { manualModel } = await inquirer.prompt([
+                    {
+                        type: 'input',
+                        name: 'manualModel',
+                        message:
+                            'Model Name (sent in the OpenAI `model` field — use the name your server expects):',
+                        default: selectedModel,
+                        validate: (input: string) =>
+                            input.length > 0 || 'Model name is required'
+                    }
+                ]);
+                selectedModel = manualModel;
+            }
+        } else {
+            probeSpinner.warn(
+                `Could not reach endpoint: ${probe.error || 'unknown error'}`
+            );
+            console.log(
+                chalk.yellow(
+                    '  ⚠ The endpoint is not responding. Configuration will continue but\n' +
+                        '    make sure the server is running when you start Tars.'
+                )
+            );
+            const { manualModel } = await inquirer.prompt([
+                {
+                    type: 'input',
+                    name: 'manualModel',
+                    message: 'Model Name (enter manually):',
+                    default: selectedModel,
+                    validate: (input: string) =>
+                        input.length > 0 || 'Model name is required'
+                }
+            ]);
+            selectedModel = manualModel;
+        }
+
+        // Step 4c: Context window + heartbeat
+        const advancedConfig = await inquirer.prompt([
             {
                 type: 'list',
                 name: 'contextWindowTokens',
@@ -334,7 +418,12 @@ export async function setup() {
             }
         ]);
 
-        config.inferenceBackend = 'llamacpp';
+        config = {
+            ...basicConfig,
+            ...advancedConfig,
+            geminiModel: selectedModel,
+            inferenceBackend: 'llamacpp'
+        };
     } else {
         console.log(chalk.dim('  Tars is your personal assistant and sidekick.'));
         console.log(chalk.dim('  Every Google account includes free Gemini inference!'));
