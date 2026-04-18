@@ -82,7 +82,11 @@ export class LlamaCppGenerator implements ContentGenerator {
             // and no finishReason. Gemini's turn.js only yields a Finished event when
             // finishReason is present, so we must defer usage and attach it to the
             // finishReason chunk. This variable accumulates the latest usage seen.
-            let deferredUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
+            let deferredUsage: {
+                prompt_tokens?: number;
+                completion_tokens?: number;
+                total_tokens?: number;
+            } | null = null;
 
             try {
                 const response = await fetch(self.resolveEndpoint(), {
@@ -127,8 +131,11 @@ export class LlamaCppGenerator implements ContentGenerator {
                                 // the usage-only final chunk with choices=[]).
                                 if (data.usage || data.timings) {
                                     deferredUsage = {
-                                        prompt_tokens: data.usage?.prompt_tokens ?? data.timings?.prompt_n,
-                                        completion_tokens: data.usage?.completion_tokens ?? data.timings?.predicted_n,
+                                        prompt_tokens:
+                                            data.usage?.prompt_tokens ?? data.timings?.prompt_n,
+                                        completion_tokens:
+                                            data.usage?.completion_tokens ??
+                                            data.timings?.predicted_n,
                                         total_tokens: data.usage?.total_tokens
                                     };
                                 }

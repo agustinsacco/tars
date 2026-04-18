@@ -159,10 +159,7 @@ describe('Session-Aware Usage Accumulation', () => {
 
         for (const usage of turns) {
             if (usage.promptTokenCount) {
-                accumulatedInputTokens = Math.max(
-                    accumulatedInputTokens,
-                    usage.promptTokenCount
-                );
+                accumulatedInputTokens = Math.max(accumulatedInputTokens, usage.promptTokenCount);
             }
             if (usage.candidatesTokenCount) {
                 accumulatedOutputTokens += usage.candidatesTokenCount;
@@ -274,27 +271,27 @@ describe('Local Compaction - Role Boundary Safety', () => {
     it('should find nearest user role boundary for truncation', () => {
         // Simulate the compaction logic from gemini-engine.ts
         const history = [
-            { role: 'user' },     // 0
-            { role: 'model' },    // 1
-            { role: 'user' },     // 2
-            { role: 'model' },    // 3 - function call
-            { role: 'user' },     // 4 - function response
-            { role: 'model' },    // 5
-            { role: 'user' },     // 6
-            { role: 'model' },    // 7
-            { role: 'user' },     // 8
-            { role: 'model' },    // 9
-            { role: 'user' },     // 10
-            { role: 'model' },    // 11
-            { role: 'user' },     // 12
-            { role: 'model' },    // 13
-            { role: 'user' },     // 14
-            { role: 'model' },    // 15
-            { role: 'user' },     // 16
-            { role: 'model' },    // 17
-            { role: 'user' },     // 18
-            { role: 'model' },    // 19
-            { role: 'user' },     // 20
+            { role: 'user' }, // 0
+            { role: 'model' }, // 1
+            { role: 'user' }, // 2
+            { role: 'model' }, // 3 - function call
+            { role: 'user' }, // 4 - function response
+            { role: 'model' }, // 5
+            { role: 'user' }, // 6
+            { role: 'model' }, // 7
+            { role: 'user' }, // 8
+            { role: 'model' }, // 9
+            { role: 'user' }, // 10
+            { role: 'model' }, // 11
+            { role: 'user' }, // 12
+            { role: 'model' }, // 13
+            { role: 'user' }, // 14
+            { role: 'model' }, // 15
+            { role: 'user' }, // 16
+            { role: 'model' }, // 17
+            { role: 'user' }, // 18
+            { role: 'model' }, // 19
+            { role: 'user' } // 20
         ];
 
         // history.length = 21, keepCount = ceil(21 * 0.6) = 13
@@ -312,14 +309,14 @@ describe('Local Compaction - Role Boundary Safety', () => {
 
     it('should walk forward past model entries to find user boundary', () => {
         const history = [
-            { role: 'user' },   // 0
-            { role: 'model' },  // 1
-            { role: 'model' },  // 2 - model continuation
-            { role: 'model' },  // 3 - model continuation
-            { role: 'user' },   // 4
-            { role: 'model' },  // 5
-            { role: 'user' },   // 6
-            { role: 'model' },  // 7
+            { role: 'user' }, // 0
+            { role: 'model' }, // 1
+            { role: 'model' }, // 2 - model continuation
+            { role: 'model' }, // 3 - model continuation
+            { role: 'user' }, // 4
+            { role: 'model' }, // 5
+            { role: 'user' }, // 6
+            { role: 'model' } // 7
         ];
 
         // history.length = 8, keepCount = ceil(8 * 0.6) = 5

@@ -286,18 +286,14 @@ export async function setup() {
 
         // Step 4b: Probe the endpoint for health + available models
         const { probeEndpoint } = await import('../../utils/endpoint-probe.js');
-        const probeSpinner = ora(
-            `Testing endpoint ${basicConfig.localInferenceUrl}...`
-        ).start();
+        const probeSpinner = ora(`Testing endpoint ${basicConfig.localInferenceUrl}...`).start();
         const probe = await probeEndpoint(basicConfig.localInferenceUrl);
 
         let selectedModel = existingConfig.geminiModel || 'auto';
 
         if (probe.reachable) {
             if (probe.models.length > 0) {
-                probeSpinner.succeed(
-                    `Endpoint reachable! Found ${probe.models.length} model(s).`
-                );
+                probeSpinner.succeed(`Endpoint reachable! Found ${probe.models.length} model(s).`);
 
                 // Build choices from discovered models + custom option
                 const modelChoices = probe.models.map((m) => ({
@@ -315,7 +311,9 @@ export async function setup() {
                         name: 'modelChoice',
                         message: 'Which model should Tars use?',
                         choices: modelChoices,
-                        default: probe.models.includes(selectedModel) ? selectedModel : probe.models[0]
+                        default: probe.models.includes(selectedModel)
+                            ? selectedModel
+                            : probe.models[0]
                     }
                 ]);
 
@@ -343,16 +341,13 @@ export async function setup() {
                         message:
                             'Model Name (sent in the OpenAI `model` field — use the name your server expects):',
                         default: selectedModel,
-                        validate: (input: string) =>
-                            input.length > 0 || 'Model name is required'
+                        validate: (input: string) => input.length > 0 || 'Model name is required'
                     }
                 ]);
                 selectedModel = manualModel;
             }
         } else {
-            probeSpinner.warn(
-                `Could not reach endpoint: ${probe.error || 'unknown error'}`
-            );
+            probeSpinner.warn(`Could not reach endpoint: ${probe.error || 'unknown error'}`);
             console.log(
                 chalk.yellow(
                     '  ⚠ The endpoint is not responding. Configuration will continue but\n' +
@@ -365,8 +360,7 @@ export async function setup() {
                     name: 'manualModel',
                     message: 'Model Name (enter manually):',
                     default: selectedModel,
-                    validate: (input: string) =>
-                        input.length > 0 || 'Model name is required'
+                    validate: (input: string) => input.length > 0 || 'Model name is required'
                 }
             ]);
             selectedModel = manualModel;

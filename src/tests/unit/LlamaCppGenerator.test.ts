@@ -155,9 +155,7 @@ describe('LlamaCppGenerator', () => {
             expect(responses.length).toBeGreaterThanOrEqual(2);
 
             // The finish chunk should exist
-            const finishChunk = responses.find(
-                (r) => r.candidates?.[0]?.finishReason === 'STOP'
-            );
+            const finishChunk = responses.find((r) => r.candidates?.[0]?.finishReason === 'STOP');
             expect(finishChunk).toBeDefined();
 
             // Usage should appear in the stream (may be on finishReason chunk
@@ -195,9 +193,7 @@ describe('LlamaCppGenerator', () => {
             }
 
             // The finish chunk should have the deferred usage injected
-            const finishChunk = responses.find(
-                (r) => r.candidates?.[0]?.finishReason === 'STOP'
-            );
+            const finishChunk = responses.find((r) => r.candidates?.[0]?.finishReason === 'STOP');
             expect(finishChunk).toBeDefined();
             expect(finishChunk.usageMetadata).toBeDefined();
             expect(finishChunk.usageMetadata.promptTokenCount).toBe(50);
@@ -266,8 +262,8 @@ describe('LlamaCppGenerator', () => {
             }
 
             // Should only have visible text, not the think content
-            const textChunks = responses.filter(
-                (r) => r.candidates?.[0]?.content?.parts?.some((p: any) => p.text)
+            const textChunks = responses.filter((r) =>
+                r.candidates?.[0]?.content?.parts?.some((p: any) => p.text)
             );
             const allText = textChunks
                 .flatMap((r: any) => r.candidates[0].content.parts)
@@ -302,9 +298,7 @@ describe('LlamaCppGenerator', () => {
 
             // Should still work, just without usage metadata
             expect(responses.length).toBeGreaterThanOrEqual(1);
-            const finishChunk = responses.find(
-                (r) => r.candidates?.[0]?.finishReason === 'STOP'
-            );
+            const finishChunk = responses.find((r) => r.candidates?.[0]?.finishReason === 'STOP');
             expect(finishChunk).toBeDefined();
             expect(finishChunk.usageMetadata).toBeUndefined();
         });

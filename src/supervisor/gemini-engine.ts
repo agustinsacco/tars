@@ -742,35 +742,94 @@ export class GeminiEngine extends EventEmitter {
      * Proactively compress the session history to reclaim context window space.
      * Delegates to Gemini Core's built-in compression.
      */
-    public async compressSession(force: boolean = false): Promise<void> {
-        if (!this.initialized || !this.client) return;
+    public async compressSession(force: boolean = false): Promise<boolean> {
+        if (!this.initialized || !this.client) return false;
         const sid = this.currentSessionId || 'unknown';
         logger.info(`🗜️ Triggering session compression (force=${force})...`);
         try {
             if (this.tarsConfig.inferenceBackend === 'llamacpp') {
                 const history = this.client.getHistory();
-                // History truncation for local models since they don't support Context Caching API.
                 // We keep the most recent ~60% and ensure the boundary lands on a 'user' role
-                // entry to maintain proper turn alternation (no orphaned tool responses).
+                // to maintain proper turn alternation (no orphaned tool responses).
                 if (history && history.length > 20) {
                     const keepCount = Math.ceil(history.length * 0.6);
                     let cutIndex = history.length - keepCount;
 
-                    // Walk forward to find, a 'user' role entry for clean boundary
+                    // Walk forward to find a 'user' role entry for clean boundary
                     while (cutIndex < history.length && history[cutIndex]?.role !== 'user') {
                         cutIndex++;
                     }
 
                     if (cutIndex < history.length) {
-                        const removed = cutIndex;
+                        const historyToCompress = history.slice(0, cutIndex);
                         const tail = history.slice(cutIndex);
-                        this.client.setHistory(tail);
+
                         logger.info(
-                            `🗜️ Local inference context compacted: removed ${removed} entries, kept ${tail.length}.`
+                            `🗜️ Local inference compaction: Summarizing oldest ${historyToCompress.length} turns...`
                         );
+
+                        // Use the local generator non-streamed to summarize the truncated chunk
+                        const generator = (this.coreConfig as any).contentGenerator;
+                        const hasPreviousSnapshot = historyToCompress.some((c: any) =>
+                            c.parts?.some((p: any) => p.text?.includes('<state_snapshot>'))
+                        );
+
+                        const anchorInstruction = hasPreviousSnapshot
+                            ? 'A previous <state_snapshot> exists in the history. You MUST integrate all still-relevant information from that snapshot into the new one, updating it with the more recent events.'
+                            : 'Generate a new <state_snapshot> based on the provided history.';
+
+                        const summaryPrompt = `${anchorInstruction}\nExtract all important constraints, configs, details and tool results from this chunk of history. Format your response cleanly.`;
+
+                        let summaryContent = '';
+                        try {
+                            const response = await generator.generateContent(
+                                {
+                                    model: this.tarsConfig.geminiModel,
+                                    contents: [
+                                        ...historyToCompress,
+                                        { role: 'user', parts: [{ text: summaryPrompt }] }
+                                    ]
+                                },
+                                sid
+                            );
+
+                            summaryContent =
+                                response?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                        } catch (err: any) {
+                            logger.warn(`Semantic compression inference failed: ${err.message}`);
+                        }
+
+                        if (!summaryContent) {
+                            summaryContent =
+                                '*(Summary generation failed, falling back to raw truncation)*';
+                        }
+
+                        const newHistory = [
+                            {
+                                role: 'user',
+                                parts: [
+                                    {
+                                        text: `<state_snapshot>\n${summaryContent.trim()}\n</state_snapshot>`
+                                    }
+                                ]
+                            },
+                            {
+                                role: 'model',
+                                parts: [
+                                    { text: 'Got it. I will keep this historical context in mind.' }
+                                ]
+                            },
+                            ...tail
+                        ];
+
+                        this.client.setHistory(newHistory as any);
+                        logger.info(
+                            `🗜️ Local inference context compacted: retained tail of ${tail.length} turns + snapshot.`
+                        );
+                        return true;
                     }
                 }
-                return;
+                return false;
             }
 
             const result = await this.client.tryCompressChat(sid, force);
@@ -778,8 +837,10 @@ export class GeminiEngine extends EventEmitter {
                 `🗜️ Compression result: status=${result.compressionStatus}, ` +
                     `${result.originalTokenCount} → ${result.newTokenCount} tokens`
             );
+            return String(result.compressionStatus) === 'COMPRESSED';
         } catch (e: any) {
             logger.warn(`⚠️ Compression failed: ${e.message}`);
+            return false;
         }
     }
 

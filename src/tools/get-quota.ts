@@ -18,7 +18,12 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
         params: GetQuotaParams,
         private coreConfig: CoreConfig,
         private sessionManager?: SessionManager,
-        private tarsConfig?: { inferenceBackend: string; contextWindowTokens: number; geminiModel: string; localInferenceUrl: string }
+        private tarsConfig?: {
+            inferenceBackend: string;
+            contextWindowTokens: number;
+            geminiModel: string;
+            localInferenceUrl: string;
+        }
     ) {
         super(params, null as unknown as MessageBus, 'get_model_quota', 'Get Model Quota');
     }
@@ -111,9 +116,10 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
         resultText += `- **Context Window**: ${contextWindow.toLocaleString()} tokens\n\n`;
 
         if (stats) {
-            const usagePercent = contextWindow > 0
-                ? ((stats.totalInputTokens / contextWindow) * 100).toFixed(1)
-                : 'N/A';
+            const usagePercent =
+                contextWindow > 0
+                    ? ((stats.totalInputTokens / contextWindow) * 100).toFixed(1)
+                    : 'N/A';
 
             resultText += '#### Current Session\n\n';
             resultText += `- **Session ID**: \`${stats.sessionId}\`\n`;
@@ -129,7 +135,8 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
             resultText += '*No active session data available.*\n';
         }
 
-        resultText += '\n> **Note**: Local models do not use Google quota. Usage shown is tracked from session history.';
+        resultText +=
+            '\n> **Note**: Local models do not use Google quota. Usage shown is tracked from session history.';
 
         return {
             llmContent: [{ text: resultText }],
@@ -142,7 +149,12 @@ export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult
     constructor(
         private coreConfig: CoreConfig,
         private sessionManager?: SessionManager,
-        private tarsConfig?: { inferenceBackend: string; contextWindowTokens: number; geminiModel: string; localInferenceUrl: string }
+        private tarsConfig?: {
+            inferenceBackend: string;
+            contextWindowTokens: number;
+            geminiModel: string;
+            localInferenceUrl: string;
+        }
     ) {
         super(
             'get_model_quota',
@@ -169,6 +181,11 @@ export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult
         params: GetQuotaParams,
         _messageBus: MessageBus
     ): ToolInvocation<GetQuotaParams, ToolResult> {
-        return new GetQuotaInvocation(params, this.coreConfig, this.sessionManager, this.tarsConfig);
+        return new GetQuotaInvocation(
+            params,
+            this.coreConfig,
+            this.sessionManager,
+            this.tarsConfig
+        );
     }
 }
