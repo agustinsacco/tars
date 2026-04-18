@@ -55,6 +55,16 @@ function installSystemPrompt(config: Config): void {
     promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
     promptContent = promptContent.replace(/{{INSTANCE_NAME}}/g, config.instanceName);
     promptContent = promptContent.replace(/{{INSTANCE_ROLE}}/g, config.instanceRole);
+    promptContent = promptContent.replace(/{{INFERENCE_BACKEND}}/g, config.inferenceBackend);
+    promptContent = promptContent.replace(/{{MODEL_NAME}}/g, config.geminiModel);
+    promptContent = promptContent.replace(
+        /{{CONTEXT_WINDOW}}/g,
+        config.contextWindowTokens.toLocaleString()
+    );
+    promptContent = promptContent.replace(
+        /{{INFERENCE_ENDPOINT}}/g,
+        config.inferenceBackend === 'llamacpp' ? config.localInferenceUrl : 'Google AI API'
+    );
 
     // Always overwrite to ensure latest prompt is deployed
     fs.writeFileSync(config.systemPromptPath, promptContent);
@@ -462,6 +472,7 @@ async function main() {
 
         // 5. Inject Interface into Engine
         gemini.setChannelManager(channelManager);
+        gemini.setSessionManager(sessionManager);
         await gemini.initialize();
 
         // 6. Connect Routing

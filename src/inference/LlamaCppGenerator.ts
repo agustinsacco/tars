@@ -78,6 +78,12 @@ export class LlamaCppGenerator implements ContentGenerator {
             const pendingToolCalls: Map<number, { name: string; arguments: string }> = new Map();
             const streamState = { isThinking: false };
 
+            // OpenAI SSE protocol sends usage in a separate final chunk with choices=[]
+            // and no finishReason. Gemini's turn.js only yields a Finished event when
+            // finishReason is present, so we must defer usage and attach it to the
+            // finishReason chunk. This variable accumulates the latest usage seen.
+            let deferredUsage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
+
             try {
                 const response = await fetch(self.resolveEndpoint(), {
                     method: 'POST',
@@ -117,6 +123,16 @@ export class LlamaCppGenerator implements ContentGenerator {
                                 const data = JSON.parse(cleanLine.slice(6));
                                 const choice = data.choices && data.choices[0];
 
+                                // Capture usage from any chunk that carries it (including
+                                // the usage-only final chunk with choices=[]).
+                                if (data.usage || data.timings) {
+                                    deferredUsage = {
+                                        prompt_tokens: data.usage?.prompt_tokens ?? data.timings?.prompt_n,
+                                        completion_tokens: data.usage?.completion_tokens ?? data.timings?.predicted_n,
+                                        total_tokens: data.usage?.total_tokens
+                                    };
+                                }
+
                                 // 1. Aggregate partial tool calls from OpenAI stream format
                                 if (choice && choice.delta && choice.delta.tool_calls) {
                                     for (const tc of choice.delta.tool_calls) {
@@ -136,7 +152,8 @@ export class LlamaCppGenerator implements ContentGenerator {
                                     delete choice.delta.tool_calls;
                                 }
 
-                                // 2. When the turn finishes, inject fully assembled tool calls into the payload
+                                // 2. When the turn finishes, inject fully assembled tool calls
+                                //    AND attach any deferred usage so it reaches turn.js Finished event
                                 if (choice && choice.finish_reason) {
                                     if (pendingToolCalls.size > 0) {
                                         choice.delta.tool_calls = Array.from(
@@ -147,20 +164,17 @@ export class LlamaCppGenerator implements ContentGenerator {
                                                 arguments: tc.arguments
                                             }
                                         }));
-                                        console.log(
-                                            '🚧 COMPLETED TOOL CALLS BEFORE MAP:',
-                                            JSON.stringify(choice.delta.tool_calls, null, 2)
-                                        );
                                         pendingToolCalls.clear();
+                                    }
+
+                                    // Inject deferred usage into this finishReason chunk
+                                    if (deferredUsage && !data.usage) {
+                                        data.usage = deferredUsage;
                                     }
                                 }
 
                                 const mapped = self.mapFromOpenAiStream(data, streamState);
                                 if (mapped) {
-                                    console.log(
-                                        '🚧 MAPPED OUTPUT TO CORE:',
-                                        JSON.stringify(mapped, null, 2)
-                                    );
                                     yield mapped;
                                 }
                             } catch (e: any) {
@@ -186,7 +200,8 @@ export class LlamaCppGenerator implements ContentGenerator {
                                 },
                                 finish_reason: 'tool_calls'
                             }
-                        ]
+                        ],
+                        usage: deferredUsage || undefined
                     };
                     const mapped = self.mapFromOpenAiStream(finalData, streamState);
                     if (mapped) yield mapped;

@@ -7,6 +7,7 @@ import {
     Config as CoreConfig
 } from '@google/gemini-cli-core';
 import type { MessageBus } from '@google/gemini-cli-core/dist/src/confirmation-bus/message-bus.js';
+import { SessionManager, SessionData } from '../supervisor/session-manager.js';
 
 interface GetQuotaParams {
     modelId?: string;
@@ -15,7 +16,9 @@ interface GetQuotaParams {
 class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> {
     constructor(
         params: GetQuotaParams,
-        private coreConfig: CoreConfig
+        private coreConfig: CoreConfig,
+        private sessionManager?: SessionManager,
+        private tarsConfig?: { inferenceBackend: string; contextWindowTokens: number; geminiModel: string; localInferenceUrl: string }
     ) {
         super(params, null as unknown as MessageBus, 'get_model_quota', 'Get Model Quota');
     }
@@ -26,8 +29,18 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
 
     async execute(signal: AbortSignal): Promise<ToolResult> {
         try {
+            // For local models, return session-tracked data instead of calling the Google quota API
+            if (this.tarsConfig?.inferenceBackend === 'llamacpp') {
+                return this.getLocalUsage();
+            }
+
             const quota = await this.coreConfig.refreshUserQuota();
             if (!quota || !quota.buckets) {
+                // Fallback to session-tracked data even for Gemini if quota API is unavailable
+                if (this.sessionManager) {
+                    return this.getLocalUsage();
+                }
+
                 return {
                     llmContent: [
                         {
@@ -84,14 +97,57 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
             };
         }
     }
+
+    private getLocalUsage(): ToolResult {
+        const stats: SessionData | null = this.sessionManager?.getStats() || null;
+        const contextWindow = this.tarsConfig?.contextWindowTokens || 0;
+        const model = this.tarsConfig?.geminiModel || 'unknown';
+        const endpoint = this.tarsConfig?.localInferenceUrl || 'unknown';
+
+        let resultText = '### Session Resource Usage\n\n';
+        resultText += `- **Backend**: Local Inference (${this.tarsConfig?.inferenceBackend})\n`;
+        resultText += `- **Model**: \`${model}\`\n`;
+        resultText += `- **Endpoint**: \`${endpoint}\`\n`;
+        resultText += `- **Context Window**: ${contextWindow.toLocaleString()} tokens\n\n`;
+
+        if (stats) {
+            const usagePercent = contextWindow > 0
+                ? ((stats.totalInputTokens / contextWindow) * 100).toFixed(1)
+                : 'N/A';
+
+            resultText += '#### Current Session\n\n';
+            resultText += `- **Session ID**: \`${stats.sessionId}\`\n`;
+            resultText += `- **Created**: ${stats.createdAt}\n`;
+            resultText += `- **Interactions**: ${stats.interactionCount}\n`;
+            resultText += `- **Context Tokens (Last)**: ${stats.totalInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${usagePercent}%)\n`;
+            resultText += `- **Output Tokens (Cumulative)**: ${stats.totalOutputTokens.toLocaleString()}\n`;
+            resultText += `- **Cached Tokens**: ${stats.totalCachedTokens.toLocaleString()}\n`;
+            resultText += `- **Net Input Tokens (Cumulative)**: ${stats.totalNetTokens.toLocaleString()}\n`;
+            resultText += `- **Compressions**: ${stats.compressionCount}\n`;
+            resultText += `- **Last Interaction**: ${stats.lastInteractionAt}\n`;
+        } else {
+            resultText += '*No active session data available.*\n';
+        }
+
+        resultText += '\n> **Note**: Local models do not use Google quota. Usage shown is tracked from session history.';
+
+        return {
+            llmContent: [{ text: resultText }],
+            returnDisplay: `Local usage: ${stats?.interactionCount || 0} interactions, ${stats?.totalInputTokens || 0} context tokens.`
+        };
+    }
 }
 
 export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult> {
-    constructor(private coreConfig: CoreConfig) {
+    constructor(
+        private coreConfig: CoreConfig,
+        private sessionManager?: SessionManager,
+        private tarsConfig?: { inferenceBackend: string; contextWindowTokens: number; geminiModel: string; localInferenceUrl: string }
+    ) {
         super(
             'get_model_quota',
             'Get Model Quota',
-            'Retrieve the current rate limit, remaining quota, and reset times for the Gemini models being used. Use this to check if you are approaching limits or if capacity issues are expected.',
+            'Retrieve the current rate limit, remaining quota, and reset times for the models being used. For local models, returns session-tracked token usage and context window utilization.',
             Kind.Read,
             {
                 type: 'object',
@@ -99,7 +155,7 @@ export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult
                     modelId: {
                         type: 'string',
                         description:
-                            'Optional: Filter for a specific model ID (e.g. "gemini-2.5-flash"). If omitted, returns all relevant Gemini quotas.'
+                            'Optional: Filter for a specific model ID (e.g. "gemini-2.5-flash"). If omitted, returns all relevant quotas or session usage for local models.'
                     }
                 }
             },
@@ -113,6 +169,6 @@ export class GetQuotaTool extends BaseDeclarativeTool<GetQuotaParams, ToolResult
         params: GetQuotaParams,
         _messageBus: MessageBus
     ): ToolInvocation<GetQuotaParams, ToolResult> {
-        return new GetQuotaInvocation(params, this.coreConfig);
+        return new GetQuotaInvocation(params, this.coreConfig, this.sessionManager, this.tarsConfig);
     }
 }

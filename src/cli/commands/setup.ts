@@ -282,6 +282,15 @@ export async function setup() {
                 }
             },
             {
+                type: 'input',
+                name: 'geminiModel',
+                message:
+                    'Model Name (sent in the OpenAI `model` field — use the name your server expects):',
+                default: existingConfig.geminiModel || 'auto',
+                validate: (input: string) =>
+                    input.length > 0 || 'Model name is required'
+            },
+            {
                 type: 'list',
                 name: 'contextWindowTokens',
                 message: 'Context Window Size (depends on your model):',
@@ -325,8 +334,6 @@ export async function setup() {
             }
         ]);
 
-        // Set defaults that don't apply to local
-        config.geminiModel = 'auto';
         config.inferenceBackend = 'llamacpp';
     } else {
         console.log(chalk.dim('  Tars is your personal assistant and sidekick.'));
