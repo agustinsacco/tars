@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.1](https://github.com/agustinsacco/tars/compare/v1.24.0...v1.24.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* close method brace before applyClientOverrides to fix TS1128 build error ([8936bc6](https://github.com/agustinsacco/tars/commit/8936bc6f7ef3cc08e5e48b24880d3b4e384b4ac9))
+
 ## [1.24.0](https://github.com/agustinsacco/tars/compare/v1.23.0...v1.24.0) (2026-04-19)
 
 
