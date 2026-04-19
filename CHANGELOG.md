@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.0](https://github.com/agustinsacco/tars/compare/v1.23.0...v1.24.0) (2026-04-19)
+
+
+### Features
+
+* **inference:** stabilize local inference and silence loop detector 400s ([bb4838a](https://github.com/agustinsacco/tars/commit/bb4838a05c178eabba0234dbba24092c7294093d))
+
 ## [1.23.0](https://github.com/agustinsacco/tars/compare/v1.22.0...v1.23.0) (2026-04-19)
 
 
