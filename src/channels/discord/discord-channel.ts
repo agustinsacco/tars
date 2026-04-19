@@ -16,6 +16,7 @@ export class DiscordChannel implements CommunicationChannel {
     private readonly processor: AttachmentProcessor;
     private messageHandler?: (message: ChannelMessage) => Promise<void>;
     private typingIntervals: Map<string, NodeJS.Timeout> = new Map();
+    private processedMessages: Set<string> = new Set();
 
     constructor() {
         this.config = Config.getInstance();
@@ -154,6 +155,15 @@ export class DiscordChannel implements CommunicationChannel {
      */
     private async handleIncomingMessage(message: Message): Promise<void> {
         try {
+            // Deduplicate messages (prevent race conditions between 'messageCreate' and 'raw' DM rescue)
+            if (this.processedMessages.has(message.id)) {
+                logger.debug(`[Discord] Deduplicating message ${message.id}`);
+                return;
+            }
+            this.processedMessages.add(message.id);
+            // Cleanup cache after 60 seconds
+            setTimeout(() => this.processedMessages.delete(message.id), 60000);
+
             logger.debug(
                 `📥 Received Discord message: "${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}" from ${message.author?.tag || 'Unknown'} (Guild: ${message.guildId || 'DM'})`
             );
