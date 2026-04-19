@@ -75,7 +75,7 @@ export class LlamaCppGenerator implements ContentGenerator {
 
         const self = this;
         async function* streamGenerator() {
-            const pendingToolCalls: Map<number, { name: string; arguments: string }> = new Map();
+            const pendingToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
             const streamState = { isThinking: false };
 
             // OpenAI SSE protocol sends usage in a separate final chunk with choices=[]
@@ -146,10 +146,14 @@ export class LlamaCppGenerator implements ContentGenerator {
                                         let pending = pendingToolCalls.get(tc.index);
                                         if (!pending) {
                                             pending = {
+                                                id: tc.id || '',
                                                 name: tc.function?.name || '',
                                                 arguments: ''
                                             };
                                             pendingToolCalls.set(tc.index, pending);
+                                        }
+                                        if (tc.id) {
+                                            pending.id = tc.id;
                                         }
                                         if (tc.function?.arguments) {
                                             pending.arguments += tc.function.arguments;
@@ -166,6 +170,8 @@ export class LlamaCppGenerator implements ContentGenerator {
                                         choice.delta.tool_calls = Array.from(
                                             pendingToolCalls.entries()
                                         ).map(([_, tc]) => ({
+                                            id: tc.id,
+                                            index: _,
                                             function: {
                                                 name: tc.name,
                                                 arguments: tc.arguments
@@ -455,7 +461,8 @@ export class LlamaCppGenerator implements ContentGenerator {
                         parts.push({
                             functionCall: {
                                 name: tc.function.name,
-                                args: parsedArgs
+                                args: parsedArgs,
+                                callId: tc.id
                             }
                         } as any);
                     } catch (err: any) {

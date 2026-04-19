@@ -170,7 +170,7 @@ export class GeminiEngine extends EventEmitter {
                 // Override the content generator at runtime to bypass the SDK's internal Gemini calls
                 (this.coreConfig as any).contentGenerator = localGenerator;
 
-                // We'll disable the LoopDetectionService below, after the client is created
+                // We'll apply more overrides after the client is created
             }
 
             // Register system prompt template for tars-request
@@ -203,14 +203,7 @@ export class GeminiEngine extends EventEmitter {
             logger.info('🔌 Registered native tool: get_model_quota');
 
             this.client = this.coreConfig.getGeminiClient();
-
-            // The loop detector runs concurrently in the background and causes 400 crashes for dummy API keys.
-            if (this.tarsConfig.inferenceBackend === 'llamacpp') {
-                const loopService = this.client.getLoopDetectionService() as any;
-                if (loopService) {
-                    loopService.queryLoopDetectionModel = async () => null;
-                }
-            }
+            this.applyClientOverrides(this.client);
 
             this.initialized = true;
             this.currentSessionId = this.coreConfig.getSessionId();
@@ -419,6 +412,7 @@ export class GeminiEngine extends EventEmitter {
                             this.coreConfig.model = 'gemini-2.0-flash';
                             // Re-initialize client with new model
                             this.client = this.coreConfig.getGeminiClient();
+                            this.applyClientOverrides(this.client);
                             await this.client.initialize();
                             retryCount = 0; // Reset retries for the fallback model
                             continue;
@@ -1050,6 +1044,24 @@ export class GeminiEngine extends EventEmitter {
         } catch (e) {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
+        }
+
+    /**
+     * Applies runtime overrides to the Gemini client to ensure smooth operation
+     * in specific environments (e.g., local inference).
+     */
+    private applyClientOverrides(client: any): void {
+        if (this.tarsConfig.inferenceBackend === 'llamacpp') {
+            // The loop detector runs concurrently in the background and causes 400 crashes
+            // for local-only setups that don't have a valid Google API key.
+            const loopService = client.getLoopDetectionService() as any;
+            if (loopService) {
+                logger.debug('🔇 Silencing LoopDetectionService for local inference...');
+                loopService.queryLoopDetectionModel = async () => {
+                    logger.debug('Background loop verification skipped (Local Mode).');
+                    return null;
+                };
+            }
         }
     }
 }
