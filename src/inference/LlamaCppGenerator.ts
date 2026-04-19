@@ -75,7 +75,8 @@ export class LlamaCppGenerator implements ContentGenerator {
 
         const self = this;
         async function* streamGenerator() {
-            const pendingToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
+            const pendingToolCalls: Map<number, { id: string; name: string; arguments: string }> =
+                new Map();
             const streamState = { isThinking: false };
 
             // OpenAI SSE protocol sends usage in a separate final chunk with choices=[]

@@ -1045,6 +1045,7 @@ export class GeminiEngine extends EventEmitter {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
         }
+    }
 
     /**
      * Applies runtime overrides to the Gemini client to ensure smooth operation
