@@ -40,7 +40,7 @@ vi.mock('discord.js', () => {
 describe('DiscordChannel', () => {
     let discordChannel: any; // using any to access private methods for testing
     let mockClient: any;
-    
+
     beforeEach(() => {
         vi.clearAllMocks();
         // Setup minimal config instance config
@@ -53,7 +53,7 @@ describe('DiscordChannel', () => {
             saveSettings: vi.fn()
         };
         vi.spyOn(Config, 'getInstance').mockReturnValue(configProto as any);
-        
+
         discordChannel = new DiscordChannel();
         mockClient = discordChannel.client;
     });
@@ -65,7 +65,7 @@ describe('DiscordChannel', () => {
     describe('Message Deduplication', () => {
         it('should process a message only once if deduplicated (cache timeout)', async () => {
             let processedCount = 0;
-            
+
             // Register a mock handler
             discordChannel.onMessage(async (msg: any) => {
                 processedCount++;
@@ -94,15 +94,13 @@ describe('DiscordChannel', () => {
         });
 
         it('should correctly deduplicate across raw event and standard messageCreate', async () => {
-             // Retrieve the event listeners bound in the constructor
+            // Retrieve the event listeners bound in the constructor
             const messageCreateHandler = mockClient.on.mock.calls.find(
                 (c: any) => c[0] === 'messageCreate'
             )[1];
-            
-            const rawHandler = mockClient.on.mock.calls.find(
-                (c: any) => c[0] === 'raw'
-            )[1];
-            
+
+            const rawHandler = mockClient.on.mock.calls.find((c: any) => c[0] === 'raw')[1];
+
             let processedCount = 0;
             discordChannel.onMessage(async (msg: any) => {
                 processedCount++;
@@ -135,12 +133,9 @@ describe('DiscordChannel', () => {
                     channel_id: 'dm-1'
                 }
             };
-            
+
             // Fire both handlers as if discord.js triggered them at the same exact moment
-            await Promise.all([
-                rawHandler(packet),
-                messageCreateHandler(mockMessage)
-            ]);
+            await Promise.all([rawHandler(packet), messageCreateHandler(mockMessage)]);
 
             // Deduplication logic prevents it from hitting the supervisor twice
             expect(processedCount).toBe(1);
