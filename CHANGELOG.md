@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/agustinsacco/tars/compare/v1.20.2...v1.21.0) (2026-04-18)
+
+
+### Features
+
+* local inference stabilization, token tracking, endpoint discovery & tests ([#100](https://github.com/agustinsacco/tars/issues/100)) ([79206e8](https://github.com/agustinsacco/tars/commit/79206e81ecd1990a6cda64858f567b22fb7fa126))
+
 ## [1.20.2](https://github.com/agustinsacco/tars/compare/v1.20.1...v1.20.2) (2026-04-14)
 
 
