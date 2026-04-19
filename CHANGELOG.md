@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.22.0](https://github.com/agustinsacco/tars/compare/v1.21.0...v1.22.0) (2026-04-19)
+
+
+### Features
+
+* local inference stabilization and Discord reliability ([#103](https://github.com/agustinsacco/tars/issues/103)) ([e987360](https://github.com/agustinsacco/tars/commit/e98736051c91f2e974ea5a0a90e6dce787cd7596))
+
 ## [1.21.0](https://github.com/agustinsacco/tars/compare/v1.20.2...v1.21.0) (2026-04-18)
 
 
