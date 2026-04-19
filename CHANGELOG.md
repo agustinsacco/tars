@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0](https://github.com/agustinsacco/tars/compare/v1.22.0...v1.23.0) (2026-04-19)
+
+
+### Features
+
+* **inference:** support reasoning_content for local models like Qwen 3.6 ([7bef9bb](https://github.com/agustinsacco/tars/commit/7bef9bb779d168ab2458e627927bc76fcfcbf31d))
+
 ## [1.22.0](https://github.com/agustinsacco/tars/compare/v1.21.0...v1.22.0) (2026-04-19)
 
 
