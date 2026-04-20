@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2](https://github.com/agustinsacco/tars/compare/v1.24.1...v1.24.2) (2026-04-20)
+
+
+### Bug Fixes
+
+* **inference:** silence noisy per-token debug logs in supervisor and local generator ([a7ae585](https://github.com/agustinsacco/tars/commit/a7ae5857c3d716a56e7f93661e699f935cb48174))
+
 ## [1.24.1](https://github.com/agustinsacco/tars/compare/v1.24.0...v1.24.1) (2026-04-19)
 
 
