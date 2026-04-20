@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.4](https://github.com/agustinsacco/tars/compare/v1.24.3...v1.24.4) (2026-04-20)
+
+
+### Bug Fixes
+
+* **supervisor:** generate unique promptId per user request to reset loop detector ([a73641b](https://github.com/agustinsacco/tars/commit/a73641baa72b56de9f41580829d8d4f47d7d54ed))
+
 ## [1.24.3](https://github.com/agustinsacco/tars/compare/v1.24.2...v1.24.3) (2026-04-20)
 
 
