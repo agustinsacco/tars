@@ -73,6 +73,8 @@ export class LlamaCppGenerator implements ContentGenerator {
             stream_options: { include_usage: true }
         };
 
+        logger.debug(`[LlamaCppGenerator] Outbound Tools Payload: ${JSON.stringify(openAiRequest.tools)}`);
+
         const self = this;
         async function* streamGenerator() {
             const pendingToolCalls: Map<number, { id: string; name: string; arguments: string }> =
@@ -268,7 +270,7 @@ export class LlamaCppGenerator implements ContentGenerator {
             ? request.contents
             : [{ role: 'user', parts: [{ text: request.contents }] }];
 
-        const messages = (contents as Content[]).map((content) => {
+        const messages = (contents as Content[]).flatMap((content) => {
             const role = content.role === 'model' ? 'assistant' : content.role || 'user';
 
             // Map parts to content
@@ -325,14 +327,14 @@ export class LlamaCppGenerator implements ContentGenerator {
                 }));
 
             if (toolOutputs && toolOutputs.length > 0) {
-                return toolOutputs[0];
+                return toolOutputs;
             }
 
-            return {
+            return [{
                 role,
                 content: messageContent,
                 ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
-            };
+            }];
         });
 
         // Add system instruction if present

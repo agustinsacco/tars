@@ -730,6 +730,8 @@ export class GeminiEngine extends EventEmitter {
                     part.functionResponse.response = scrubbedResponse;
                 }
 
+                // Inject the original callId so LlamaCppGenerator can map it to tool_call_id
+                part.id = callId;
                 return part;
             })
             .filter(Boolean);
