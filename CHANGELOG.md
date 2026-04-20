@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.24.7](https://github.com/agustinsacco/tars/compare/v1.24.6...v1.24.7) (2026-04-20)
+
+
+### Bug Fixes
+
+* **inference:** flush out latest log cleanups for release ([99c30ed](https://github.com/agustinsacco/tars/commit/99c30ed533d5c97cbeebc8cb66f93dd3120e7c7c))
+* **logs:** decrease verbosity of gemini event stream logging ([1178147](https://github.com/agustinsacco/tars/commit/1178147d7f7df3ecaf539c652367773806c69899))
+
 ## [1.24.6](https://github.com/agustinsacco/tars/compare/v1.24.5...v1.24.6) (2026-04-20)
 
 
