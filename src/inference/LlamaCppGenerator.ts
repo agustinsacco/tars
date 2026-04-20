@@ -412,11 +412,7 @@ export class LlamaCppGenerator implements ContentGenerator {
         const delta = choice?.delta || {};
         const parts: Part[] = [];
         if (delta.reasoning_content || delta.thinking) {
-            const reasoning = delta.reasoning_content || delta.thinking;
-            // For now, we just log reasoning locally or we could pass it as a special part
-            // Gemini doesn't have a 'reasoning' part type, so we'll just log it for debugging
-            // and maybe strip it from the main content if it's interleaved.
-            logger.debug(`[Thinking] ${reasoning}`);
+            // Processing reasoning content without noisy per-token logging
         }
 
         if (delta.content) {
