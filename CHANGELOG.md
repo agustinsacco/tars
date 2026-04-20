@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.0](https://github.com/agustinsacco/tars/compare/v1.24.7...v1.25.0) (2026-04-20)
+
+
+### Features
+
+* **cli:** auto-detect context window size from llama.cpp server during setup ([92b53b5](https://github.com/agustinsacco/tars/commit/92b53b5ee9f37260fe2f8f09dfcddad9283a59d9))
+
 ## [1.24.7](https://github.com/agustinsacco/tars/compare/v1.24.6...v1.24.7) (2026-04-20)
 
 
