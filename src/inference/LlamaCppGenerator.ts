@@ -548,3 +548,4 @@ export class LlamaCppGenerator implements ContentGenerator {
         }
     }
 }
+// cleanup verbose logs trigger
