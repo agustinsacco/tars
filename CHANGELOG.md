@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.3](https://github.com/agustinsacco/tars/compare/v1.24.2...v1.24.3) (2026-04-20)
+
+
+### Bug Fixes
+
+* **inference:** resolve tool call args loss and ID mismatch in LlamaCpp stream aggregation ([f66b9cc](https://github.com/agustinsacco/tars/commit/f66b9cc49613a5a4e4955c64fb155e2ef8142403))
+
 ## [1.24.2](https://github.com/agustinsacco/tars/compare/v1.24.1...v1.24.2) (2026-04-20)
 
 
