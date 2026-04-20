@@ -465,7 +465,7 @@ export class GeminiEngine extends EventEmitter {
 
                     const normalized = this.normalizeEvent(event, sid);
                     if (normalized) {
-                        if (normalized.type === 'text' && normalized.content) {
+                        if (normalized.type === 'text' && normalized.content?.trim()) {
                             hasRealContent = true;
                         }
                         await onEvent(normalized);

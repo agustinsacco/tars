@@ -168,7 +168,7 @@ export class LlamaCppGenerator implements ContentGenerator {
                                 //    AND attach any deferred usage so it reaches turn.js Finished event
                                 if (choice && choice.finish_reason) {
                                     if (pendingToolCalls.size > 0) {
-                                        choice.delta.tool_calls = Array.from(
+                                        const assembled = Array.from(
                                             pendingToolCalls.entries()
                                         ).map(([_, tc]) => ({
                                             id: tc.id,
@@ -178,6 +178,10 @@ export class LlamaCppGenerator implements ContentGenerator {
                                                 arguments: tc.arguments
                                             }
                                         }));
+                                        logger.debug(
+                                            `[LlamaCppGenerator] Injecting ${assembled.length} aggregated tool call(s): ${assembled.map((t) => `${t.function.name}(${t.function.arguments.substring(0, 100)})`).join(', ')}`
+                                        );
+                                        choice.delta.tool_calls = assembled;
                                         pendingToolCalls.clear();
                                     }
 
@@ -189,6 +193,12 @@ export class LlamaCppGenerator implements ContentGenerator {
 
                                 const mapped = self.mapFromOpenAiStream(data, streamState);
                                 if (mapped) {
+                                    // Log function calls that will be consumed by turn.js
+                                    if (mapped.functionCalls && mapped.functionCalls.length > 0) {
+                                        logger.debug(
+                                            `[LlamaCppGenerator] Yielding ${mapped.functionCalls.length} function call(s): ${JSON.stringify(mapped.functionCalls.map((fc: any) => ({ name: fc.name, id: fc.id, argsKeys: fc.args ? Object.keys(fc.args) : [] })))}`
+                                        );
+                                    }
                                     yield mapped;
                                 }
                             } catch (e: any) {
@@ -293,7 +303,10 @@ export class LlamaCppGenerator implements ContentGenerator {
             const toolCalls = content.parts
                 ?.filter((p) => p.functionCall)
                 .map((p) => ({
-                    id: (p as any).callId || 'call_' + Math.random().toString(36).slice(2),
+                    id:
+                        (p.functionCall as any)?.id ||
+                        (p as any).callId ||
+                        'call_' + Math.random().toString(36).slice(2),
                     type: 'function',
                     function: {
                         name: p.functionCall!.name,
@@ -304,7 +317,8 @@ export class LlamaCppGenerator implements ContentGenerator {
             const toolOutputs = content.parts
                 ?.filter((p) => p.functionResponse)
                 .map((p) => ({
-                    tool_call_id: (p as any).callId,
+                    tool_call_id:
+                        (p.functionResponse as any)?.id || (p as any).callId || (p as any).id,
                     role: 'tool',
                     name: p.functionResponse!.name,
                     content: JSON.stringify(p.functionResponse!.response)
@@ -459,7 +473,7 @@ export class LlamaCppGenerator implements ContentGenerator {
                             functionCall: {
                                 name: tc.function.name,
                                 args: parsedArgs,
-                                callId: tc.id
+                                id: tc.id
                             }
                         } as any);
                     } catch (err: any) {

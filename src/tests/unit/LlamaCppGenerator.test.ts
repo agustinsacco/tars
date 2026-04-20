@@ -302,5 +302,256 @@ describe('LlamaCppGenerator', () => {
             expect(finishChunk).toBeDefined();
             expect(finishChunk.usageMetadata).toBeUndefined();
         });
+
+        /**
+         * Reproduces the exact failure from production: Qwen 3.6 with --reasoning on
+         * emits <think> in content field, then </think>, then \n\n, then tool_calls.
+         * The tool call has ID + args that must survive aggregation to resp.functionCalls.
+         */
+        it('should preserve tool call ID and args through thinking+tool_call stream (production repro)', async () => {
+            // This is the exact SSE sequence captured from llama-server on stark
+            const sseLines = [
+                // Initial role chunk
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":null}}]}',
+                // Think tag in content field (reasoning on mode still emits this)
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"<think>\\nThe user wants me to read a file."}}]}',
+                // More thinking
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":" Let me use read_file."}}]}',
+                // End think + whitespace
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"</think>"}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"\\n\\n"}}]}',
+                // Tool call chunks with ID on first chunk
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"id":"KYu2gneRtckrtMjG","type":"function","function":{"name":"read_file","arguments":"{"}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"file_path\\":\\""}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"/home/vim1/.tars/apps/sudoku/index.html"}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\""}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}',
+                // Finish with tool_calls reason
+                'data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{}}],"timings":{"prompt_n":283,"predicted_n":163}}',
+                'data: [DONE]'
+            ];
+
+            (global.fetch as any).mockResolvedValue({
+                ok: true,
+                body: createSSEStream(sseLines)
+            });
+
+            const request: any = {
+                model: 'Qwen3.6-35B-A3B-Q8_0.gguf',
+                contents: [{ role: 'user', parts: [{ text: 'Review the sudoku game' }] }],
+                config: {}
+            };
+
+            const stream = await generator.generateContentStream(request, 'prompt-id');
+            const responses: any[] = [];
+            for await (const chunk of stream) {
+                responses.push(chunk);
+            }
+
+            // Must have a function call response
+            const toolChunk = responses.find((r) => r.functionCalls?.length > 0);
+            expect(toolChunk).toBeDefined();
+
+            // The function call must have the correct name and POPULATED args
+            const fc = toolChunk.functionCalls[0];
+            expect(fc.name).toBe('read_file');
+            expect(fc.args).toEqual({
+                file_path: '/home/vim1/.tars/apps/sudoku/index.html'
+            });
+
+            // Must use `id` property (not `callId`) matching the model-generated ID
+            expect(fc.id).toBe('KYu2gneRtckrtMjG');
+
+            // Think content must NOT appear in the text output
+            const textChunks = responses.filter((r) =>
+                r.candidates?.[0]?.content?.parts?.some((p: any) => p.text)
+            );
+            const allText = textChunks
+                .flatMap((r: any) => r.candidates[0].content.parts)
+                .map((p: any) => p.text)
+                .join('');
+            expect(allText).not.toContain('<think>');
+            expect(allText).not.toContain('read_file');
+        });
+
+        it('should set functionCall.id (not callId) for SDK compatibility', async () => {
+            const sseLines = [
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"id":"abc123","type":"function","function":{"name":"list_dir","arguments":"{"}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"path\\":\\"/tmp\\""}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]}}]}',
+                'data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{}}]}',
+                'data: [DONE]'
+            ];
+
+            (global.fetch as any).mockResolvedValue({
+                ok: true,
+                body: createSSEStream(sseLines)
+            });
+
+            const request: any = {
+                model: 'test-model',
+                contents: [{ role: 'user', parts: [{ text: 'list files' }] }],
+                config: {}
+            };
+
+            const stream = await generator.generateContentStream(request, 'prompt-id');
+            const responses: any[] = [];
+            for await (const chunk of stream) {
+                responses.push(chunk);
+            }
+
+            const toolChunk = responses.find((r) => r.functionCalls?.length > 0);
+            expect(toolChunk).toBeDefined();
+
+            const fc = toolChunk.functionCalls[0];
+            // Must use `id` property — this is what turn.js reads via fnCall.id
+            expect(fc.id).toBe('abc123');
+            // `callId` must NOT be set (it causes turn.js to miss the ID)
+            expect(fc.callId).toBeUndefined();
+            expect(fc.args).toEqual({ path: '/tmp' });
+        });
+
+        it('should map tool call ID roundtrip through mapToOpenAi for tool responses', async () => {
+            // Simulate a conversation where the model made a tool call with id="model-id-xyz",
+            // and we're sending the response back
+            const request: any = {
+                model: 'test-model',
+                contents: [
+                    { role: 'user', parts: [{ text: 'read a file' }] },
+                    {
+                        role: 'model',
+                        parts: [
+                            {
+                                functionCall: {
+                                    name: 'read_file',
+                                    args: { file_path: '/test.txt' },
+                                    id: 'model-id-xyz'
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        role: 'user',
+                        parts: [
+                            {
+                                functionResponse: {
+                                    name: 'read_file',
+                                    id: 'model-id-xyz',
+                                    response: { content: 'file contents here' }
+                                }
+                            }
+                        ]
+                    }
+                ],
+                config: {}
+            };
+
+            // We test mapToOpenAi indirectly via generateContent
+            const mockResponse = {
+                choices: [
+                    {
+                        message: { content: 'I read the file.', tool_calls: null },
+                        finish_reason: 'stop'
+                    }
+                ],
+                usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }
+            };
+
+            (global.fetch as any).mockResolvedValue({
+                ok: true,
+                json: async () => mockResponse
+            });
+
+            await generator.generateContent(request, 'prompt-id');
+
+            // Verify the request body sent to fetch
+            const fetchCall = (global.fetch as any).mock.calls[0];
+            const sentBody = JSON.parse(fetchCall[1].body);
+
+            // The assistant message should have tool_calls with the model ID
+            const assistantMsg = sentBody.messages.find(
+                (m: any) => m.role === 'assistant' && m.tool_calls
+            );
+            expect(assistantMsg).toBeDefined();
+            expect(assistantMsg.tool_calls[0].id).toBe('model-id-xyz');
+
+            // The tool response should have the matching tool_call_id
+            const toolMsg = sentBody.messages.find((m: any) => m.role === 'tool');
+            expect(toolMsg).toBeDefined();
+            expect(toolMsg.tool_call_id).toBe('model-id-xyz');
+        });
+
+        it('should handle malformed tool call arguments gracefully', async () => {
+            const sseLines = [
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"id":"bad-json-id","type":"function","function":{"name":"read_file","arguments":"{"}}]}}]}',
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"not valid json"}}]}}]}',
+                'data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{}}]}',
+                'data: [DONE]'
+            ];
+
+            (global.fetch as any).mockResolvedValue({
+                ok: true,
+                body: createSSEStream(sseLines)
+            });
+
+            const request: any = {
+                model: 'test-model',
+                contents: [{ role: 'user', parts: [{ text: 'test' }] }],
+                config: {}
+            };
+
+            const stream = await generator.generateContentStream(request, 'prompt-id');
+            const responses: any[] = [];
+            for await (const chunk of stream) {
+                responses.push(chunk);
+            }
+
+            // Should still yield a function call, but with error info in args
+            const toolChunk = responses.find((r) => r.functionCalls?.length > 0);
+            expect(toolChunk).toBeDefined();
+            expect(toolChunk.functionCalls[0].name).toBe('read_file');
+            expect(toolChunk.functionCalls[0].args._error).toBeDefined();
+        });
+
+        it('should handle multiple parallel tool calls with separate IDs', async () => {
+            const sseLines = [
+                // First tool call
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{\\"file_path\\":\\"/a.txt\\"}"}}]}}]}',
+                // Second tool call
+                'data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":1,"id":"call-2","type":"function","function":{"name":"read_file","arguments":"{\\"file_path\\":\\"/b.txt\\"}"}}]}}]}',
+                'data: {"choices":[{"finish_reason":"tool_calls","index":0,"delta":{}}]}',
+                'data: [DONE]'
+            ];
+
+            (global.fetch as any).mockResolvedValue({
+                ok: true,
+                body: createSSEStream(sseLines)
+            });
+
+            const request: any = {
+                model: 'test-model',
+                contents: [{ role: 'user', parts: [{ text: 'read two files' }] }],
+                config: {}
+            };
+
+            const stream = await generator.generateContentStream(request, 'prompt-id');
+            const responses: any[] = [];
+            for await (const chunk of stream) {
+                responses.push(chunk);
+            }
+
+            const toolChunk = responses.find((r) => r.functionCalls?.length > 0);
+            expect(toolChunk).toBeDefined();
+            expect(toolChunk.functionCalls).toHaveLength(2);
+
+            // Each call must preserve its own ID and args
+            expect(toolChunk.functionCalls[0].name).toBe('read_file');
+            expect(toolChunk.functionCalls[0].id).toBe('call-1');
+            expect(toolChunk.functionCalls[0].args).toEqual({ file_path: '/a.txt' });
+
+            expect(toolChunk.functionCalls[1].name).toBe('read_file');
+            expect(toolChunk.functionCalls[1].id).toBe('call-2');
+            expect(toolChunk.functionCalls[1].args).toEqual({ file_path: '/b.txt' });
+        });
     });
 });
