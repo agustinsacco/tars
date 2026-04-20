@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.5](https://github.com/agustinsacco/tars/compare/v1.24.4...v1.24.5) (2026-04-20)
+
+
+### Bug Fixes
+
+* **inference:** ensure tool responses preserve ids and are not truncated ([64a6228](https://github.com/agustinsacco/tars/commit/64a6228170ed730dc6d07abbfae20dfe2bbcfcc2))
+
 ## [1.24.4](https://github.com/agustinsacco/tars/compare/v1.24.3...v1.24.4) (2026-04-20)
 
 
