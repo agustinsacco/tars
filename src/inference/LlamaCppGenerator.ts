@@ -65,19 +65,14 @@ export class LlamaCppGenerator implements ContentGenerator {
         request: GenerateContentParameters,
         userPromptId: string
     ): Promise<AsyncGenerator<GenerateContentResponse>> {
-        logger.debug(`[LlamaCppGenerator] Generating content stream for model: ${request.model}`);
-
         const openAiRequest = {
             ...this.mapToOpenAi(request),
             stream: true,
             stream_options: { include_usage: true }
         };
 
-        logger.debug(
-            `[LlamaCppGenerator] Outbound Tools Payload: ${JSON.stringify(openAiRequest.tools)}`
-        );
-
         const self = this;
+
         async function* streamGenerator() {
             const pendingToolCalls: Map<number, { id: string; name: string; arguments: string }> =
                 new Map();
@@ -182,10 +177,8 @@ export class LlamaCppGenerator implements ContentGenerator {
                                                 arguments: tc.arguments
                                             }
                                         }));
-                                        logger.debug(
-                                            `[LlamaCppGenerator] Injecting ${assembled.length} aggregated tool call(s): ${assembled.map((t) => `${t.function.name}(${t.function.arguments.substring(0, 100)})`).join(', ')}`
-                                        );
                                         choice.delta.tool_calls = assembled;
+
                                         pendingToolCalls.clear();
                                     }
 
@@ -197,18 +190,10 @@ export class LlamaCppGenerator implements ContentGenerator {
 
                                 const mapped = self.mapFromOpenAiStream(data, streamState);
                                 if (mapped) {
-                                    // Log function calls that will be consumed by turn.js
-                                    if (mapped.functionCalls && mapped.functionCalls.length > 0) {
-                                        logger.debug(
-                                            `[LlamaCppGenerator] Yielding ${mapped.functionCalls.length} function call(s): ${JSON.stringify(mapped.functionCalls.map((fc: any) => ({ name: fc.name, id: fc.id, argsKeys: fc.args ? Object.keys(fc.args) : [] })))}`
-                                        );
-                                    }
                                     yield mapped;
                                 }
                             } catch (e: any) {
-                                logger.debug(
-                                    `Failed to parse/map SSE line: ${cleanLine} - ${e.message}`
-                                );
+                                // Ignore unparseable SSE lines
                             }
                         }
                     }

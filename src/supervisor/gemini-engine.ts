@@ -424,12 +424,6 @@ export class GeminiEngine extends EventEmitter {
                 }
 
                 for await (const event of stream) {
-                    if (event.type !== GeminiEventType.Content) {
-                        logger.debug(
-                            `📨 Raw Gemini Event [Turn ${turnCount}]: ${JSON.stringify(event).substring(0, 200)}...`
-                        );
-                    }
-
                     if (event.type === GeminiEventType.ToolCallRequest) {
                         toolRequests.push(event.value);
                     }
