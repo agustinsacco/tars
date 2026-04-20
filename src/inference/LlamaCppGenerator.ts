@@ -73,7 +73,9 @@ export class LlamaCppGenerator implements ContentGenerator {
             stream_options: { include_usage: true }
         };
 
-        logger.debug(`[LlamaCppGenerator] Outbound Tools Payload: ${JSON.stringify(openAiRequest.tools)}`);
+        logger.debug(
+            `[LlamaCppGenerator] Outbound Tools Payload: ${JSON.stringify(openAiRequest.tools)}`
+        );
 
         const self = this;
         async function* streamGenerator() {
@@ -330,11 +332,13 @@ export class LlamaCppGenerator implements ContentGenerator {
                 return toolOutputs;
             }
 
-            return [{
-                role,
-                content: messageContent,
-                ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
-            }];
+            return [
+                {
+                    role,
+                    content: messageContent,
+                    ...(toolCalls && toolCalls.length > 0 ? { tool_calls: toolCalls } : {})
+                }
+            ];
         });
 
         // Add system instruction if present
