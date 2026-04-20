@@ -367,23 +367,31 @@ export async function setup() {
         }
 
         // Step 4c: Context window + heartbeat
+        const cwChoices: any[] = [];
+        if (probe.contextWindow) {
+            cwChoices.push({
+                name: `🤖 Auto-Detect (${probe.contextWindow} tokens from server)`,
+                value: probe.contextWindow
+            });
+        }
+        cwChoices.push(
+            { name: '4K tokens  — Small models (TinyLlama)', value: 4096 },
+            { name: '8K tokens  — Standard (Llama 3 8B)', value: 8192 },
+            { name: '16K tokens — Extended (Mistral 7B)', value: 16384 },
+            { name: '32K tokens — Large context (Qwen 3.5)', value: 32768 },
+            { name: '128K tokens — Very large context (Llama 3.1 70B)', value: 131072 },
+            { name: 'Custom', value: 'custom' }
+        );
+
         const advancedConfig = await inquirer.prompt([
             {
                 type: 'list',
                 name: 'contextWindowTokens',
                 message: 'Context Window Size (depends on your model):',
-                choices: [
-                    { name: '4K tokens  — Small models (TinyLlama)', value: 4096 },
-                    { name: '8K tokens  — Standard (Llama 3 8B)', value: 8192 },
-                    { name: '16K tokens — Extended (Mistral 7B)', value: 16384 },
-                    { name: '32K tokens — Large context (Qwen 3.5)', value: 32768 },
-                    {
-                        name: '128K tokens — Very large context (Llama 3.1 70B)',
-                        value: 131072
-                    },
-                    { name: 'Custom', value: 'custom' }
-                ],
-                default: existingConfig.contextWindowTokens || 8192
+                choices: cwChoices,
+                default: probe.contextWindow
+                    ? probe.contextWindow
+                    : existingConfig.contextWindowTokens || 8192
             },
             {
                 type: 'input',

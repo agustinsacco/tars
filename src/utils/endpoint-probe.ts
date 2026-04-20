@@ -6,6 +6,7 @@ import logger from './logger.js';
 export interface EndpointProbeResult {
     reachable: boolean;
     models: string[];
+    contextWindow?: number;
     error?: string;
 }
 
@@ -61,7 +62,25 @@ export async function probeEndpoint(
                     }
                 }
 
-                return { reachable: true, models };
+                let contextWindow: number | undefined;
+
+                // Try to fetch active context window from llama.cpp /props endpoint
+                try {
+                    const propsUrl = normalizedUrl.endsWith('/v1')
+                        ? normalizedUrl.replace(/\/v1$/, '/props')
+                        : `${normalizedUrl}/props`;
+                    const propsRes = await fetch(propsUrl, { method: 'GET' });
+                    if (propsRes.ok) {
+                        const propsData = (await propsRes.json()) as any;
+                        if (propsData.default_generation_settings?.n_ctx) {
+                            contextWindow = propsData.default_generation_settings.n_ctx;
+                        }
+                    }
+                } catch {
+                    // Ignore failures, just a best-effort auto-detection
+                }
+
+                return { reachable: true, models, contextWindow };
             }
 
             // Server reachable but /v1/models not supported — still valid
