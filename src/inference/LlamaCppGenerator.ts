@@ -270,7 +270,7 @@ export class LlamaCppGenerator implements ContentGenerator {
             ? request.contents
             : [{ role: 'user', parts: [{ text: request.contents }] }];
 
-        const messages = (contents as Content[]).flatMap((content) => {
+        const messages = (contents as Content[]).flatMap((content): any[] => {
             const role = content.role === 'model' ? 'assistant' : content.role || 'user';
 
             // Map parts to content
