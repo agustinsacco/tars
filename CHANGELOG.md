@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.6](https://github.com/agustinsacco/tars/compare/v1.24.5...v1.24.6) (2026-04-20)
+
+
+### Bug Fixes
+
+* **inference:** resolve compilation error caused by implicit flatMap return typing ([6bed804](https://github.com/agustinsacco/tars/commit/6bed804b2eb51e672031ee6d848a5e120443d76c))
+
 ## [1.24.5](https://github.com/agustinsacco/tars/compare/v1.24.4...v1.24.5) (2026-04-20)
 
 
