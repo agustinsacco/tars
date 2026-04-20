@@ -323,6 +323,7 @@ export class GeminiEngine extends EventEmitter {
             }
 
             let currentRequestParts: any[] = [{ text: prompt }];
+            const reqPromptId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
             // Handle Multimodal Attachments
             if (attachments && attachments.length > 0) {
@@ -375,7 +376,7 @@ export class GeminiEngine extends EventEmitter {
                             return this.client.sendMessageStream(
                                 currentRequestParts,
                                 abortController.signal,
-                                'tars-request' // Proper promptId
+                                reqPromptId
                             );
                         });
                         break; // Success
