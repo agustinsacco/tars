@@ -781,7 +781,6 @@ export async function setup() {
             } catch (err: any) {
                 const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
                 dashSpinner.fail(`Dashboard installation failed: ${out}`);
-                }
             }
         }
     }
