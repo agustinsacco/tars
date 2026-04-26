@@ -776,7 +776,9 @@ export async function setup() {
                 execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
 
                 dashSpinner.succeed(
-                    dashConfig.updateDash ? 'Dashboard updated to latest version.' : 'Dashboard ready.'
+                    dashConfig.updateDash
+                        ? 'Dashboard updated to latest version.'
+                        : 'Dashboard ready.'
                 );
             } catch (err: any) {
                 const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
