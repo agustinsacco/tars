@@ -604,13 +604,13 @@ export class GeminiEngine extends EventEmitter {
 
                 // 1. Check if we need to compress mid-loop to avoid context window crashes
                 if (this.sessionManager && this.tarsConfig) {
-                    const usage = await this.sessionManager.getUsage();
+                    const stats = this.sessionManager.getStats();
                     const threshold = this.tarsConfig.compressionThreshold || 0.8;
                     const limit = this.tarsConfig.contextWindowTokens || 128000;
 
-                    if (usage.inputTokens > limit * threshold) {
+                    if (stats && stats.totalInputTokens > limit * threshold) {
                         logger.info(
-                            `[GeminiEngine] Mid-loop compression triggered (${usage.inputTokens}/${limit} tokens)`
+                            `[GeminiEngine] Mid-loop compression triggered (${stats.totalInputTokens}/${limit} tokens)`
                         );
                         try {
                             const didCompress = await this.compressSession();
@@ -620,7 +620,7 @@ export class GeminiEngine extends EventEmitter {
                                     role: 'assistant',
                                     content:
                                         '\n\n✨ *Mid-task memory compacted to optimally save context space.*',
-                                    sessionId: this.activeSessionId
+                                    sessionId: sid
                                 } as any);
                             }
                         } catch (e: any) {
@@ -631,14 +631,16 @@ export class GeminiEngine extends EventEmitter {
 
                 // 2. Long-running task notification (Human-in-the-loop)
                 if (turnCount > 0 && turnCount % 20 === 0) {
-                    logger.info(`[GeminiEngine] Sending turn ${turnCount} heartbeat notification...`);
+                    logger.info(
+                        `[GeminiEngine] Sending turn ${turnCount} heartbeat notification...`
+                    );
                     const statusMsg = `⏳ I'm still working on this task (Turn ${turnCount}). It's proving complex, but I'm continuing to analyze. I will notify you when finished or if I hit a roadblock.`;
 
                     // Only send via channel if available
                     if (this.channelManager) {
                         this.channelManager
-                            .sendToDefault(statusMsg)
-                            .catch((e) => logger.error(`Failed to send turn heartbeat: ${e}`));
+                            .notify(statusMsg)
+                            .catch((e: any) => logger.error(`Failed to send turn heartbeat: ${e}`));
                     }
                 }
             }
