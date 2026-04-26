@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.26.0](https://github.com/agustinsacco/tars/compare/v1.25.0...v1.26.0) (2026-04-26)
+
+
+### Features
+
+* **cli:** auto-detect context window size from llama.cpp server during setup ([92b53b5](https://github.com/agustinsacco/tars/commit/92b53b5ee9f37260fe2f8f09dfcddad9283a59d9))
+
+
+### Bug Fixes
+
+* **inference:** ensure tool responses preserve ids and are not truncated ([64a6228](https://github.com/agustinsacco/tars/commit/64a6228170ed730dc6d07abbfae20dfe2bbcfcc2))
+* **inference:** flush out latest log cleanups for release ([99c30ed](https://github.com/agustinsacco/tars/commit/99c30ed533d5c97cbeebc8cb66f93dd3120e7c7c))
+* **inference:** resolve compilation error caused by implicit flatMap return typing ([6bed804](https://github.com/agustinsacco/tars/commit/6bed804b2eb51e672031ee6d848a5e120443d76c))
+* **inference:** resolve tool call args loss and ID mismatch in LlamaCpp stream aggregation ([f66b9cc](https://github.com/agustinsacco/tars/commit/f66b9cc49613a5a4e4955c64fb155e2ef8142403))
+* **logs:** decrease verbosity of gemini event stream logging ([1178147](https://github.com/agustinsacco/tars/commit/1178147d7f7df3ecaf539c652367773806c69899))
+* only inject tool call id for local inference to avoid Gemini Cloud 400 errors ([ab78b5e](https://github.com/agustinsacco/tars/commit/ab78b5edde8b6e7c2a28fac4df90d290b5283e1b))
+* **supervisor:** generate unique promptId per user request to reset loop detector ([a73641b](https://github.com/agustinsacco/tars/commit/a73641baa72b56de9f41580829d8d4f47d7d54ed))
+
 ## [1.25.0](https://github.com/agustinsacco/tars/compare/v1.24.7...v1.25.0) (2026-04-20)
 
 
