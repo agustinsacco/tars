@@ -129,6 +129,13 @@ export const JobQueue = memo(({ data }: { data: any }) => {
 });
 
 export const SessionIntelligence = memo(({ data }: { data: any }) => {
+    const formatUptime = (ms: number) => {
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        if (h > 0) return `${h}h ${m}m`;
+        return `${m}m`;
+    };
+
     return (
         <div className="card bg-[#0c0c0c] border-white/10 flex flex-col h-[400px] p-4 shadow-2xl">
             <div className="card-header-btop text-accent-primary border-accent-primary/30">
@@ -168,20 +175,20 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                 <div className="space-y-3 px-1">
                     {[
                         {
-                            label: 'Input Tokens',
+                            label: 'Input Tokens (Cumulative)',
                             value: data.session?.totalInputTokens,
                             color: 'bg-accent-primary',
-                            max: data.session?.totalNetTokens || 1000000
+                            max: Math.max(data.session?.totalNetTokens || 1000000, 10000)
                         },
                         {
                             label: 'Output Tokens',
                             value: data.session?.totalOutputTokens,
                             color: 'bg-accent-secondary',
-                            max: (data.session?.totalNetTokens || 1000000) / 10
+                            max: Math.max((data.session?.totalNetTokens || 1000000) / 10, 1000)
                         },
                         {
-                            label: 'Cached Tokens',
-                            value: data.session?.totalCachedTokens,
+                            label: 'Context Size (Current)',
+                            value: data.session?.lastInputTokens,
                             color: 'bg-accent-warning',
                             max: data.session?.totalNetTokens || 1000000
                         }
@@ -245,6 +252,53 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                         </span>
                     </div>
                 </div>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="flex items-center gap-1.5 mb-1">
+                            <Sparkles size={8} className="text-accent-primary/40" />
+                            <span className="text-[8px] font-black text-white/40 uppercase block">
+                                Compressions
+                            </span>
+                        </div>
+                        <span className="text-sm font-black text-white font-mono">
+                            {data.session?.compressionCount || 0}
+                        </span>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="flex items-center gap-1.5 mb-1">
+                            <Clock size={8} className="text-accent-secondary/40" />
+                            <span className="text-[8px] font-black text-white/40 uppercase block">
+                                Uptime
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-white font-mono leading-tight">
+                            {data.session?.createdAt
+                                ? formatUptime(Date.now() - new Date(data.session.createdAt).getTime())
+                                : 'N/A'}
+                        </span>
+                    </div>
+                    <div className="bg-white/5 rounded-xl p-2.5 border border-white/5">
+                        <div className="flex items-center gap-1.5 mb-1">
+                            <Sparkles size={8} className="text-accent-warning/40" />
+                            <span className="text-[8px] font-black text-white/40 uppercase block">
+                                Context Window
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-white font-mono leading-tight">
+                            {data.session?.lastInputTokens
+                                ? `${Math.round((data.session.lastInputTokens / 1000000) * 100) / 100}M`
+                                : 'N/A'}
+                        </span>
+                    </div>
+                </div>
+                {data.session?.compressionCount ? (
+                    <div className="mt-2 p-2 bg-accent-warning/5 border border-accent-warning/20 rounded-lg flex items-center gap-2">
+                        <Sparkles size={12} className="text-accent-warning opacity-60" />
+                        <span className="text-[8px] font-bold text-white/60">
+                            Session compressed {data.session.compressionCount} time{data.session.compressionCount > 1 ? 's' : ''}
+                        </span>
+                    </div>
+                ) : null}
 
                 <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
                     {data.sessionStats?.history?.map((s: any, i: number) => (

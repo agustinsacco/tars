@@ -113,13 +113,56 @@ describe('SessionManager', () => {
         });
 
         const stats = manager.getStats();
-        expect(stats?.totalInputTokens).toBe(50);
+        // totalInputTokens is now cumulative (100 existing + 50 new)
+        expect(stats?.totalInputTokens).toBe(150);
         expect(stats?.totalOutputTokens).toBe(75);
         expect(stats?.totalCachedTokens).toBe(5);
+        // totalNetTokens: mock has no totalNetTokens, so load() defaults to totalInputTokens (100)
+        // then update adds netInput (50 - 5 cached = 45) → 145
         expect(stats?.totalNetTokens).toBe(145);
         expect(stats?.interactionCount).toBe(2);
 
         expect(fs.promises.writeFile).toHaveBeenCalled();
+    });
+
+    it('should accumulate totals across multiple usage updates', async () => {
+        // Mock data with pre-existing cumulative totals
+        const mockData = {
+            sessionId: 'cumulative-test',
+            totalInputTokens: 200,
+            totalOutputTokens: 100,
+            totalNetTokens: 180,
+            totalCachedTokens: 20,
+            interactionCount: 3,
+            compressionCount: 1
+        };
+        vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+        vi.mocked(fs.promises.readFile).mockResolvedValue(JSON.stringify(mockData));
+        await manager.load();
+
+        // First update
+        await manager.updateUsage({
+            inputTokens: 80,
+            outputTokens: 40,
+            cachedTokens: 10
+        });
+        let stats = manager.getStats();
+        expect(stats?.totalInputTokens).toBe(280); // 200 + 80
+        expect(stats?.totalOutputTokens).toBe(140); // 100 + 40
+        expect(stats?.totalNetTokens).toBe(250); // 180 + (80 - 10)
+        expect(stats?.interactionCount).toBe(4);
+
+        // Second update
+        await manager.updateUsage({
+            inputTokens: 120,
+            outputTokens: 60,
+            cachedTokens: 15
+        });
+        stats = manager.getStats();
+        expect(stats?.totalInputTokens).toBe(400); // 280 + 120
+        expect(stats?.totalOutputTokens).toBe(200); // 140 + 60
+        expect(stats?.totalNetTokens).toBe(355); // 250 + (120 - 15)
+        expect(stats?.interactionCount).toBe(5);
     });
 
     it('should clear the session file', async () => {

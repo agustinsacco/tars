@@ -9,12 +9,12 @@ import { UsageStats } from '../types/index.js';
 export interface SessionData {
     sessionId: string;
     createdAt: string;
-    totalInputTokens: number;
+    totalInputTokens: number; // Cumulative input tokens across all interactions
     totalOutputTokens: number;
     totalCachedTokens: number;
     interactionCount: number;
     lastInteractionAt: string;
-    lastInputTokens: number;
+    lastInputTokens: number; // Current context window size (tokens)
     totalNetTokens: number;
     lastUserInteractionAt?: string;
     compressionCount: number;
@@ -87,6 +87,7 @@ export class SessionManager {
                 lastInteractionAt: new Date().toISOString(),
                 lastInputTokens: 0,
                 totalNetTokens: 0,
+                lastUserInteractionAt: undefined,
                 compressionCount: 0
             };
 
@@ -108,12 +109,12 @@ export class SessionManager {
 
         const netInput = Math.max(0, usage.inputTokens - (usage.cachedTokens || 0));
         this.sessionData.totalNetTokens += netInput;
-        this.sessionData.totalInputTokens = usage.inputTokens; // Current context size
+        this.sessionData.totalInputTokens += usage.inputTokens; // Cumulative total
         this.sessionData.totalOutputTokens += usage.outputTokens;
         this.sessionData.totalCachedTokens = usage.cachedTokens || 0; // Current cached state
         this.sessionData.interactionCount++;
         this.sessionData.lastInteractionAt = new Date().toISOString();
-        this.sessionData.lastInputTokens = usage.inputTokens;
+        this.sessionData.lastInputTokens = usage.inputTokens; // Current context window size
 
         // Persist to disk
         try {
