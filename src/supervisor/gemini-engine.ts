@@ -589,7 +589,8 @@ export class GeminiEngine extends EventEmitter {
                     toolRequests,
                     completedCalls,
                     blockedResponses,
-                    sensitiveCalls
+                    sensitiveCalls,
+                    this.tarsConfig.inferenceBackend === 'llamacpp'
                 );
 
                 if (currentRequestParts.length === 0) {
@@ -671,7 +672,8 @@ export class GeminiEngine extends EventEmitter {
         toolRequests: any[],
         completedCalls: any[],
         blockedResponses: Map<string, string>,
-        sensitiveCalls: Set<string>
+        sensitiveCalls: Set<string>,
+        isLocalInference: boolean = false
     ): any[] {
         return toolRequests
             .map((req) => {
@@ -724,8 +726,11 @@ export class GeminiEngine extends EventEmitter {
                     part.functionResponse.response = scrubbedResponse;
                 }
 
-                // Inject the original callId so LlamaCppGenerator can map it to tool_call_id
-                part.id = callId;
+                // Inject the original callId so LlamaCppGenerator can map it to tool_call_id.
+                // We ONLY do this for local inference as the Cloud Gemini API rejects unknown fields.
+                if (isLocalInference) {
+                    part.id = callId;
+                }
                 return part;
             })
             .filter(Boolean);
