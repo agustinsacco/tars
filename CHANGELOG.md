@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.27.0](https://github.com/agustinsacco/tars/compare/v1.26.0...v1.27.0) (2026-04-26)
+
+
+### Features
+
+* implement proactive mid-loop compression and turn-limit heartbeats ([d6876d0](https://github.com/agustinsacco/tars/commit/d6876d012a43e506fef31c10ad45aa855c9fa4f6))
+
+
+### Bug Fixes
+
+* build errors in gemini-engine ([7023842](https://github.com/agustinsacco/tars/commit/7023842d11261acdbc51d1b6b1ddf974abe5df95))
+
 ## [1.26.0](https://github.com/agustinsacco/tars/compare/v1.25.0...v1.26.0) (2026-04-26)
 
 
