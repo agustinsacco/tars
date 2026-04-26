@@ -63,6 +63,10 @@ When building features or troubleshooting, follow this checklist:
 6.  **Dev Mode**: Use `npm run dev` to run the supervisor in the foreground with `tsx watch` for immediate feedback during development.
 7.  **Remote SSH Debugging**: If requested to debug a remote instance (e.g., `stark@stark`), use `sshpass -p <password> ssh` combined with `pm2 logs tars-supervisor --raw`. Note that the remote installation is a global NPM package, typically located at `/home/<user>/.local/share/fnm/node-versions/<version>/installation/lib/node_modules/@saccolabs/tars/`. To apply an emergency live patch, use `sed` over SSH or tell the user to run `npm install -g @saccolabs/tars@latest && pm2 restart tars-supervisor`.
 
+### 🤖 AI Assistant Protocol (Antigravity/Pi)
+
+- **Comprehensive Planning**: I must ALWAYS provide a comprehensive plan and wait for explicit user approval BEFORE applying any code changes, live patches, or running potentially disruptive commands when the user asks for research, analysis, or exploration.
+
 ### ⚠️ Critical Gotchas
 
 - **Session Swapping**: `GeminiEngine.ts` hot-swaps sessions. If you change a session mid-run, you must call `startChat` to re-initialize the core client with the correct history.
