@@ -597,6 +597,52 @@ export class GeminiEngine extends EventEmitter {
                     logger.warn('⚠️ No tool responses generated after execution.');
                     break;
                 }
+
+                // -------------------------------------------------------------------------
+                // PROACTIVE COMPRESSION & USER CHECK-IN
+                // -------------------------------------------------------------------------
+
+                // 1. Check if we need to compress mid-loop to avoid context window crashes
+                if (this.sessionManager && this.tarsConfig) {
+                    const stats = this.sessionManager.getStats();
+                    const threshold = this.tarsConfig.compressionThreshold || 0.8;
+                    const limit = this.tarsConfig.contextWindowTokens || 128000;
+
+                    if (stats && stats.totalInputTokens > limit * threshold) {
+                        logger.info(
+                            `[GeminiEngine] Mid-loop compression triggered (${stats.totalInputTokens}/${limit} tokens)`
+                        );
+                        try {
+                            const didCompress = await this.compressSession();
+                            if (didCompress) {
+                                await onEvent({
+                                    type: 'text',
+                                    role: 'assistant',
+                                    content:
+                                        '\n\n✨ *Mid-task memory compacted to optimally save context space.*',
+                                    sessionId: sid
+                                } as any);
+                            }
+                        } catch (e: any) {
+                            logger.warn(`[GeminiEngine] Mid-loop compression failed: ${e.message}`);
+                        }
+                    }
+                }
+
+                // 2. Long-running task notification (Human-in-the-loop)
+                if (turnCount > 0 && turnCount % 20 === 0) {
+                    logger.info(
+                        `[GeminiEngine] Sending turn ${turnCount} heartbeat notification...`
+                    );
+                    const statusMsg = `⏳ I'm still working on this task (Turn ${turnCount}). It's proving complex, but I'm continuing to analyze. I will notify you when finished or if I hit a roadblock.`;
+
+                    // Only send via channel if available
+                    if (this.channelManager) {
+                        this.channelManager
+                            .notify(statusMsg)
+                            .catch((e: any) => logger.error(`Failed to send turn heartbeat: ${e}`));
+                    }
+                }
             }
 
             // If the loop finished without producing any content, notify the user
