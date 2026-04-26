@@ -4,7 +4,6 @@ import fs from 'fs';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,13 +11,11 @@ const __dirname = path.dirname(__filename);
 export class DashboardService {
     private readonly dashDir: string;
     private readonly dashName: string;
-    private readonly tunnelName: string;
 
     constructor(private readonly config: Config) {
         // Dashboard is now located in ~/.tars/apps/dashboard
         this.dashDir = path.join(this.config.homeDir, 'apps', 'dashboard');
         this.dashName = `${this.config.instanceName}-dash`;
-        this.tunnelName = `${this.config.instanceName}-tunnel`;
     }
 
     public async start(): Promise<void> {
@@ -38,12 +35,10 @@ export class DashboardService {
                     return;
                 }
 
-                this.startDash()
-                    .then(() => this.startTunnel())
-                    .finally(() => {
-                        pm2.disconnect();
-                        resolve();
-                    });
+                this.startDash().finally(() => {
+                    pm2.disconnect();
+                    resolve();
+                });
             });
         });
     }
@@ -85,45 +80,6 @@ export class DashboardService {
                     } else {
                         logger.info(`✨ Dashboard [${this.dashName}] active on port ${port}`);
                         logger.info(`🔗 Local URL: http://localhost:${port}`);
-                        if (!process.env.CLOUDFLARE_TUNNEL_TOKEN) {
-                            logger.info(
-                                '💡 Tip: To expose your dashboard remotely, set CLOUDFLARE_TUNNEL_TOKEN in your .env or run setup again.'
-                            );
-                        }
-                    }
-                    resolve();
-                }
-            );
-        });
-    }
-
-    private async startTunnel(): Promise<void> {
-        const cloudflareToken = process.env.CLOUDFLARE_TUNNEL_TOKEN;
-        if (!cloudflareToken) return;
-
-        // Check if cloudflared is installed
-        try {
-            execSync('which cloudflared', { stdio: 'ignore' });
-        } catch (e) {
-            logger.warn('⚠️ cloudflared not found in PATH. Skipping tunnel.');
-            return;
-        }
-
-        return new Promise((resolve) => {
-            logger.info('☁️ Starting Cloudflare Tunnel (PM2)...');
-
-            pm2.start(
-                {
-                    script: 'cloudflared',
-                    args: ['tunnel', '--no-autoupdate', 'run', '--token', cloudflareToken],
-                    name: this.tunnelName,
-                    interpreter: 'none'
-                },
-                (err) => {
-                    if (err) {
-                        logger.error(`❌ Cloudflare Tunnel failed: ${err.message}`);
-                    } else {
-                        logger.info('✅ Cloudflare Tunnel active.');
                     }
                     resolve();
                 }
@@ -136,9 +92,7 @@ export class DashboardService {
             if (err) return;
 
             pm2.delete(this.dashName, () => {
-                pm2.delete(this.tunnelName, () => {
-                    pm2.disconnect();
-                });
+                pm2.disconnect();
             });
         });
     }
