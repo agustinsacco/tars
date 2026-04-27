@@ -189,7 +189,8 @@ describe('SessionManager', () => {
         beforeEach(async () => {
             const mockData = {
                 sessionId: 'ctx-session',
-                totalInputTokens: 500000,
+                totalInputTokens: 500000, // Cumulative total across all interactions
+                lastInputTokens: 500000, // Current interaction's token count
                 createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(), // 1 hour ago
                 compressionCount: 1
             };
@@ -198,8 +199,10 @@ describe('SessionManager', () => {
             await manager.load();
         });
 
-        it('getContextUsagePercent returns correct fraction', () => {
+        it('getContextUsagePercent uses lastInputTokens (current context), not cumulative total', () => {
+            // lastInputTokens = 500000, context window = 1000000 → 50%
             expect(manager.getContextUsagePercent(1000000)).toBeCloseTo(0.5);
+            // Even if cumulative total is much higher, compression should be based on current context
         });
 
         it('getContextUsagePercent returns 0 for invalid window size', () => {
@@ -212,6 +215,25 @@ describe('SessionManager', () => {
 
         it('needsCompression returns false when under threshold', () => {
             expect(manager.needsCompression(1000000, 0.6)).toBe(false);
+        });
+
+        it('compression is NOT triggered by cumulative totals alone (only current context matters)', async () => {
+            // Session with high cumulative tokens but small current context
+            const mockData = {
+                sessionId: 'cumulative-high',
+                totalInputTokens: 900000, // Very high cumulative
+                lastInputTokens: 100000, // But current interaction is only 100K
+                createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+                compressionCount: 0
+            };
+            vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+            vi.mocked(fs.promises.readFile).mockResolvedValue(JSON.stringify(mockData));
+            const m = new SessionManager(mockFilePath);
+            await m.load();
+
+            // With 128K context window and 0.8 threshold:
+            // lastInputTokens = 100K → 78.1% < 80% → no compression
+            expect(m.needsCompression(128000, 0.8)).toBe(false);
         });
 
         it('getSessionUptime returns positive duration', () => {

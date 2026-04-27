@@ -213,11 +213,12 @@ export class SessionManager {
     }
 
     /**
-     * Returns the fraction of the context window currently consumed.
+     * Returns the fraction of the context window currently consumed
+     * based on the most recent interaction's input token count.
      */
     getContextUsagePercent(contextWindowTokens: number): number {
         if (!this.sessionData || contextWindowTokens <= 0) return 0;
-        return this.sessionData.totalInputTokens / contextWindowTokens;
+        return (this.sessionData.lastInputTokens || 0) / contextWindowTokens;
     }
 
     /**

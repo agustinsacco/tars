@@ -527,8 +527,8 @@ export async function setup() {
     // ══════════════════════════════════════════════════════════
     // ── Step 6: Tars Dashboard ────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 6: Tars Dashboard & Cloudflare'));
-    console.log(chalk.dim('───────────────────────────────────'));
+    console.log(chalk.bold('\nStep 6: Tars Dashboard'));
+    console.log(chalk.dim('────────────────────────────'));
 
     const secretsManager = new SecretsManager(tarsHome);
     const secrets = secretsManager.load();
@@ -555,22 +555,11 @@ export async function setup() {
             when: (a) => a.enableDash
         },
         {
-            type: 'list',
-            name: 'tunnelSetup',
-            message: 'Dashboard Exposure Method:',
-            choices: [
-                { name: 'Localhost Only (Default, no extra setup)', value: 'local' },
-                { name: 'Cloudflare Tunnel (Remote Access, needs Token)', value: 'tunnel' }
-            ],
-            default: 'local',
-            when: (a) => a.enableDash
-        },
-        {
-            type: 'password',
-            name: 'cfToken',
-            message: 'Enter Cloudflare Tunnel Token:',
-            when: (a) => a.tunnelSetup === 'tunnel',
-            validate: (i) => i.length > 20 || 'Please enter a valid Cloudflare token'
+            type: 'confirm',
+            name: 'updateDash',
+            message: 'Dashboard already installed. Reinstall/overwrite with latest version?',
+            default: false,
+            when: (a) => a.enableDash && fsSync.existsSync(path.join(tarsHome, 'apps', 'dashboard'))
         }
     ]);
 
@@ -578,9 +567,6 @@ export async function setup() {
         secretsManager.set('DASH_ENABLED', 'true');
         secretsManager.set('DASH_PORT', dashConfig.dashPort);
         secretsManager.set('DASH_PASSWORD', dashConfig.dashPassword);
-        if (dashConfig.tunnelSetup === 'tunnel') {
-            secretsManager.set('CLOUDFLARE_TUNNEL_TOKEN', dashConfig.cfToken);
-        }
         console.log(chalk.green('  ✓ Dashboard configuration saved.'));
     }
 
@@ -772,30 +758,31 @@ export async function setup() {
         const dashDest = path.join(tarsHome, 'apps', 'dashboard');
 
         if (fsSync.existsSync(dashSrc)) {
-            // Check if dashboard already exists to prevent overwrite
-            if (fsSync.existsSync(dashDest)) {
-                console.log(
-                    chalk.dim(
-                        '  Dashboard already exists, skipping installation to prevent overwriting custom changes.'
-                    )
-                );
-            } else {
-                const dashSpinner = ora('Installing Tars Dashboard...').start();
-                try {
-                    await fs.cp(dashSrc, dashDest, { recursive: true });
-
-                    dashSpinner.text = 'Hydrating Dashboard dependencies...';
-                    // We need devDependencies for npm run build (tailwind, etc.)
-                    execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
-
-                    dashSpinner.text = 'Building Dashboard...';
-                    execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
-
-                    dashSpinner.succeed('Dashboard ready.');
-                } catch (err: any) {
-                    const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
-                    dashSpinner.fail(`Dashboard installation failed: ${out}`);
+            const dashSpinner = ora('Installing Tars Dashboard...').start();
+            try {
+                // If updating, remove existing dashboard first
+                if (dashConfig.updateDash && fsSync.existsSync(dashDest)) {
+                    dashSpinner.text = 'Removing existing dashboard...';
+                    await fs.rm(dashDest, { recursive: true, force: true });
                 }
+
+                await fs.cp(dashSrc, dashDest, { recursive: true });
+
+                dashSpinner.text = 'Hydrating Dashboard dependencies...';
+                // We need devDependencies for npm run build (tailwind, etc.)
+                execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
+
+                dashSpinner.text = 'Building Dashboard...';
+                execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
+
+                dashSpinner.succeed(
+                    dashConfig.updateDash
+                        ? 'Dashboard updated to latest version.'
+                        : 'Dashboard ready.'
+                );
+            } catch (err: any) {
+                const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
+                dashSpinner.fail(`Dashboard installation failed: ${out}`);
             }
         }
     }
