@@ -125,10 +125,15 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
             resultText += `- **Session ID**: \`${stats.sessionId}\`\n`;
             resultText += `- **Created**: ${stats.createdAt}\n`;
             resultText += `- **Interactions**: ${stats.interactionCount}\n`;
-            resultText += `- **Context Tokens (Last)**: ${stats.totalInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${usagePercent}%)\n`;
+            const contextPercent =
+                contextWindow > 0
+                    ? ((stats.lastInputTokens / contextWindow) * 100).toFixed(1)
+                    : 'N/A';
+            resultText += `- **Context Size (Current)**: ${stats.lastInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${contextPercent}%)\n`;
             resultText += `- **Output Tokens (Cumulative)**: ${stats.totalOutputTokens.toLocaleString()}\n`;
-            resultText += `- **Cached Tokens**: ${stats.totalCachedTokens.toLocaleString()}\n`;
+            resultText += `- **Cached Tokens (Current)**: ${stats.totalCachedTokens.toLocaleString()}\n`;
             resultText += `- **Net Input Tokens (Cumulative)**: ${stats.totalNetTokens.toLocaleString()}\n`;
+            resultText += `- **Total Input Tokens (Cumulative)**: ${stats.totalInputTokens.toLocaleString()}\n`;
             resultText += `- **Compressions**: ${stats.compressionCount}\n`;
             resultText += `- **Last Interaction**: ${stats.lastInteractionAt}\n`;
         } else {
