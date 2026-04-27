@@ -273,7 +273,9 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                         </div>
                         <span className="text-[10px] font-bold text-white font-mono leading-tight">
                             {data.session?.createdAt
-                                ? formatUptime(Date.now() - new Date(data.session.createdAt).getTime())
+                                ? formatUptime(
+                                      Date.now() - new Date(data.session.createdAt).getTime()
+                                  )
                                 : 'N/A'}
                         </span>
                     </div>
@@ -295,7 +297,8 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                     <div className="mt-2 p-2 bg-accent-warning/5 border border-accent-warning/20 rounded-lg flex items-center gap-2">
                         <Sparkles size={12} className="text-accent-warning opacity-60" />
                         <span className="text-[8px] font-bold text-white/60">
-                            Session compressed {data.session.compressionCount} time{data.session.compressionCount > 1 ? 's' : ''}
+                            Session compressed {data.session.compressionCount} time
+                            {data.session.compressionCount > 1 ? 's' : ''}
                         </span>
                     </div>
                 ) : null}
