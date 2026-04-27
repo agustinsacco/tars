@@ -98,7 +98,14 @@ function DashboardContent() {
                 </div>
             </motion.header>
 
-            {/* TOP SECTION: Session, System Control & Supervisor Logs */}
+            {/* TOP SECTION: Host Resources (Metrics) */}
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mb-12">
+                <div className="xl:col-span-12">
+                    <MetricsPanel />
+                </div>
+            </div>
+
+            {/* SECOND SECTION: Session, System Control & Supervisor Logs */}
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mb-12">
                 <div className="xl:col-span-3 flex flex-col gap-6">
                     {intelData ? (
@@ -117,21 +124,18 @@ function DashboardContent() {
                 </div>
             </div>
 
-            {/* MID SECTION: System Metrics & File Explorer */}
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mb-12">
-                <div className="xl:col-span-8">
-                    <MetricsPanel />
-                </div>
-                <div className="xl:col-span-4">
-                    <FileExplorer />
-                </div>
-            </div>
-
-            {/* BOTTOM SECTION: Cognitive Layers */}
+            {/* THIRD SECTION: File Explorer + Cognitive Layers */}
             <div className="pt-8 border-t border-white/5 mb-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                    {intelData && <CognitiveBuffer data={intelData} />}
-                    {intelData && <JobQueue data={intelData} />}
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 mb-10">
+                    <div className="xl:col-span-5">
+                        <FileExplorer />
+                    </div>
+                    <div className="xl:col-span-7">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            {intelData && <CognitiveBuffer data={intelData} />}
+                            {intelData && <JobQueue data={intelData} />}
+                        </div>
+                    </div>
                 </div>
             </div>
 
