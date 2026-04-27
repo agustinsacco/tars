@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.27.1](https://github.com/agustinsacco/tars/compare/v1.27.0...v1.27.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* cumulative session token tracking and dashboard compressionCount display ([#116](https://github.com/agustinsacco/tars/issues/116)) ([afae5cd](https://github.com/agustinsacco/tars/commit/afae5cdfec48a15d4f1fbb9624233c44be4cce96))
+
 ## [1.27.0](https://github.com/agustinsacco/tars/compare/v1.26.0...v1.27.0) (2026-04-26)
 
 
