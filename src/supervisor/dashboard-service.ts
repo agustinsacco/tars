@@ -89,9 +89,17 @@ export class DashboardService {
 
     public stop(): void {
         pm2.connect((err) => {
-            if (err) return;
+            if (err) {
+                logger.error(`❌ PM2 connection failed for Dashboard stop: ${err.message}`);
+                return;
+            }
 
-            pm2.delete(this.dashName, () => {
+            pm2.delete(this.dashName, (deleteErr) => {
+                if (deleteErr) {
+                    logger.warn(
+                        `[DashboardService] Failed to stop dashboard: ${deleteErr.message}`
+                    );
+                }
                 pm2.disconnect();
             });
         });
