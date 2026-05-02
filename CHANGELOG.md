@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.28.0](https://github.com/agustinsacco/tars/compare/v1.27.1...v1.28.0) (2026-05-02)
+
+
+### Features
+
+* implement pre-emptive rate limiter and timeout watchdogs ([fcd32e5](https://github.com/agustinsacco/tars/commit/fcd32e55f872d54277390bddabc65e6ddccb4b4f))
+
 ## [1.27.1](https://github.com/agustinsacco/tars/compare/v1.27.0...v1.27.1) (2026-04-27)
 
 
