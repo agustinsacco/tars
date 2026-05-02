@@ -57,6 +57,10 @@ export class Config {
     public readonly contextWindowTokens: number;
     public readonly compressionThreshold: number;
 
+    // Rate Limiting
+    public readonly maxRPM: number;
+    public readonly maxTPM: number;
+
     // System Prompt
     public readonly systemPromptPath: string;
 
@@ -107,6 +111,12 @@ export class Config {
         );
         this.compressionThreshold = parseFloat(
             String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.5')
+        );
+
+        this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);
+        this.maxTPM = parseInt(
+            String(process.env.GEMINI_MAX_TPM || jsonConfig.maxTPM || '900000'),
+            10
         );
 
         // Swarm Config (A2A remote agent support)

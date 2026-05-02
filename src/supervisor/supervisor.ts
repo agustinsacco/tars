@@ -12,7 +12,7 @@ import { MemoryManager } from '../memory/memory-manager.js';
 export class Supervisor {
     private readonly config: Config;
     public readonly memory: MemoryManager;
-    private isProcessing: boolean = false;
+    private processingSince: number | null = null;
 
     constructor(
         private readonly gemini: GeminiEngine,
@@ -31,7 +31,7 @@ export class Supervisor {
         sessionId?: string,
         attachments?: AttachmentContext[]
     ): Promise<void> {
-        if (this.isProcessing) {
+        if (this.processingSince !== null) {
             throw new Error(
                 "I'm currently working on a task. Please retry in a moment — I should be free within 30-60 seconds."
             );
@@ -46,7 +46,7 @@ export class Supervisor {
 
         try {
             // Lock the supervisor
-            this.isProcessing = true;
+            this.processingSince = Date.now();
 
             // Get or create session
             let sessionIdToUse = sessionId || (await this.sessionManager.load());
@@ -168,7 +168,7 @@ export class Supervisor {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
         } finally {
-            this.isProcessing = false;
+            this.processingSince = null;
         }
     }
 
@@ -178,7 +178,7 @@ export class Supervisor {
      * No more orphan sessions or dangerous history injection.
      */
     public async executeTask(prompt: string): Promise<string> {
-        if (this.isProcessing) {
+        if (this.processingSince !== null) {
             logger.warn('⚠️ Supervisor is busy, skipping background task');
             throw new Error('Supervisor is busy');
         }
@@ -186,7 +186,7 @@ export class Supervisor {
         logger.info(`⚙️ Executing background task...`);
 
         try {
-            this.isProcessing = true;
+            this.processingSince = Date.now();
 
             // Run in the active session so context is shared
             const activeSessionId = await this.sessionManager.load();
@@ -197,14 +197,29 @@ export class Supervisor {
             logger.error(`❌ Background task failed: ${error.message}`);
             throw error;
         } finally {
-            this.isProcessing = false;
+            this.processingSince = null;
         }
     }
 
-    /**
-     * Checks if the supervisor is currently processing a request
-     */
     public isBusy(): boolean {
-        return this.isProcessing;
+        return this.processingSince !== null;
+    }
+
+    /**
+     * Checks if the supervisor lock has been held longer than maxAgeMs and forcefully releases it if so.
+     * Returns true if a stale lock was released.
+     */
+    public checkAndReleaseStaleLock(maxAgeMs: number): boolean {
+        if (this.processingSince !== null) {
+            const age = Date.now() - this.processingSince;
+            if (age > maxAgeMs) {
+                logger.warn(
+                    `⚠️ Supervisor lock has been held for ${Math.round(age / 1000)}s! Forcefully releasing stale lock.`
+                );
+                this.processingSince = null;
+                return true;
+            }
+        }
+        return false;
     }
 }

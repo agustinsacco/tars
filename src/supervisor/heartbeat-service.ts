@@ -54,6 +54,10 @@ export class HeartbeatService {
         this.isExecuting = true;
 
         try {
+            // 0. Safety Net: Check for stale lock
+            const STALE_LOCK_MS = 10 * 60 * 1000; // 10 minutes
+            this.supervisor.checkAndReleaseStaleLock(STALE_LOCK_MS);
+
             // 1. Maintenance & Sync (rate-limited)
             this.processor.cleanup();
             await this.syncMemoryIfNeeded();

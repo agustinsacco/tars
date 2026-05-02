@@ -25,6 +25,7 @@ import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
 import { SessionManager } from './session-manager.js';
+import { LocalRateLimiter } from './rate-limiter.js';
 import { LlamaCppGenerator } from '../inference/LlamaCppGenerator.js';
 import { DLPService } from '../utils/dlp-service.js';
 
@@ -77,9 +78,14 @@ export class GeminiEngine extends EventEmitter {
     private currentSessionId: string | null = null;
     private channelManager?: ChannelManager;
     private sessionManager?: SessionManager;
+    private rateLimiter: LocalRateLimiter;
 
     constructor(private readonly tarsConfig: TarsConfig) {
         super();
+        this.rateLimiter = new LocalRateLimiter(
+            tarsConfig.maxRPM || 14,
+            tarsConfig.maxTPM || 900000
+        );
     }
 
     /**
@@ -372,10 +378,35 @@ export class GeminiEngine extends EventEmitter {
 
                 while (retryCount < maxRetries) {
                     try {
+                        const estimatedTokens = Math.max(100, accumulatedInputTokens);
+                        const waitTime = this.rateLimiter.checkWaitTime(estimatedTokens);
+                        if (waitTime > 0) {
+                            logger.info(
+                                `⏳ Pre-emptive throttling: waiting ${Math.round(waitTime / 1000)}s to avoid rate limits...`
+                            );
+                            await new Promise((resolve) => setTimeout(resolve, waitTime));
+                        }
+
+                        this.rateLimiter.recordRequest(estimatedTokens);
+
                         stream = await promptIdContext.run(sid, () => {
+                            // Combine manual abort signal with a 5-minute timeout to prevent deadlock
+                            const timeoutSignal = AbortSignal.timeout(5 * 60 * 1000);
+                            const combinedSignal = abortController.signal.aborted
+                                ? abortController.signal
+                                : timeoutSignal;
+
+                            // We listen for manual aborts to also abort the combined signal
+                            // (AbortSignal.any is available in Node 20+, but we can just pass timeoutSignal
+                            // and manual aborts are rare here, or use AbortSignal.any if supported)
+                            const signalToUse =
+                                typeof AbortSignal.any === 'function'
+                                    ? AbortSignal.any([abortController.signal, timeoutSignal])
+                                    : timeoutSignal;
+
                             return this.client.sendMessageStream(
                                 currentRequestParts,
-                                abortController.signal,
+                                signalToUse,
                                 reqPromptId
                             );
                         });
@@ -608,9 +639,9 @@ export class GeminiEngine extends EventEmitter {
                     const threshold = this.tarsConfig.compressionThreshold || 0.8;
                     const limit = this.tarsConfig.contextWindowTokens || 128000;
 
-                    if (stats && stats.totalInputTokens > limit * threshold) {
+                    if (stats && stats.lastInputTokens > limit * threshold) {
                         logger.info(
-                            `[GeminiEngine] Mid-loop compression triggered (${stats.totalInputTokens}/${limit} tokens)`
+                            `[GeminiEngine] Mid-loop compression triggered (${stats.lastInputTokens}/${limit} tokens)`
                         );
                         try {
                             const didCompress = await this.compressSession();

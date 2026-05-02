@@ -162,7 +162,7 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                             Context Depth
                         </span>
                         <span className="text-base font-black text-white font-mono leading-none">
-                            {Math.round((data.session?.totalNetTokens || 0) / 1000)}K
+                            {Math.round((data.session?.lastInputTokens || 0) / 1000)}K
                         </span>
                     </div>
                 </div>
