@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.0](https://github.com/agustinsacco/tars/compare/v1.28.0...v1.29.0) (2026-05-03)
+
+
+### Features
+
+* add tars refresh command for dashboard and extension updates ([#121](https://github.com/agustinsacco/tars/issues/121)) ([51e0a54](https://github.com/agustinsacco/tars/commit/51e0a54bf23e20adba50c57acf6c3d558bd3d2ac))
+
 ## [1.28.0](https://github.com/agustinsacco/tars/compare/v1.27.1...v1.28.0) (2026-05-02)
 
 
