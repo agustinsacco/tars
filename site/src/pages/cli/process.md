@@ -40,6 +40,63 @@ This command performs an auto-update:
 3. Stops the running supervisor.
 4. Starts the supervisor again (using the new version if updated).
 
+## tars update
+
+Force checks for a new version on npm, upgrades the package, **refreshes all components**, and restarts.
+
+```bash
+tars update
+```
+
+This is the recommended way to upgrade Tars. It performs:
+
+1. Checks npm for the latest `@saccolabs/tars` version.
+2. If a newer version exists, installs it globally.
+3. **Automatically refreshes** the dashboard and extensions from the new package (see `tars refresh`).
+4. If Tars is currently running, restarts the supervisor to apply changes.
+
+> **Note:** Unlike `tars setup`, this command does not re-prompt for configuration. It only upgrades the package and rebuilds components.
+
+## tars refresh
+
+Rebuilds the dashboard and extensions from the currently installed package without changing any configuration.
+
+```bash
+tars refresh
+```
+
+This is useful when:
+
+- You've updated Tars and the dashboard didn't get rebuilt.
+- You want to force-reinstall extensions after a manual change.
+- You're developing extensions locally and want to re-hydrate.
+
+### Options
+
+| Flag                | Description                |
+| ------------------- | -------------------------- |
+| `--dashboard-only`  | Only refresh the dashboard |
+| `--extensions-only` | Only refresh extensions    |
+
+### Examples
+
+```bash
+# Refresh everything
+tars refresh
+
+# Only rebuild the dashboard
+tars refresh --dashboard-only
+
+# Only rebuild extensions
+tars refresh --extensions-only
+```
+
+The refresh process:
+
+1. Locates the bundled source (`dash/`, `extensions/`) inside the installed npm package.
+2. Deletes the existing copies at `~/.tars/apps/dashboard/` and `~/.tars/.gemini/extensions/`.
+3. Copies the latest source and runs `npm install` + `npm run build`.
+
 ## tars stop
 
 Stops the background process.

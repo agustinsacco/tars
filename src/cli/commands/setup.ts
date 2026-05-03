@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
 import { execSync, spawnSync } from 'child_process';
+import { refreshExtensions, refreshDashboard } from './refresh.js';
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -719,71 +720,18 @@ export async function setup() {
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
 
-    // Hydrate extensions (Scan extensions directory)
-    const extensionsBaseSrc = path.resolve(
-        path.dirname(new URL(import.meta.url).pathname),
-        '../../../extensions'
-    );
-    if (fsSync.existsSync(extensionsBaseSrc)) {
-        const extensions = fsSync.readdirSync(extensionsBaseSrc);
-        for (const extName of extensions) {
-            const extSrc = path.join(extensionsBaseSrc, extName);
-            if (!fsSync.statSync(extSrc).isDirectory()) continue;
-
-            const finalExtName =
-                extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
-            const linkTarget = path.join(geminiDir, 'extensions', finalExtName);
-            const extSpinner = ora(`Installing extension: ${finalExtName}...`).start();
-
-            try {
-                if (fsSync.existsSync(linkTarget))
-                    await fs.rm(linkTarget, { recursive: true, force: true });
-                await fs.cp(extSrc, linkTarget, { recursive: true });
-                extSpinner.text = `Hydrating ${finalExtName}...`;
-                execSync('npm install', { cwd: linkTarget, stdio: 'pipe' });
-                execSync('npm run build', { cwd: linkTarget, stdio: 'pipe' });
-                extSpinner.succeed(`Extension ready: ${finalExtName}`);
-            } catch (err: any) {
-                extSpinner.warn(`Extension ${finalExtName} failed: ${err.message}`);
-            }
-        }
-    }
+    // Hydrate extensions
+    await refreshExtensions(tarsHome);
 
     // Hydrate Dashboard if enabled
     if (dashConfig.enableDash) {
-        const dashSrc = path.resolve(
-            path.dirname(new URL(import.meta.url).pathname),
-            '../../../dash'
-        );
         const dashDest = path.join(tarsHome, 'apps', 'dashboard');
-
-        if (fsSync.existsSync(dashSrc)) {
-            const dashSpinner = ora('Installing Tars Dashboard...').start();
-            try {
-                // If updating, remove existing dashboard first
-                if (dashConfig.updateDash && fsSync.existsSync(dashDest)) {
-                    dashSpinner.text = 'Removing existing dashboard...';
-                    await fs.rm(dashDest, { recursive: true, force: true });
-                }
-
-                await fs.cp(dashSrc, dashDest, { recursive: true });
-
-                dashSpinner.text = 'Hydrating Dashboard dependencies...';
-                // We need devDependencies for npm run build (tailwind, etc.)
-                execSync('npm install', { cwd: dashDest, stdio: 'pipe' });
-
-                dashSpinner.text = 'Building Dashboard...';
-                execSync('npm run build', { cwd: dashDest, stdio: 'pipe' });
-
-                dashSpinner.succeed(
-                    dashConfig.updateDash
-                        ? 'Dashboard updated to latest version.'
-                        : 'Dashboard ready.'
-                );
-            } catch (err: any) {
-                const out = err.stdout?.toString() || err.stderr?.toString() || err.message;
-                dashSpinner.fail(`Dashboard installation failed: ${out}`);
-            }
+        const needsInstall = !fsSync.existsSync(dashDest) || dashConfig.updateDash;
+        if (needsInstall) {
+            await refreshDashboard(tarsHome);
+        } else {
+            console.log(chalk.green('  ✓ Dashboard already installed. Skipping.'));
+            console.log(chalk.dim('    Run "tars refresh" to force-update the dashboard.'));
         }
     }
 

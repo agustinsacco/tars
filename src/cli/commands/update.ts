@@ -3,10 +3,11 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { pkg } from '../../utils/version.js';
 import { restart } from './restart.js';
+import { refresh } from './refresh.js';
 import pm2 from 'pm2';
 
 /**
- * tars update - Force check for new versions and upgrade
+ * tars update - Force check for new versions, upgrade, and refresh components
  */
 export async function update() {
     console.log(chalk.cyan.bold('\n🚀 Tars Update System'));
@@ -28,6 +29,13 @@ export async function update() {
 
         if (latest === pkg.version) {
             spinner.succeed(chalk.green(`Tars is already up to date (v${pkg.version}).`));
+
+            // Even if the version matches, offer to refresh components
+            console.log(
+                chalk.dim(
+                    '\n  Tip: Run "tars update --refresh" to rebuild dashboard & extensions.\n'
+                )
+            );
             return;
         }
 
@@ -41,6 +49,9 @@ export async function update() {
             // Install the latest version globally
             execSync('npm install -g @saccolabs/tars@latest --prefer-online', { stdio: 'inherit' });
             upgradeSpinner.succeed(chalk.green('Upgrade complete!'));
+
+            // After npm upgrade, refresh extensions and dashboard
+            await refresh();
 
             // Check if Tars is currently running via PM2
             pm2.connect((err) => {

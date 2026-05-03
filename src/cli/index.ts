@@ -41,6 +41,19 @@ program
     .action(update);
 
 program
+    .command('refresh')
+    .description('Rebuild dashboard and extensions from the installed package')
+    .option('--dashboard-only', 'Only refresh the dashboard')
+    .option('--extensions-only', 'Only refresh extensions')
+    .action(async (options) => {
+        const { refresh } = await import('./commands/refresh.js');
+        return refresh({
+            dashboard: !options.extensionsOnly,
+            extensions: !options.dashboardOnly
+        });
+    });
+
+program
     .command('status')
     .description('Check the status of the assistant supervisor')
     .action(status);
