@@ -211,6 +211,20 @@ export class GeminiEngine extends EventEmitter {
             this.client = this.coreConfig.getGeminiClient();
             this.applyClientOverrides(this.client);
 
+            // Deregister plan-mode tools — they require interactive user confirmation
+            // that Tars cannot provide (non-interactive agent). Without this, the model
+            // calls enter_plan_mode which switches ApprovalMode to PLAN, but exit_plan_mode
+            // silently fails ("Rejected (no feedback)"), leaving the agent permanently
+            // stuck in PLAN mode. This forces all requests through the rate-limited
+            // gemini-3.1-pro-preview model, exhausting quota instantly.
+            try {
+                toolRegistry.unregisterTool('enter_plan_mode');
+                toolRegistry.unregisterTool('exit_plan_mode');
+                logger.info('🔇 Deregistered plan-mode tools (non-interactive agent)');
+            } catch (e: any) {
+                logger.debug(`Plan-mode tool deregistration skipped: ${e.message}`);
+            }
+
             this.initialized = true;
             this.currentSessionId = this.coreConfig.getSessionId();
             logger.info('✨ Gemini Engine initialized successfully.');
@@ -325,7 +339,26 @@ export class GeminiEngine extends EventEmitter {
                 const resumedData = await this.loadResumedSessionData(sid);
                 // @ts-ignore - access private to swap session
                 await this.client.startChat(undefined, resumedData || undefined);
-                this.currentSessionId = sid;
+
+                // Sync: Read back the actual session ID that Core assigned.
+                // Core may create a new session ID internally (e.g. if the project hash
+                // changed or the old session was not found). We must keep Tars's
+                // SessionManager in sync to prevent ID mismatch on next restart.
+                const recordingService = this.client.getChatRecordingService() as any;
+                const actualCoreSessionId =
+                    recordingService?.sessionId || this.coreConfig.getSessionId();
+                if (actualCoreSessionId && actualCoreSessionId !== sid) {
+                    logger.warn(
+                        `⚠️ Session ID mismatch detected: Tars=${sid}, Core=${actualCoreSessionId}. Syncing to Core's ID.`
+                    );
+                    this.currentSessionId = actualCoreSessionId;
+                    // Update SessionManager so the correct ID is persisted to disk
+                    if (this.sessionManager) {
+                        await this.sessionManager.save(actualCoreSessionId);
+                    }
+                } else {
+                    this.currentSessionId = sid;
+                }
             }
 
             let currentRequestParts: any[] = [{ text: prompt }];
@@ -1113,6 +1146,31 @@ export class GeminiEngine extends EventEmitter {
 
                 if (sessionFile) {
                     const filePath = path.join(chatsDir, sessionFile);
+                    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    logger.info(`📂 Resumed session from exact match: ${sessionFile}`);
+                    return {
+                        conversation: content,
+                        filePath
+                    };
+                }
+
+                // Fallback: If no exact session ID match, use the most recently
+                // modified chat file. This prevents a blank cold start when the
+                // Tars session ID has drifted from Core's internal session ID.
+                const jsonFiles = files.filter((f) => f.endsWith('.json'));
+                if (jsonFiles.length > 0) {
+                    const sorted = jsonFiles
+                        .map((f) => ({
+                            name: f,
+                            mtime: fs.statSync(path.join(chatsDir, f)).mtimeMs
+                        }))
+                        .sort((a, b) => b.mtime - a.mtime);
+
+                    const latestFile = sorted[0].name;
+                    logger.warn(
+                        `⚠️ No exact session match for ${shortId}. Falling back to latest: ${latestFile}`
+                    );
+                    const filePath = path.join(chatsDir, latestFile);
                     const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
                     return {
                         conversation: content,
