@@ -480,6 +480,73 @@ async function main() {
             let responseBuffer = '';
             let replyCount = 0;
 
+            // --- Live status tracking for in-place message editing ---
+            let statusInitialized = false;
+
+            const formatSize = (chars: number): string => {
+                if (chars < 1024) return `${chars}B`;
+                if (chars < 1024 * 1024) return `${(chars / 1024).toFixed(1)}KB`;
+                return `${(chars / (1024 * 1024)).toFixed(1)}MB`;
+            };
+
+            const formatStatusContent = (
+                turnCount: number,
+                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                isMilestone: boolean
+            ): string => {
+                const lines: string[] = [];
+
+                if (isMilestone) {
+                    lines.push(`⚡ **Milestone ${turnCount}** — still going strong...`);
+                    lines.push('');
+                }
+
+                lines.push(
+                    `⏳ **Working...** (Turn ${turnCount}, ${recentTools.length} tools executed)`
+                );
+                lines.push('');
+
+                // Show last ~8 tool calls
+                const toolsToShow = recentTools.slice(-8);
+                for (const tool of toolsToShow) {
+                    const preview = tool.responsePreview
+                        .replace(/\n/g, ' ')
+                        .replace(/\*\*/g, '')
+                        .substring(0, 80);
+                    const size = formatSize(tool.responseSize);
+                    lines.push(`🛠️ **${tool.name}** — \`${preview}\` (${size})`);
+                }
+
+                lines.push('');
+                lines.push(`_Last update: ${new Date().toLocaleTimeString()}_`);
+
+                return lines.join('\n');
+            };
+
+            const updateStatus = async (
+                turnCount: number,
+                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                isMilestone: boolean
+            ): Promise<void> => {
+                const content = formatStatusContent(turnCount, recentTools, isMilestone);
+
+                if (!statusInitialized) {
+                    // First status: send a new notification (tracks the message for editing)
+                    await channelManager.notify(content);
+                    statusInitialized = true;
+                } else {
+                    // Subsequent: edit the tracked message in-place
+                    const edited = await channelManager.editStatus(content);
+                    if (!edited) {
+                        // Edit failed (rate-limited or message lost) — send fresh and re-track
+                        logger.warn('[Main] Status edit failed, sending new notification.');
+                        statusInitialized = false;
+                        await channelManager.notify(content);
+                        statusInitialized = true;
+                    }
+                }
+            };
+
             const flush = async () => {
                 const text = responseBuffer.trim();
                 if (!text) return;
@@ -494,6 +561,18 @@ async function main() {
                 responseBuffer = '';
                 replyCount++;
             };
+
+            // Clear any previous status message for a fresh start
+            channelManager.clearStatus();
+            statusInitialized = false;
+
+            // Feature flag: status updates are per-backend
+            const statusEnabled = config.isStatusUpdatesEnabled();
+            if (!statusEnabled) {
+                logger.debug(
+                    `[Main] Status updates disabled for backend "${config.inferenceBackend}".`
+                );
+            }
 
             try {
                 message.startTyping();
@@ -513,7 +592,8 @@ async function main() {
                         }
                     },
                     undefined,
-                    message.attachments
+                    message.attachments,
+                    statusEnabled ? updateStatus : undefined // gated by feature flag
                 );
             } catch (error: any) {
                 const errorMsg =

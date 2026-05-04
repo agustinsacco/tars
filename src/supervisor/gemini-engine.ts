@@ -48,6 +48,24 @@ export interface GeminiEngineEvent {
 export type GeminiEngineOutputHandler = (event: GeminiEngineEvent) => void | Promise<void>;
 
 /**
+ * Snapshot of a completed tool call for status reporting.
+ */
+export interface ToolStatus {
+    name: string;
+    responsePreview: string;
+    responseSize: number; // bytes/chars
+}
+
+/**
+ * Callback signature for live status updates during long-running tasks.
+ */
+export type StatusUpdateHandler = (
+    turnCount: number,
+    recentTools: ToolStatus[],
+    isMilestone: boolean
+) => void | Promise<void>;
+
+/**
  * Detects the best authentication type based on environment variables.
  * (Local implementation since it's not exported from core index)
  */
@@ -304,7 +322,8 @@ export class GeminiEngine extends EventEmitter {
         prompt: string,
         onEvent: GeminiEngineOutputHandler,
         sessionId?: string,
-        attachments?: AttachmentContext[]
+        attachments?: AttachmentContext[],
+        onStatus?: StatusUpdateHandler
     ): Promise<void> {
         if (!this.initialized) {
             await this.initialize(sessionId);
@@ -366,6 +385,9 @@ export class GeminiEngine extends EventEmitter {
             let accumulatedCachedTokens = 0;
             let loopDetected = false;
             let hasRealContent = false;
+
+            // Track recent tool calls for live status updates
+            const recentTools: ToolStatus[] = [];
 
             while (turnCount < maxTurns) {
                 turnCount++;
@@ -615,6 +637,62 @@ export class GeminiEngine extends EventEmitter {
                     this.client.getChat().recordCompletedToolCalls(model, completedCalls);
                 }
 
+                // Build tool status for live progress updates
+                const turnToolStatuses: ToolStatus[] = [];
+                for (const call of completedCalls) {
+                    const req = toolRequests.find(
+                        (r) => r.callId === call.request?.callId || r.callId === call.callId
+                    );
+                    if (!req) continue;
+
+                    const part = call.response?.responseParts?.find(
+                        (p: any) => 'functionResponse' in p
+                    ) as any;
+                    const response = part?.functionResponse?.response;
+                    const responseStr =
+                        typeof response === 'string'
+                            ? response
+                            : typeof response === 'object'
+                              ? JSON.stringify(response)
+                              : String(response || '');
+
+                    turnToolStatuses.push({
+                        name: req.name,
+                        responsePreview: responseStr.substring(0, 120),
+                        responseSize: responseStr.length
+                    });
+                }
+
+                // Also include blocked tools
+                for (const [callId, reason] of blockedResponses) {
+                    const req = toolRequests.find((r) => r.callId === callId);
+                    if (req) {
+                        turnToolStatuses.push({
+                            name: req.name,
+                            responsePreview: `⛔ ${reason}`,
+                            responseSize: reason.length
+                        });
+                    }
+                }
+
+                recentTools.push(...turnToolStatuses);
+
+                const isMilestone = turnCount > 0 && turnCount % 20 === 0;
+
+                // Fire status update after each tool batch or on a milestone
+                if (onStatus && (turnToolStatuses.length > 0 || isMilestone)) {
+                    if (isMilestone) {
+                        logger.info(
+                            `[GeminiEngine] Milestone ${turnCount} — firing status update...`
+                        );
+                    }
+                    try {
+                        await onStatus(turnCount, recentTools.slice(-10), isMilestone);
+                    } catch (e: any) {
+                        logger.warn(`[GeminiEngine] Status update failed: ${e.message}`);
+                    }
+                }
+
                 // Prepare next request with tool results (Scrubbed via DLP and mapped back to 1:1)
                 currentRequestParts = GeminiEngine.buildToolResponseParts(
                     toolRequests,
@@ -660,20 +738,7 @@ export class GeminiEngine extends EventEmitter {
                     }
                 }
 
-                // 2. Long-running task notification (Human-in-the-loop)
-                if (turnCount > 0 && turnCount % 20 === 0) {
-                    logger.info(
-                        `[GeminiEngine] Sending turn ${turnCount} heartbeat notification...`
-                    );
-                    const statusMsg = `⏳ I'm still working on this task (Turn ${turnCount}). It's proving complex, but I'm continuing to analyze. I will notify you when finished or if I hit a roadblock.`;
-
-                    // Only send via channel if available
-                    if (this.channelManager) {
-                        this.channelManager
-                            .notify(statusMsg)
-                            .catch((e: any) => logger.error(`Failed to send turn heartbeat: ${e}`));
-                    }
-                }
+                // 2. Max turns safety (handled by loop condition, but we break here if needed)
             }
 
             // If the loop finished without producing any content, notify the user

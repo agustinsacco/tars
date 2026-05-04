@@ -38,6 +38,17 @@ export interface CommunicationChannel {
     notify(content: string, attachments?: string[]): Promise<void>;
 
     /**
+     * Edit the last proactive status notification in-place.
+     * Returns false if there is no message to edit or the edit failed (e.g. rate-limited).
+     */
+    editStatus(content: string): Promise<boolean>;
+
+    /**
+     * Clear the tracked status message (e.g. on new user prompt).
+     */
+    clearStatus(): void;
+
+    /**
      * Register a callback for incoming messages
      */
     onMessage(handler: (message: ChannelMessage) => Promise<void>): void;
