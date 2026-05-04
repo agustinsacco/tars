@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.1](https://github.com/agustinsacco/tars/compare/v1.29.0...v1.29.1) (2026-05-04)
+
+
+### Bug Fixes
+
+* prevent PLAN mode trap and session ID mismatch on restart ([#124](https://github.com/agustinsacco/tars/issues/124)) ([494a957](https://github.com/agustinsacco/tars/commit/494a957ca6f3599a4fede7b00a551c3053ae62b7))
+
 ## [1.29.0](https://github.com/agustinsacco/tars/compare/v1.28.0...v1.29.0) (2026-05-03)
 
 
