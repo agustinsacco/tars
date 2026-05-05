@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.30.0](https://github.com/agustinsacco/tars/compare/v1.29.2...v1.30.0) (2026-05-05)
+
+
+### Features
+
+* add live status updates for long-running tasks ([#123](https://github.com/agustinsacco/tars/issues/123)) ([5622c13](https://github.com/agustinsacco/tars/commit/5622c132274f73a8a4f6c58cd4490ed3b755bf62))
+
 ## [1.29.2](https://github.com/agustinsacco/tars/compare/v1.29.1...v1.29.2) (2026-05-05)
 
 
