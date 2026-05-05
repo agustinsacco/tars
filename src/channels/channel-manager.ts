@@ -96,6 +96,45 @@ export class ChannelManager {
     }
 
     /**
+     * Edit the last proactive status notification in-place.
+     * Returns true if the edit succeeded, false otherwise.
+     */
+    public async editStatus(content: string): Promise<boolean> {
+        const primaryChannelId =
+            this.lastActiveChannelId || this.config.primaryChannel || 'discord';
+        const channel = this.channels.get(primaryChannelId);
+
+        if (channel) {
+            return channel.editStatus(content);
+        }
+        // Fallback to the first available channel
+        const fallback = Array.from(this.channels.values())[0];
+        if (fallback) {
+            return fallback.editStatus(content);
+        }
+        logger.warn(`No active channels available for status edit.`);
+        return false;
+    }
+
+    /**
+     * Clear the tracked status message on the primary channel.
+     */
+    public clearStatus(): void {
+        const primaryChannelId =
+            this.lastActiveChannelId || this.config.primaryChannel || 'discord';
+        const channel = this.channels.get(primaryChannelId);
+
+        if (channel) {
+            channel.clearStatus();
+            return;
+        }
+        const fallback = Array.from(this.channels.values())[0];
+        if (fallback) {
+            fallback.clearStatus();
+        }
+    }
+
+    /**
      * Get a specific channel by ID
      */
     public getChannel(id: string): CommunicationChannel | undefined {

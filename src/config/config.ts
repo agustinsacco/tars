@@ -50,6 +50,12 @@ export class Config {
     public readonly inferenceBackend: 'gemini' | 'llamacpp';
     public readonly localInferenceUrl: string;
 
+    // Feature Flags — per-backend toggles for optional features
+    public readonly statusUpdates: {
+        gemini: boolean;
+        llamacpp: boolean;
+    };
+
     // Swarm (A2A)
     public readonly swarm: SwarmConfig;
 
@@ -98,6 +104,19 @@ export class Config {
             process.env.LOCAL_INFERENCE_URL ||
             jsonConfig.localInferenceUrl ||
             'http://localhost:8080';
+
+        // Feature flags: per-backend status update toggles (default: enabled)
+        const parseBool = (val: string | boolean | undefined): boolean => {
+            if (typeof val === 'boolean') return val;
+            if (val === 'true' || val === '1') return true;
+            if (val === 'false' || val === '0') return false;
+            return true; // default on
+        };
+        const suJson = jsonConfig.statusUpdates || {};
+        this.statusUpdates = {
+            gemini: parseBool(process.env.STATUS_UPDATES_GEMINI ?? suJson.gemini),
+            llamacpp: parseBool(process.env.STATUS_UPDATES_LLAMACPP ?? suJson.llamacpp)
+        };
 
         const hbSec =
             process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
@@ -173,6 +192,13 @@ export class Config {
             Config.instance = new Config();
         }
         return Config.instance;
+    }
+
+    /**
+     * Check if a feature flag is enabled for the current inference backend.
+     */
+    public isStatusUpdatesEnabled(): boolean {
+        return this.statusUpdates[this.inferenceBackend] ?? false;
     }
 
     /**

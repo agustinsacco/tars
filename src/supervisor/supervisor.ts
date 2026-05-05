@@ -1,4 +1,4 @@
-import { GeminiEngine } from './gemini-engine.js';
+import { GeminiEngine, StatusUpdateHandler } from './gemini-engine.js';
 import { SessionManager } from './session-manager.js';
 import { GeminiOutputHandler, AttachmentContext } from '../types/index.js';
 import logger from '../utils/logger.js';
@@ -29,7 +29,8 @@ export class Supervisor {
         content: string,
         onEvent: GeminiOutputHandler,
         sessionId?: string,
-        attachments?: AttachmentContext[]
+        attachments?: AttachmentContext[],
+        onStatus?: StatusUpdateHandler
     ): Promise<void> {
         if (this.processingSince !== null) {
             throw new Error(
@@ -155,7 +156,8 @@ export class Supervisor {
                     await onEvent(event as any);
                 },
                 sessionIdToUse || undefined,
-                attachments
+                attachments,
+                onStatus
             );
 
             // If a memory-mutating tool was used, refresh system instruction in-place

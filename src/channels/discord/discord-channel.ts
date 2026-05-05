@@ -18,6 +18,14 @@ export class DiscordChannel implements CommunicationChannel {
     private typingIntervals: Map<string, NodeJS.Timeout> = new Map();
     private processedMessages: Set<string> = new Set();
 
+    // Tracked status message for in-place editing during long-running tasks
+    private lastStatusMessage: { channelId: string; messageId: string } | null = null;
+    private statusEditCount: number = 0;
+    private statusEditResetAt: number = 0;
+    // Discord allows ~20 edits per message per 5-minute window
+    private static readonly MAX_EDITS_PER_WINDOW = 18;
+    private static readonly EDIT_WINDOW_MS = 5 * 60 * 1000;
+
     constructor() {
         this.config = Config.getInstance();
         this.processor = new AttachmentProcessor(this.config);
@@ -59,7 +67,8 @@ export class DiscordChannel implements CommunicationChannel {
     }
 
     /**
-     * Send a proactive notification to the primary contact
+     * Send a proactive notification to the primary contact.
+     * Tracks the last sent message for in-place editing (status updates).
      */
     public async notify(content: string, attachments?: string[]): Promise<void> {
         if (!this.config.discordOwnerId || !content.trim()) return;
@@ -71,24 +80,105 @@ export class DiscordChannel implements CommunicationChannel {
 
                 if (formatted.length > 8000) {
                     const filePath = this.processor.saveResponse(content, 'md');
-                    await user.send({
+                    const sent = await user.send({
                         content: `🔔 **Task Notification** (Response too long, see attached):`,
                         files: [filePath, ...files]
                     });
+                    this.trackStatusMessage(sent);
                 } else {
                     const chunks = MessageFormatter.split(formatted);
                     for (let i = 0; i < chunks.length; i++) {
                         const prefix = i === 0 ? `🔔 **Task Notification:**\n` : ``;
-                        await user.send({
+                        const sent = await user.send({
                             content: prefix + chunks[i],
                             files: i === chunks.length - 1 ? files : []
                         });
+                        // Track the first chunk for editing
+                        if (i === 0) {
+                            this.trackStatusMessage(sent);
+                        }
                     }
                 }
             }
         } catch (e: any) {
             logger.error(`Failed to send proactive notification via Discord: ${e.message}`);
         }
+    }
+
+    /**
+     * Track a sent message so it can be edited later (for status updates).
+     */
+    private trackStatusMessage(sent: any): void {
+        this.lastStatusMessage = {
+            channelId: sent.channelId,
+            messageId: sent.id
+        };
+        this.statusEditCount = 0;
+        this.statusEditResetAt = Date.now() + DiscordChannel.EDIT_WINDOW_MS;
+    }
+
+    /**
+     * Edit the last proactive status notification in-place.
+     * Falls back to sending a new message if rate-limited.
+     * Returns true if edit succeeded, false if fallback to new message was needed.
+     */
+    public async editStatus(content: string): Promise<boolean> {
+        if (!this.lastStatusMessage) {
+            logger.debug('[Discord] No tracked status message to edit.');
+            return false;
+        }
+
+        // Check if we've exceeded the edit rate limit window
+        const now = Date.now();
+        if (now > this.statusEditResetAt) {
+            this.statusEditCount = 0;
+            this.statusEditResetAt = now + DiscordChannel.EDIT_WINDOW_MS;
+        }
+
+        if (this.statusEditCount >= DiscordChannel.MAX_EDITS_PER_WINDOW) {
+            logger.warn(
+                `[Discord] Status edit rate limit hit (${this.statusEditCount} edits). Falling back to new message.`
+            );
+            this.clearStatus();
+            return false;
+        }
+
+        try {
+            const channel = await this.client.channels.fetch(this.lastStatusMessage.channelId);
+            if (!channel || !channel.isTextBased()) {
+                logger.warn('[Discord] Status channel no longer accessible.');
+                this.clearStatus();
+                return false;
+            }
+
+            const message = await channel.messages.fetch(this.lastStatusMessage.messageId);
+            const formatted = MessageFormatter.format(content);
+
+            // If content grew too large for a single edit, truncate or send new
+            if (formatted.length > 1990) {
+                const truncated = formatted.substring(0, 1980) + '\n...';
+                await message.edit(truncated);
+            } else {
+                await message.edit(formatted);
+            }
+
+            this.statusEditCount++;
+            return true;
+        } catch (e: any) {
+            // Message may have been deleted or we lost access
+            logger.warn(`[Discord] Failed to edit status message: ${e.message}`);
+            this.clearStatus();
+            return false;
+        }
+    }
+
+    /**
+     * Clear the tracked status message (e.g. on new user prompt).
+     */
+    public clearStatus(): void {
+        this.lastStatusMessage = null;
+        this.statusEditCount = 0;
+        this.statusEditResetAt = 0;
     }
 
     /**

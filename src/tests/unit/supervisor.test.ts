@@ -47,7 +47,8 @@ describe('Supervisor', () => {
             'hello',
             expect.any(Function),
             'existing-session',
-            undefined
+            undefined,
+            undefined // onStatus (not passed from this call site)
         );
         expect(onEvent).toHaveBeenCalledWith({ type: 'done' });
     });
@@ -63,7 +64,8 @@ describe('Supervisor', () => {
             'hello',
             expect.any(Function),
             undefined,
-            undefined
+            undefined,
+            undefined // onStatus (not passed from this call site)
         );
     });
 
