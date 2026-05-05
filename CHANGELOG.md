@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.29.2](https://github.com/agustinsacco/tars/compare/v1.29.1...v1.29.2) (2026-05-05)
+
+
+### Bug Fixes
+
+* prevent ENOTEMPTY when refreshing dashboard ([#126](https://github.com/agustinsacco/tars/issues/126)) ([7b89e44](https://github.com/agustinsacco/tars/commit/7b89e4458436a6c582a9184c79c5413cf7a77fb1))
+
 ## [1.29.1](https://github.com/agustinsacco/tars/compare/v1.29.0...v1.29.1) (2026-05-04)
 
 
