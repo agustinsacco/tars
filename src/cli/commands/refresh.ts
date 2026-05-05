@@ -109,12 +109,24 @@ export async function refreshDashboard(tarsHome: string, silent = false): Promis
             }
 
             if (spinner) spinner.text = '  Removing existing dashboard...';
-            await fsp.rm(dashDest, {
-                recursive: true,
-                force: true,
-                maxRetries: 3,
-                retryDelay: 200
-            });
+            try {
+                await fsp.rm(dashDest, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 3,
+                    retryDelay: 200
+                });
+            } catch (rmErr: any) {
+                if (rmErr.code === 'ENOTEMPTY' || rmErr.code === 'EBUSY') {
+                    if (process.platform !== 'win32') {
+                        execSync(`rm -rf "${dashDest}"`, { stdio: 'ignore' });
+                    } else {
+                        throw rmErr;
+                    }
+                } else {
+                    throw rmErr;
+                }
+            }
         }
 
         await fsp.cp(dashSrc, dashDest, { recursive: true });
