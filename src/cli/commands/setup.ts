@@ -670,12 +670,17 @@ export async function setup() {
     const cleanupSpinner = ora('Checking for legacy components...').start();
     const oldDash = path.join(tarsHome, 'dashboard');
     if (fsSync.existsSync(oldDash)) {
-        await fs.rm(oldDash, { recursive: true, force: true });
+        await fs.rm(oldDash, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
         cleanupSpinner.text = 'Cleaned up legacy dashboard directory.';
     }
     const oldStandaloneDash = path.resolve(tarsHome, '..', 'apps', 'tars-dash');
     if (fsSync.existsSync(oldStandaloneDash)) {
-        await fs.rm(oldStandaloneDash, { recursive: true, force: true });
+        await fs.rm(oldStandaloneDash, {
+            recursive: true,
+            force: true,
+            maxRetries: 3,
+            retryDelay: 200
+        });
         cleanupSpinner.text = 'Cleaned up legacy standalone dashboard.';
     }
     cleanupSpinner.succeed('Cleanup complete.');
