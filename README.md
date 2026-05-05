@@ -5,7 +5,7 @@
 </div>
 
 <div align="center">
-  [License: MIT](https://opensource.org/licenses/MIT) | [TypeScript](https://www.typescriptlang.org/) | [Powered by Gemini](https://deepmind.google/technologies/gemini/)
+  <a href="https://opensource.org/licenses/MIT">License: MIT</a> | <a href="https://www.typescriptlang.org/">TypeScript</a> | <a href="https://deepmind.google/technologies/gemini/">Powered by Gemini</a>
 </div>
 
 ---
