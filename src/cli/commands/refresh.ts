@@ -60,7 +60,12 @@ export async function refreshExtensions(tarsHome: string, silent = false): Promi
 
         try {
             if (fs.existsSync(linkTarget)) {
-                await fsp.rm(linkTarget, { recursive: true, force: true });
+                await fsp.rm(linkTarget, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 3,
+                    retryDelay: 200
+                });
             }
             await fsp.cp(extSrc, linkTarget, { recursive: true });
             if (spinner) spinner.text = `  Hydrating ${finalExtName}...`;
@@ -96,8 +101,20 @@ export async function refreshDashboard(tarsHome: string, silent = false): Promis
 
     try {
         if (fs.existsSync(dashDest)) {
+            if (spinner) spinner.text = '  Stopping running dashboard service...';
+            try {
+                execSync('npx pm2 stop tars-dashboard', { stdio: 'ignore' });
+            } catch (e) {
+                // Ignore if not running or PM2 not installed
+            }
+
             if (spinner) spinner.text = '  Removing existing dashboard...';
-            await fsp.rm(dashDest, { recursive: true, force: true });
+            await fsp.rm(dashDest, {
+                recursive: true,
+                force: true,
+                maxRetries: 3,
+                retryDelay: 200
+            });
         }
 
         await fsp.cp(dashSrc, dashDest, { recursive: true });

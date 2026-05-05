@@ -106,7 +106,7 @@ describe('refresh', () => {
             const result = await refreshDashboard(testHome, true);
             expect(result).toBe(true);
             expect(fsp.rm).toHaveBeenCalled();
-            expect(mockExecSync).toHaveBeenCalledTimes(2); // npm install + npm run build
+            expect(mockExecSync).toHaveBeenCalledTimes(3); // pm2 stop + npm install + npm run build
         });
 
         it('should return false on build failure', async () => {
