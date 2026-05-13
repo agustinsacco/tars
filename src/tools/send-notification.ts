@@ -3,7 +3,8 @@ import {
     ToolInvocation,
     BaseToolInvocation,
     ToolResult,
-    Kind
+    Kind,
+    ExecuteOptions
 } from '@google/gemini-cli-core';
 import type { MessageBus } from '@google/gemini-cli-core/dist/src/confirmation-bus/message-bus.js';
 import { ChannelManager } from '../channels/channel-manager.js';
@@ -24,7 +25,7 @@ class SendNotificationInvocation extends BaseToolInvocation<NotifyParams, ToolRe
         return `Sending proactive notification: ${this.params.message.substring(0, 50)}${this.params.message.length > 50 ? '...' : ''}`;
     }
 
-    async execute(signal: AbortSignal): Promise<ToolResult> {
+    async execute(options: ExecuteOptions): Promise<ToolResult> {
         try {
             await this.channelManager.notify(this.params.message);
             return {

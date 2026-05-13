@@ -647,7 +647,7 @@ export class GeminiEngine extends EventEmitter {
                 if (filteredToolRequests.length > 0) {
                     logger.debug(`🛠️ Executing ${filteredToolRequests.length} tool calls...`);
                     const scheduler = new Scheduler({
-                        config: this.coreConfig,
+                        context: this.coreConfig as any,
                         messageBus: this.coreConfig.getMessageBus(),
                         getPreferredEditor: () => undefined,
                         schedulerId: sid
