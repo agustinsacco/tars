@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.31.0](https://github.com/agustinsacco/tars/compare/v1.30.0...v1.31.0) (2026-05-13)
+
+
+### Features
+
+* update gemini-cli-core and fix session resume ([#130](https://github.com/agustinsacco/tars/issues/130)) ([0e80639](https://github.com/agustinsacco/tars/commit/0e806395007797d6e574a3d73e4d394a9c98973b))
+
+
+### Bug Fixes
+
+* resolve ENOTEMPTY error during dashboard refresh on linux ([5aaed5b](https://github.com/agustinsacco/tars/commit/5aaed5b505384ccf8a956d63a57df6484fb24a9d))
+
 ## [1.30.0](https://github.com/agustinsacco/tars/compare/v1.29.2...v1.30.0) (2026-05-05)
 
 
