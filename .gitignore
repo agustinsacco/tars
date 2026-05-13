@@ -26,3 +26,6 @@ coverage/
 .gemini/
 
 tars-brain*
+
+# External reference repos (for investigation)
+external/

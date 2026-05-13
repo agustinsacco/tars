@@ -10,7 +10,8 @@ import {
     PolicyDecision,
     SimpleExtensionLoader,
     MCPServerConfig,
-    CompressionStatus
+    CompressionStatus,
+    loadConversationRecord
 } from '@google/gemini-cli-core';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
@@ -356,8 +357,12 @@ export class GeminiEngine extends EventEmitter {
             if (this.currentSessionId !== sid || !this.client.isInitialized()) {
                 logger.debug(`🔄 Initializing/Swapping Gemini session to: ${sid}`);
                 const resumedData = await this.loadResumedSessionData(sid);
+                let history: any[] | undefined = undefined;
+                if (resumedData && resumedData.conversation) {
+                    history = this.convertRecordToHistory(resumedData.conversation);
+                }
                 // @ts-ignore - access private to swap session
-                await this.client.startChat(undefined, resumedData || undefined);
+                await this.client.startChat(history, resumedData || undefined);
 
                 // Sync: Read back the actual session ID that Core assigned.
                 // Core may create a new session ID internally (e.g. if the project hash
@@ -1211,7 +1216,7 @@ export class GeminiEngine extends EventEmitter {
 
                 if (sessionFile) {
                     const filePath = path.join(chatsDir, sessionFile);
-                    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    const content = await loadConversationRecord(filePath);
                     logger.info(`📂 Resumed session from exact match: ${sessionFile}`);
                     return {
                         conversation: content,
@@ -1222,7 +1227,8 @@ export class GeminiEngine extends EventEmitter {
                 // Fallback: If no exact session ID match, use the most recently
                 // modified chat file. This prevents a blank cold start when the
                 // Tars session ID has drifted from Core's internal session ID.
-                const jsonFiles = files.filter((f) => f.endsWith('.json'));
+                // We also check for .jsonl files used in newer Core versions.
+                const jsonFiles = files.filter((f) => f.endsWith('.json') || f.endsWith('.jsonl'));
                 if (jsonFiles.length > 0) {
                     const sorted = jsonFiles
                         .map((f) => ({
@@ -1236,7 +1242,7 @@ export class GeminiEngine extends EventEmitter {
                         `⚠️ No exact session match for ${shortId}. Falling back to latest: ${latestFile}`
                     );
                     const filePath = path.join(chatsDir, latestFile);
-                    const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+                    const content = await loadConversationRecord(filePath);
                     return {
                         conversation: content,
                         filePath
@@ -1249,6 +1255,75 @@ export class GeminiEngine extends EventEmitter {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
         }
+    }
+
+    /**
+     * Converts a ConversationRecord from Core to Gemini API Content[] history.
+     */
+    private convertRecordToHistory(conversation: any): any[] {
+        const history: any[] = [];
+        if (!conversation || !conversation.messages) return history;
+
+        for (const msg of conversation.messages) {
+            if (msg.type === 'user') {
+                let parts: any[] = [];
+                if (typeof msg.content === 'string') {
+                    parts = [{ text: msg.content }];
+                } else if (Array.isArray(msg.content)) {
+                    parts = msg.content;
+                }
+                history.push({ role: 'user', parts });
+            } else if (msg.type === 'gemini') {
+                let parts: any[] = [];
+                if (typeof msg.content === 'string' && msg.content !== '') {
+                    parts.push({ text: msg.content });
+                } else if (Array.isArray(msg.content)) {
+                    parts.push(...msg.content);
+                }
+
+                // Add function calls if any
+                const functionResponseParts: any[] = [];
+                if (msg.toolCalls) {
+                    for (const tc of msg.toolCalls) {
+                        parts.push({
+                            functionCall: {
+                                name: tc.name,
+                                args: tc.args
+                            }
+                        });
+
+                        // If the tool call has a result, we need to add a function response
+                        if (tc.status === 'done' || tc.result) {
+                            let responseObj: any = tc.result;
+                            if (typeof responseObj === 'string') {
+                                try {
+                                    responseObj = JSON.parse(responseObj);
+                                } catch (e) {
+                                    responseObj = { result: responseObj };
+                                }
+                            } else if (responseObj === null || responseObj === undefined) {
+                                responseObj = { result: 'Success' };
+                            }
+
+                            functionResponseParts.push({
+                                functionResponse: {
+                                    name: tc.name,
+                                    response: responseObj
+                                }
+                            });
+                        }
+                    }
+                }
+
+                history.push({ role: 'model', parts });
+
+                // If we generated function response parts, they belong to the NEXT turn as 'user'
+                if (functionResponseParts.length > 0) {
+                    history.push({ role: 'user', parts: functionResponseParts });
+                }
+            }
+        }
+        return history;
     }
 
     /**
