@@ -4,7 +4,8 @@ import {
     BaseToolInvocation,
     ToolResult,
     Kind,
-    Config as CoreConfig
+    Config as CoreConfig,
+    ExecuteOptions
 } from '@google/gemini-cli-core';
 import type { MessageBus } from '@google/gemini-cli-core/dist/src/confirmation-bus/message-bus.js';
 import { SessionManager, SessionData } from '../supervisor/session-manager.js';
@@ -32,7 +33,7 @@ class GetQuotaInvocation extends BaseToolInvocation<GetQuotaParams, ToolResult> 
         return `Retrieving current rate limit and quota information for ${this.params.modelId || 'all active models'}.`;
     }
 
-    async execute(signal: AbortSignal): Promise<ToolResult> {
+    async execute(options: ExecuteOptions): Promise<ToolResult> {
         try {
             // For local models, return session-tracked data instead of calling the Google quota API
             if (this.tarsConfig?.inferenceBackend === 'llamacpp') {

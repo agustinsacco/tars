@@ -148,4 +148,80 @@ describe('GeminiEngine', () => {
             expect(result[0].functionResponse.response.error).toBe('Access restricted by DLP');
         });
     });
+
+    describe('convertRecordToHistory', () => {
+        it('should convert user and model messages', () => {
+            const conversation = {
+                messages: [
+                    { type: 'user', content: 'Hello' },
+                    { type: 'gemini', content: 'Hi there' }
+                ]
+            };
+
+            const history = (engine as any).convertRecordToHistory(conversation);
+
+            expect(history).toHaveLength(2);
+            expect(history[0]).toEqual({ role: 'user', parts: [{ text: 'Hello' }] });
+            expect(history[1]).toEqual({ role: 'model', parts: [{ text: 'Hi there' }] });
+        });
+
+        it('should convert tool calls and generate function responses', () => {
+            const conversation = {
+                messages: [
+                    {
+                        type: 'gemini',
+                        content: '',
+                        toolCalls: [
+                            {
+                                id: 'call-1',
+                                name: 'get_weather',
+                                args: { location: 'London' },
+                                status: 'done',
+                                result: { temperature: 20 }
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            const history = (engine as any).convertRecordToHistory(conversation);
+
+            expect(history).toHaveLength(2);
+            expect(history[0].role).toBe('model');
+            expect(history[0].parts[0].functionCall).toEqual({
+                name: 'get_weather',
+                args: { location: 'London' }
+            });
+
+            expect(history[1].role).toBe('user');
+            expect(history[1].parts[0].functionResponse).toEqual({
+                name: 'get_weather',
+                response: { temperature: 20 }
+            });
+        });
+
+        it('should handle string results and parse them if possible', () => {
+            const conversation = {
+                messages: [
+                    {
+                        type: 'gemini',
+                        content: '',
+                        toolCalls: [
+                            {
+                                id: 'call-1',
+                                name: 'get_weather',
+                                args: { location: 'London' },
+                                status: 'done',
+                                result: '{"temperature":20}'
+                            }
+                        ]
+                    }
+                ]
+            };
+
+            const history = (engine as any).convertRecordToHistory(conversation);
+
+            expect(history[1].parts[0].functionResponse.response).toEqual({ temperature: 20 });
+        });
+    });
 });
