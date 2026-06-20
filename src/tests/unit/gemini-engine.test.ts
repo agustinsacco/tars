@@ -6,40 +6,6 @@ import path from 'path';
 
 vi.mock('fs');
 
-vi.mock('@google/gemini-cli-core', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@google/gemini-cli-core')>();
-
-    // Define a base class for the mock inside the factory to avoid hoisting issues
-    class MockNativeTool {
-        constructor(
-            public name: string,
-            public description: string,
-            public schema: any
-        ) {}
-    }
-
-    return {
-        ...actual,
-        NativeTool: MockNativeTool,
-        Config: vi.fn().mockImplementation(() => ({
-            refreshAuth: vi.fn(),
-            initialize: vi.fn(),
-            getGeminiClient: vi.fn().mockReturnValue({
-                isInitialized: vi.fn().mockReturnValue(false)
-            }),
-            getSessionId: vi.fn().mockReturnValue('mock-session-id'),
-            getToolRegistry: vi.fn().mockReturnValue({
-                registerTool: vi.fn()
-            }),
-            getMessageBus: vi.fn().mockReturnValue({})
-        })),
-        SimpleExtensionLoader: vi.fn(),
-        MCPServerConfig: vi
-            .fn()
-            .mockImplementation((cmd, args, env, cwd) => ({ cmd, args, env, cwd }))
-    };
-});
-
 describe('GeminiEngine', () => {
     let engine: GeminiEngine;
     let mockTarsConfig: TarsConfig;
@@ -49,108 +15,15 @@ describe('GeminiEngine', () => {
         mockTarsConfig = {
             homeDir: '/mock/home',
             geminiModel: 'gemini-pro',
+            piProvider: 'openai',
+            piModel: 'gpt-4o',
             systemPromptPath: '/mock/home/.gemini/system.md'
         } as any;
         engine = new GeminiEngine(mockTarsConfig);
     });
 
-    it('should discover extensions from .gemini/extensions', async () => {
-        const extensionsDir = '/mock/home/.gemini/extensions';
-        const extName = 'test-extension';
-        const extPath = path.join(extensionsDir, extName);
-        const configPath = path.join(extPath, 'gemini-extension.json');
-
-        const mockConfig = {
-            name: extName,
-            version: '1.0.0',
-            mcpServers: {
-                test: {
-                    command: 'node',
-                    args: ['${extensionPath}/dist/index.js'],
-                    env: { EXT_DIR: '${extensionPath}' }
-                }
-            }
-        };
-
-        (fs.existsSync as any).mockImplementation((p: string) => {
-            if (p === extensionsDir) return true;
-            if (p === configPath) return true;
-            if (p === '/mock/home') return true;
-            if (p.includes('system.md')) return true;
-            return false;
-        });
-
-        (fs.readdirSync as any).mockReturnValue([{ name: extName, isDirectory: () => true }]);
-
-        (fs.readFileSync as any).mockReturnValue(JSON.stringify(mockConfig));
-
-        await engine.initialize();
-
-        const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
-        expect(SimpleExtensionLoader).toHaveBeenCalled();
-        const loaderArgs = (SimpleExtensionLoader as any).mock.calls[0][0];
-        expect(loaderArgs).toHaveLength(1);
-        expect(loaderArgs[0].name).toBe(extName);
-        expect(loaderArgs[0].path).toBe(extPath);
-
-        // Verify path resolution
-        const mcpServer = loaderArgs[0].mcpServers.test;
-        expect(mcpServer.args[0]).toBe(path.join(extPath, 'dist/index.js'));
-        expect(mcpServer.env.EXT_DIR).toBe(extPath);
-    });
-
-    it('should handle no extensions directory', async () => {
-        (fs.existsSync as any).mockReturnValue(false);
-        await engine.initialize();
-        const { SimpleExtensionLoader } = await import('@google/gemini-cli-core');
-        expect(SimpleExtensionLoader).toHaveBeenCalledWith([]);
-    });
-
-    describe('buildToolResponseParts', () => {
-        it('should correctly map tool responses using nested request.callId', () => {
-            const toolRequests = [{ callId: 'call-1', name: 'my_tool' }];
-
-            const completedCalls = [
-                {
-                    request: { callId: 'call-1' },
-                    response: {
-                        responseParts: [
-                            { functionResponse: { name: 'my_tool', response: { result: 'ok' } } }
-                        ]
-                    }
-                }
-            ];
-
-            const result = GeminiEngine.buildToolResponseParts(
-                toolRequests,
-                completedCalls,
-                new Map(),
-                new Set()
-            );
-
-            expect(result).toHaveLength(1);
-            expect(result[0].functionResponse.response.result).toBe('ok');
-        });
-
-        it('should generate synthetic responses for blocked tool calls', () => {
-            const toolRequests = [{ callId: 'call-2', name: 'blocked_tool' }];
-
-            const blockedResponses = new Map([['call-2', 'Access restricted by DLP']]);
-
-            const result = GeminiEngine.buildToolResponseParts(
-                toolRequests,
-                [],
-                blockedResponses,
-                new Set()
-            );
-
-            expect(result).toHaveLength(1);
-            expect(result[0].functionResponse.response.error).toBe('Access restricted by DLP');
-        });
-    });
-
-    describe('convertRecordToHistory', () => {
-        it('should convert user and model messages', () => {
+    describe('migrateLegacyConversation', () => {
+        it('should convert user and assistant messages', () => {
             const conversation = {
                 messages: [
                     { type: 'user', content: 'Hello' },
@@ -158,14 +31,20 @@ describe('GeminiEngine', () => {
                 ]
             };
 
-            const history = (engine as any).convertRecordToHistory(conversation);
+            const history = (engine as any).migrateLegacyConversation(conversation);
 
             expect(history).toHaveLength(2);
-            expect(history[0]).toEqual({ role: 'user', parts: [{ text: 'Hello' }] });
-            expect(history[1]).toEqual({ role: 'model', parts: [{ text: 'Hi there' }] });
+            expect(history[0]).toMatchObject({
+                role: 'user',
+                content: 'Hello'
+            });
+            expect(history[1]).toMatchObject({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'Hi there' }]
+            });
         });
 
-        it('should convert tool calls and generate function responses', () => {
+        it('should convert tool calls and generate tool result messages', () => {
             const conversation = {
                 messages: [
                     {
@@ -184,20 +63,21 @@ describe('GeminiEngine', () => {
                 ]
             };
 
-            const history = (engine as any).convertRecordToHistory(conversation);
+            const history = (engine as any).migrateLegacyConversation(conversation);
 
             expect(history).toHaveLength(2);
-            expect(history[0].role).toBe('model');
-            expect(history[0].parts[0].functionCall).toEqual({
+            expect(history[0].role).toBe('assistant');
+            expect(history[0].content[0]).toEqual({
+                type: 'toolCall',
+                id: 'call-1',
                 name: 'get_weather',
-                args: { location: 'London' }
+                arguments: { location: 'London' }
             });
 
-            expect(history[1].role).toBe('user');
-            expect(history[1].parts[0].functionResponse).toEqual({
-                name: 'get_weather',
-                response: { temperature: 20 }
-            });
+            expect(history[1].role).toBe('toolResult');
+            expect(history[1].toolCallId).toBe('call-1');
+            expect(history[1].toolName).toBe('get_weather');
+            expect(history[1].details).toEqual({ temperature: 20 });
         });
 
         it('should handle string results and parse them if possible', () => {
@@ -219,9 +99,9 @@ describe('GeminiEngine', () => {
                 ]
             };
 
-            const history = (engine as any).convertRecordToHistory(conversation);
+            const history = (engine as any).migrateLegacyConversation(conversation);
 
-            expect(history[1].parts[0].functionResponse.response).toEqual({ temperature: 20 });
+            expect(history[1].details).toEqual({ temperature: 20 });
         });
     });
 });

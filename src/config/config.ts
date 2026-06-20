@@ -39,12 +39,17 @@ export class Config {
     public readonly channels: Record<string, ChannelConfig> = {};
     public primaryChannel: string = 'discord';
 
-    // Gemini
+    // Gemini (Legacy fallback/compatibility)
     public readonly geminiModel: string;
     public readonly assistantName: string;
     public readonly instanceName: string;
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
+
+    // Pi Agent SDK Configuration
+    public readonly piProvider: string;
+    public readonly piModel: string;
+    public readonly piBaseUrl: string;
 
     // Inference Backend
     public readonly inferenceBackend: 'gemini' | 'llamacpp';
@@ -97,6 +102,9 @@ export class Config {
         this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
         this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
+        this.piProvider = process.env.PI_PROVIDER || jsonConfig.piProvider || 'google';
+        this.piModel = process.env.PI_MODEL || jsonConfig.piModel || 'gemini-2.5-flash';
+        this.piBaseUrl = process.env.PI_BASE_URL || jsonConfig.piBaseUrl || '';
         this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
             'gemini') as 'gemini' | 'llamacpp';
