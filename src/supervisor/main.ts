@@ -442,7 +442,7 @@ async function main() {
 
                 const executedCount = recentTools.filter((t) => t.status === 'completed').length;
                 lines.push(
-                    `⏳ **Working...** (Turn ${turnCount} | ${executedCount} tools executed)`
+                    `⏳ **Working...** (Turn ${turnCount}, ${executedCount} tools executed)`
                 );
 
                 // Show last ~5 tool calls (moving window)
