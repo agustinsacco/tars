@@ -11,16 +11,17 @@ This skill allows Tars to create new MCP extensions to expand its own toolset.
 
 When you need to build a new tool or integration:
 
-1.  **Plan the Extension**: Define the name and the MCP tools it will expose.
+1.  **Plan & Consolidate Tools**: Define the name and the MCP tools.
+    - **CRITICAL**: Do NOT expose many small, granular tools. Consolidate related operations into a single tool using an `action` parameter (`z.enum`) to keep the total tool count low. This prevents attention dilution in local/smaller models.
 2.  **Create the Directory**: Move to `~/.tars/.gemini/extensions/<name>`.
 3.  **Initialize npm**: Run `npm init -y`. Set `"type": "module"` in `package.json`.
-4.  **Install Dependencies**: Install `@modelcontextprotocol/sdk` and any other required libraries.
+4.  **Install Dependencies**: Install `@modelcontextprotocol/sdk` and any required libraries.
 5.  **Write the Server (JavaScript)**: Create a `server.js` file.
     - **CRITICAL**: Use **plain JavaScript** for runtime-created extensions to avoid a build step.
-    - Use the `@modelcontextprotocol/sdk` to define tools and handle stdio.
+    - Use `@modelcontextprotocol/sdk` to define tools and handle stdio.
 6.  **Create Manifest**: Create `tars-extension.json`.
 7.  **Enable Extension**: Edit `~/.tars/.gemini/extensions/extension-enablement.json`.
-    - You must authorize the extension by adding its entry with safety overrides:
+    - Authorize the extension by adding its entry with safety overrides:
     ```json
     "my-extension": {
         "overrides": ["/path/to/my/workspace/*"]
@@ -59,18 +60,39 @@ const server = new McpServer({
     version: '1.0.0'
 });
 
+// Consolidated, action-based tool example
 server.registerTool(
-    'my_tool',
+    'manage_data',
     {
-        description: 'Describe tool here',
+        description: 'Perform actions (store, delete, or list) on the data store.',
         inputSchema: z.object({
-            param: z.string().description('example param')
+            action: z.enum(['store', 'delete', 'list']).description('The action to perform'),
+            key: z.string().optional().description('Required for store/delete actions'),
+            value: z.string().optional().description('Required for store action')
         })
     },
     async (args) => {
-        return {
-            content: [{ type: 'text', text: 'Hello from Tars extension!' }]
-        };
+        const { action, key, value } = args;
+
+        if (action === 'store') {
+            if (!key || !value)
+                return {
+                    content: [{ type: 'text', text: 'Error: Key and value required' }],
+                    isError: true
+                };
+            // Store implementation...
+            return { content: [{ type: 'text', text: `Successfully stored key: ${key}` }] };
+        } else if (action === 'delete') {
+            if (!key)
+                return { content: [{ type: 'text', text: 'Error: Key required' }], isError: true };
+            // Delete implementation...
+            return { content: [{ type: 'text', text: `Successfully deleted key: ${key}` }] };
+        } else if (action === 'list') {
+            // List implementation...
+            return { content: [{ type: 'text', text: 'Listing stored keys...' }] };
+        }
+
+        return { content: [{ type: 'text', text: 'Invalid action' }], isError: true };
     }
 );
 
