@@ -7,68 +7,18 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { Client, GatewayIntentBits } from 'discord.js';
-import { TarsOAuthService } from '../../auth/oauth-service.js';
-import { WorkspaceOAuthService } from '../../auth/workspace-auth-service.js';
 import { BrainAuditor } from '../../utils/brain-audit.js';
 import { getTarsHome } from '../../utils/paths.js';
 import { SecretsManager } from '../../utils/secrets-manager.js';
+import { migrateLegacyConfig } from '../../utils/migration-manager.js';
 import crypto from 'node:crypto';
-
-/**
- * Check if the isolated tars environment is authenticated
- */
-async function checkTarsAuth(tarsHome: string): Promise<boolean> {
-    const oauthService = new TarsOAuthService(tarsHome);
-    return await oauthService.isAuthenticated();
-}
-
-/**
- * Helper to setup Workspace Auth
- */
-async function setupWorkspaceAuth(tarsHome: string, wsService: WorkspaceOAuthService) {
-    const secretsManager = new SecretsManager(tarsHome);
-    const secrets = secretsManager.load();
-
-    if (!secrets.GOOGLE_WORKSPACE_CLIENT_ID || !secrets.GOOGLE_WORKSPACE_CLIENT_SECRET) {
-        console.log(
-            chalk.yellow('\n  Workspace integration requires an OAuth Client ID and Secret.')
-        );
-        console.log(chalk.dim('  Create one in the Google Cloud Console (Desktop App type).'));
-
-        const answers = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'clientId',
-                message: '  Enter Google Workspace Client ID:',
-                default: secrets.GOOGLE_WORKSPACE_CLIENT_ID,
-                validate: (i) => i.length > 10 || 'Required'
-            },
-            {
-                type: 'password',
-                name: 'clientSecret',
-                message: '  Enter Google Workspace Client Secret:',
-                default: secrets.GOOGLE_WORKSPACE_CLIENT_SECRET,
-                validate: (i) => i.length > 5 || 'Required'
-            }
-        ]);
-
-        secretsManager.set('GOOGLE_WORKSPACE_CLIENT_ID', answers.clientId);
-        secretsManager.set('GOOGLE_WORKSPACE_CLIENT_SECRET', answers.clientSecret);
-
-        // Refresh env for the service
-        process.env.GOOGLE_WORKSPACE_CLIENT_ID = answers.clientId;
-        process.env.GOOGLE_WORKSPACE_CLIENT_SECRET = answers.clientSecret;
-    }
-
-    await wsService.login();
-}
 
 /**
  * tars setup - The Onboarding Wizard
  */
 export async function setup() {
-    console.log(chalk.cyan.bold('\n🤖 Welcome to Tars Setup!'));
-    console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━\n'));
+    console.log(chalk.cyan.bold('\n🤖 Welcome to Tars Setup! (Pi Agent SDK Edition)'));
+    console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
 
     // ── Prerequisites ──────────────────────────────────────
     const spinner = ora('Checking prerequisites...').start();
@@ -82,8 +32,10 @@ export async function setup() {
     }
 
     const tarsHome = getTarsHome();
-
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
+
+    // Run automated migration manager
+    await migrateLegacyConfig(tarsHome);
 
     // Load existing config for defaults
     let existingConfig: any = {};
@@ -94,102 +46,150 @@ export async function setup() {
         /* ignore */
     }
 
-    // ══════════════════════════════════════════════════════════
-    // ── Step 1: Inference Backend ─────────────────────────────
-    // This is asked FIRST because it determines the entire flow.
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 1: Inference Backend'));
-    console.log(chalk.dim('─────────────────────────'));
-    console.log(chalk.dim("  Choose how Tars will think. Gemini uses Google's cloud"));
-    console.log(chalk.dim('  models (free tier included). Local runs your own model.'));
+    const secretsManager = new SecretsManager(tarsHome);
+    const secrets = secretsManager.load();
 
-    const { inferenceBackend } = await inquirer.prompt([
+    // ══════════════════════════════════════════════════════════
+    // ── Step 1: Model Provider ────────────────────────────────
+    // ══════════════════════════════════════════════════════════
+    console.log(chalk.bold('\nStep 1: Model Provider'));
+    console.log(chalk.dim('──────────────────────'));
+    console.log(chalk.dim('  Choose the AI provider and API configurations for Tars.'));
+
+    const { piProvider } = await inquirer.prompt([
         {
             type: 'list',
-            name: 'inferenceBackend',
-            message: 'How should Tars run inference?',
+            name: 'piProvider',
+            message: 'Select AI Model Provider:',
             choices: [
-                {
-                    name: `☁️  Gemini Cloud ${chalk.dim('— Google AI, free tier, tool-calling, no GPU needed')}`,
-                    value: 'gemini'
-                },
-                {
-                    name: `🖥️  Local Model ${chalk.dim('— LlamaCpp / OpenAI-compatible endpoint, runs on your hardware')}`,
-                    value: 'llamacpp'
-                }
+                { name: 'Google (Gemini SDK / API Key)', value: 'google' },
+                { name: 'OpenAI (GPT-4o, etc.)', value: 'openai' },
+                { name: 'Anthropic (Claude 3.5 Sonnet, etc.)', value: 'anthropic' },
+                { name: 'Local Stark (Qwen 3.6 @ stark:8086)', value: 'local-stark' },
+                { name: 'Custom (OpenAI-compatible proxy/local endpoint)', value: 'custom' }
             ],
-            default: existingConfig.inferenceBackend || 'gemini'
+            default: existingConfig.piProvider || 'google'
         }
     ]);
 
-    const isLocal = inferenceBackend === 'llamacpp';
-
     // ══════════════════════════════════════════════════════════
-    // ── Step 2: Authentication ────────────────────────────────
-    // Gemini: Google OAuth required. Local: skipped entirely.
+    // ── Step 2: Credentials & Model Configuration ─────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 2: Authentication'));
-    console.log(chalk.dim('──────────────────────'));
+    console.log(chalk.bold('\nStep 2: Credentials & Model ID'));
+    console.log(chalk.dim('──────────────────────────────'));
 
-    if (isLocal) {
-        console.log(chalk.green('  ✓ Local inference selected — no cloud authentication needed.'));
-        console.log(chalk.dim('  Tars will connect directly to your local model endpoint.'));
-    } else {
-        const isAuthed = await checkTarsAuth(tarsHome);
-        let performAuth = false;
+    let piBaseUrl = '';
+    let piApiKey = '';
+    let defaultModel = '';
 
-        if (isAuthed) {
-            console.log(chalk.green('  ✓ Already authenticated with Google.'));
-            const { reAuth } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'reAuth',
-                    message: 'Do you want to re-authenticate with a different account?',
-                    default: false
-                }
-            ]);
-            performAuth = reAuth;
-        } else {
-            const { authNow } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'authNow',
-                    message:
-                        'Gemini requires Google OAuth for inference. Continue with authentication?',
-                    default: true
-                }
-            ]);
-            performAuth = authNow;
-        }
-
-        if (performAuth) {
-            console.log(chalk.cyan('\n  Running Google Authentication...'));
-            console.log(chalk.dim('  1. Copy the URL provided below into Chrome.'));
-            console.log(chalk.dim('  2. Sign in and copy the authorization code.'));
-            console.log(chalk.dim('  3. Paste the code back here.'));
-            console.log(chalk.dim('  -----------------------------------'));
-
-            try {
-                const oauthService = new TarsOAuthService(tarsHome);
-                await oauthService.login(isAuthed);
-
-                const freshStatus = await oauthService.isAuthenticated();
-                if (freshStatus) {
-                    console.log(chalk.green('  ✓ Authentication successful!'));
-                } else {
-                    console.log(chalk.yellow('  ⚠ Warning: Could not verify authentication.'));
-                }
-            } catch (err: any) {
-                console.error(chalk.red(`  Failed to authenticate: ${err.message}`));
+    if (piProvider === 'google') {
+        const answers = await inquirer.prompt([
+            {
+                type: 'password',
+                name: 'apiKey',
+                message: 'Enter TARS_API_KEY (Google Cloud API Key):',
+                default:
+                    secrets.TARS_API_KEY ||
+                    secrets.GEMINI_API_KEY ||
+                    process.env.TARS_API_KEY ||
+                    process.env.GEMINI_API_KEY ||
+                    '',
+                validate: (input) => input.length > 0 || 'API Key is required'
             }
-        } else if (!isAuthed) {
-            console.log(
-                chalk.yellow(
-                    '  Skipped. Tars will not be able to communicate with Gemini without auth.'
-                )
-            );
-        }
+        ]);
+        piApiKey = answers.apiKey;
+        secretsManager.set('TARS_API_KEY', piApiKey);
+        process.env.TARS_API_KEY = piApiKey;
+        secretsManager.set('GEMINI_API_KEY', piApiKey);
+        process.env.GEMINI_API_KEY = piApiKey;
+        defaultModel = 'gemini-2.5-flash';
+    } else if (piProvider === 'openai') {
+        const answers = await inquirer.prompt([
+            {
+                type: 'password',
+                name: 'apiKey',
+                message: 'Enter OPENAI_API_KEY:',
+                default: secrets.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '',
+                validate: (input) => input.length > 0 || 'API Key is required'
+            }
+        ]);
+        piApiKey = answers.apiKey;
+        secretsManager.set('OPENAI_API_KEY', piApiKey);
+        process.env.OPENAI_API_KEY = piApiKey;
+        defaultModel = 'gpt-4o';
+    } else if (piProvider === 'anthropic') {
+        const answers = await inquirer.prompt([
+            {
+                type: 'password',
+                name: 'apiKey',
+                message: 'Enter ANTHROPIC_API_KEY:',
+                default: secrets.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+                validate: (input) => input.length > 0 || 'API Key is required'
+            }
+        ]);
+        piApiKey = answers.apiKey;
+        secretsManager.set('ANTHROPIC_API_KEY', piApiKey);
+        process.env.ANTHROPIC_API_KEY = piApiKey;
+        defaultModel = 'claude-3-5-sonnet-latest';
+    } else if (piProvider === 'local-stark') {
+        const answers = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'baseUrl',
+                message: 'Stark Endpoint URL:',
+                default: existingConfig.piBaseUrl || 'http://stark:8086/v1'
+            },
+            {
+                type: 'password',
+                name: 'apiKey',
+                message: 'Stark API Key:',
+                default: secrets.STARK_API_KEY || 'dummy-key'
+            }
+        ]);
+        piBaseUrl = answers.baseUrl;
+        piApiKey = answers.apiKey;
+        secretsManager.set('STARK_API_KEY', piApiKey);
+        process.env.STARK_API_KEY = piApiKey;
+        defaultModel = 'Qwen3.6-35B-A3B-Q8';
+    } else {
+        const answers = await inquirer.prompt([
+            {
+                type: 'input',
+                name: 'baseUrl',
+                message: 'Custom Endpoint Base URL:',
+                default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
+                validate: (input) => {
+                    try {
+                        new URL(input);
+                        return true;
+                    } catch {
+                        return 'Invalid URL';
+                    }
+                }
+            },
+            {
+                type: 'password',
+                name: 'apiKey',
+                message: 'Custom Endpoint API Key:',
+                default: secrets.CUSTOM_API_KEY || 'dummy-key'
+            }
+        ]);
+        piBaseUrl = answers.baseUrl;
+        piApiKey = answers.apiKey;
+        secretsManager.set('CUSTOM_API_KEY', piApiKey);
+        process.env.CUSTOM_API_KEY = piApiKey;
+        defaultModel = 'custom-model';
     }
+
+    const { piModel } = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'piModel',
+            message: `Enter Model ID (default recommended: ${defaultModel}):`,
+            default: existingConfig.piModel || defaultModel,
+            validate: (input) => input.length > 0 || 'Model ID is required'
+        }
+    ]);
 
     // ══════════════════════════════════════════════════════════
     // ── Step 3: Communication Channel ─────────────────────────
@@ -247,292 +247,57 @@ export async function setup() {
     }
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 4: Identity & Engine ─────────────────────────────
-    // The questions differ based on inference backend.
+    // ── Step 4: Identity ──────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 4: Identity & Engine'));
-    console.log(chalk.dim('─────────────────────────'));
+    console.log(chalk.bold('\nStep 4: Identity'));
+    console.log(chalk.dim('────────────────'));
 
-    let config: any = {};
-
-    if (isLocal) {
-        console.log(chalk.dim('  Configure your local inference endpoint and context limits.'));
-        console.log(
-            chalk.dim('  Use a model with tool-calling support (Qwen 3.5, Llama 3.1, etc.).')
-        );
-
-        // Step 4a: Collect basic identity + endpoint URL
-        const basicConfig = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'assistantName',
-                message: 'Assistant Name (Display identity):',
-                default: existingConfig.assistantName || 'Tars'
-            },
-            {
-                type: 'input',
-                name: 'localInferenceUrl',
-                message: 'Local Inference URL (OpenAI-compatible endpoint):',
-                default: existingConfig.localInferenceUrl || 'http://localhost:8080',
-                validate: (input: string) => {
-                    try {
-                        new URL(input);
-                        return true;
-                    } catch {
-                        return 'Please enter a valid URL (e.g., http://localhost:8080)';
-                    }
-                }
+    const identityConfig = await inquirer.prompt([
+        {
+            type: 'input',
+            name: 'assistantName',
+            message: 'Assistant Name (Display identity):',
+            default: existingConfig.assistantName || 'Tars'
+        },
+        {
+            type: 'list',
+            name: 'heartbeatMinutes',
+            message: 'Heartbeat Interval (How often Tars checks in):',
+            choices: [
+                { name: '30 Minutes (Recommended)', value: 30 },
+                { name: '1 Hour', value: 60 },
+                { name: '2 Hours', value: 120 },
+                { name: '4 Hours', value: 240 },
+                { name: 'Custom', value: 'custom' }
+            ],
+            default: existingConfig.heartbeatIntervalSec
+                ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
+                : 30
+        },
+        {
+            type: 'input',
+            name: 'customHeartbeat',
+            message: 'Enter custom heartbeat interval in minutes:',
+            when: (answers) => answers.heartbeatMinutes === 'custom',
+            validate: (input) => {
+                const n = parseInt(input, 10);
+                return (!isNaN(n) && n > 0) || 'Must be a positive number';
             }
-        ]);
-
-        // Step 4b: Probe the endpoint for health + available models
-        const { probeEndpoint } = await import('../../utils/endpoint-probe.js');
-        const probeSpinner = ora(`Testing endpoint ${basicConfig.localInferenceUrl}...`).start();
-        const probe = await probeEndpoint(basicConfig.localInferenceUrl);
-
-        let selectedModel = existingConfig.geminiModel || 'auto';
-
-        if (probe.reachable) {
-            if (probe.models.length > 0) {
-                probeSpinner.succeed(`Endpoint reachable! Found ${probe.models.length} model(s).`);
-
-                // Build choices from discovered models + custom option
-                const modelChoices = probe.models.map((m) => ({
-                    name: `${m}`,
-                    value: m
-                }));
-                modelChoices.push({
-                    name: chalk.dim('Custom (enter manually)'),
-                    value: '__custom__'
-                });
-
-                const { modelChoice } = await inquirer.prompt([
-                    {
-                        type: 'list',
-                        name: 'modelChoice',
-                        message: 'Which model should Tars use?',
-                        choices: modelChoices,
-                        default: probe.models.includes(selectedModel)
-                            ? selectedModel
-                            : probe.models[0]
-                    }
-                ]);
-
-                if (modelChoice === '__custom__') {
-                    const { customModel } = await inquirer.prompt([
-                        {
-                            type: 'input',
-                            name: 'customModel',
-                            message: 'Enter model name:',
-                            default: selectedModel,
-                            validate: (input: string) =>
-                                input.length > 0 || 'Model name is required'
-                        }
-                    ]);
-                    selectedModel = customModel;
-                } else {
-                    selectedModel = modelChoice;
-                }
-            } else {
-                probeSpinner.succeed('Endpoint reachable! (no model list available)');
-                const { manualModel } = await inquirer.prompt([
-                    {
-                        type: 'input',
-                        name: 'manualModel',
-                        message:
-                            'Model Name (sent in the OpenAI `model` field — use the name your server expects):',
-                        default: selectedModel,
-                        validate: (input: string) => input.length > 0 || 'Model name is required'
-                    }
-                ]);
-                selectedModel = manualModel;
-            }
-        } else {
-            probeSpinner.warn(`Could not reach endpoint: ${probe.error || 'unknown error'}`);
-            console.log(
-                chalk.yellow(
-                    '  ⚠ The endpoint is not responding. Configuration will continue but\n' +
-                        '    make sure the server is running when you start Tars.'
-                )
-            );
-            const { manualModel } = await inquirer.prompt([
-                {
-                    type: 'input',
-                    name: 'manualModel',
-                    message: 'Model Name (enter manually):',
-                    default: selectedModel,
-                    validate: (input: string) => input.length > 0 || 'Model name is required'
-                }
-            ]);
-            selectedModel = manualModel;
         }
-
-        // Step 4c: Context window + heartbeat
-        const cwChoices: any[] = [];
-        if (probe.contextWindow) {
-            cwChoices.push({
-                name: `🤖 Auto-Detect (${probe.contextWindow} tokens from server)`,
-                value: probe.contextWindow
-            });
-        }
-        cwChoices.push(
-            { name: '4K tokens  — Small models (TinyLlama)', value: 4096 },
-            { name: '8K tokens  — Standard (Llama 3 8B)', value: 8192 },
-            { name: '16K tokens — Extended (Mistral 7B)', value: 16384 },
-            { name: '32K tokens — Large context (Qwen 3.5)', value: 32768 },
-            { name: '128K tokens — Very large context (Llama 3.1 70B)', value: 131072 },
-            { name: 'Custom', value: 'custom' }
-        );
-
-        const advancedConfig = await inquirer.prompt([
-            {
-                type: 'list',
-                name: 'contextWindowTokens',
-                message: 'Context Window Size (depends on your model):',
-                choices: cwChoices,
-                default: probe.contextWindow
-                    ? probe.contextWindow
-                    : existingConfig.contextWindowTokens || 8192
-            },
-            {
-                type: 'input',
-                name: 'customContextWindow',
-                message: 'Enter context window size (number of tokens):',
-                when: (answers) => answers.contextWindowTokens === 'custom',
-                validate: (input: string) => {
-                    const n = parseInt(input, 10);
-                    return (!isNaN(n) && n > 0) || 'Must be a positive number';
-                }
-            },
-            {
-                type: 'list',
-                name: 'heartbeatMinutes',
-                message: 'Heartbeat Interval (How often Tars checks in):',
-                choices: [
-                    { name: '30 Minutes (Recommended)', value: 30 },
-                    { name: '1 Hour', value: 60 },
-                    { name: '2 Hours', value: 120 },
-                    { name: '4 Hours', value: 240 },
-                    { name: 'Custom', value: 'custom' }
-                ],
-                default: existingConfig.heartbeatIntervalSec
-                    ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
-                    : 30
-            }
-        ]);
-
-        config = {
-            ...basicConfig,
-            ...advancedConfig,
-            geminiModel: selectedModel,
-            inferenceBackend: 'llamacpp'
-        };
-    } else {
-        console.log(chalk.dim('  Tars is your personal assistant and sidekick.'));
-        console.log(chalk.dim('  Every Google account includes free Gemini inference!'));
-
-        config = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'assistantName',
-                message: 'Assistant Name (Display identity):',
-                default: existingConfig.assistantName || 'Tars'
-            },
-            {
-                type: 'list',
-                name: 'geminiModel',
-                message: 'Select Gemini Model:',
-                choices: [
-                    { name: 'Auto (Recommended - High IQ)', value: 'auto' },
-                    { name: 'Auto (Gemini 2.5 Path)', value: 'auto-gemini-2.5' },
-                    { name: 'Gemini 2.0 Flash (Fastest)', value: 'gemini-2.0-flash' },
-                    { name: 'Gemini 2.5 Flash', value: 'gemini-2.5-flash' },
-                    { name: 'Gemini 2.5 Pro (Balanced)', value: 'gemini-2.5-pro' },
-                    { name: 'Gemini 3 Flash (Preview)', value: 'gemini-3-flash-preview' },
-                    { name: 'Gemini 3 Pro (Preview)', value: 'gemini-3-pro-preview' },
-                    { name: 'Custom (Advanced)', value: 'custom' }
-                ],
-                default: existingConfig.geminiModel || 'auto'
-            },
-            {
-                type: 'input',
-                name: 'customModel',
-                message: 'Enter custom model name:',
-                when: (answers) => answers.geminiModel === 'custom'
-            },
-            {
-                type: 'list',
-                name: 'heartbeatMinutes',
-                message: 'Heartbeat Interval (How often Tars checks in):',
-                choices: [
-                    { name: '30 Minutes (Recommended)', value: 30 },
-                    { name: '1 Hour', value: 60 },
-                    { name: '2 Hours', value: 120 },
-                    { name: '4 Hours', value: 240 },
-                    { name: 'Custom', value: 'custom' }
-                ],
-                default: existingConfig.heartbeatIntervalSec
-                    ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
-                    : 30
-            }
-        ]);
-
-        config.inferenceBackend = 'gemini';
-    }
+    ]);
 
     // ══════════════════════════════════════════════════════════
     // ── Step 5: Integrations ──────────────────────────────────
-    // Google Workspace is only relevant for Gemini backend.
     // ══════════════════════════════════════════════════════════
     console.log(chalk.bold('\nStep 5: Integrations'));
     console.log(chalk.dim('────────────────────'));
-
-    if (isLocal) {
-        console.log(
-            chalk.dim(
-                '  Google Workspace integration requires cloud auth and is not available with local inference.'
-            )
-        );
-        console.log(chalk.dim('  Skipping.'));
-    } else {
-        console.log(chalk.dim('  Enables Tars to read verification emails, manage'));
-        console.log(chalk.dim('  your calendar, and interact with your files.'));
-
-        const wsService = new WorkspaceOAuthService(tarsHome);
-        const isWsAuthed = await wsService.isAuthenticated();
-
-        if (isWsAuthed) {
-            console.log(chalk.green('  ✓ Google Workspace already authenticated.'));
-            const { reAuthWs } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'reAuthWs',
-                    message: 'Do you want to re-authenticate Workspace access?',
-                    default: false
-                }
-            ]);
-            if (reAuthWs) await setupWorkspaceAuth(tarsHome, wsService);
-        } else {
-            const { setupWs } = await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'setupWs',
-                    message: 'Enable Google Workspace integration (Gmail, Drive, Calendar)?',
-                    default: true
-                }
-            ]);
-            if (setupWs) await setupWorkspaceAuth(tarsHome, wsService);
-        }
-    }
+    console.log(chalk.dim('  Workspace integration has been deprecated. Skipping.'));
 
     // ══════════════════════════════════════════════════════════
     // ── Step 6: Tars Dashboard ────────────────────────────────
     // ══════════════════════════════════════════════════════════
     console.log(chalk.bold('\nStep 6: Tars Dashboard'));
-    console.log(chalk.dim('────────────────────────────'));
-
-    const secretsManager = new SecretsManager(tarsHome);
-    const secrets = secretsManager.load();
+    console.log(chalk.dim('──────────────────────'));
 
     const dashConfig = await inquirer.prompt([
         {
@@ -572,155 +337,53 @@ export async function setup() {
     }
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 7: Swarm Mode ────────────────────────────────────
-    // Allows other Tars instances to delegate tasks to this one.
+    // ── Step 7: Installing ────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 7: Swarm Mode (A2A)'));
-    console.log(chalk.dim('────────────────────────'));
-    console.log(chalk.dim('  Allow other Tars instances to discover and'));
-    console.log(chalk.dim('  delegate tasks to this agent using the A2A protocol.'));
-
-    const existingSwarm = existingConfig.swarm || {};
-    const existingSwarmKey = secrets.SWARM_API_KEY || '';
-
-    const swarmConfig = await inquirer.prompt([
-        {
-            type: 'confirm',
-            name: 'enableSwarm',
-            message: 'Enable Swarm Mode (allow other agents to connect)?',
-            default: existingSwarm.enabled || false
-        },
-        {
-            type: 'input',
-            name: 'swarmPort',
-            message: 'Swarm API Port:',
-            default: String(existingSwarm.port || '3100'),
-            when: (a) => a.enableSwarm,
-            validate: (input: string) => {
-                const n = parseInt(input, 10);
-                if (isNaN(n) || n < 1024 || n > 65535) {
-                    return 'Port must be a number between 1024 and 65535';
-                }
-                return true;
-            }
-        },
-        {
-            type: 'input',
-            name: 'swarmDescription',
-            message: 'Instance description (for other agents):',
-            default:
-                existingSwarm.description ||
-                `${config.assistantName || existingConfig.assistantName || 'Tars'} — Autonomous AI assistant`,
-            when: (a) => a.enableSwarm
-        }
-    ]);
-
-    if (swarmConfig.enableSwarm) {
-        // Auto-generate API key if one doesn't exist
-        const apiKey = existingSwarmKey || `tars_swarm_${crypto.randomBytes(24).toString('hex')}`;
-
-        secretsManager.set('SWARM_API_KEY', apiKey);
-
-        console.log(chalk.green('  ✓ Swarm mode configured.'));
-        console.log(chalk.dim(`  Port: ${swarmConfig.swarmPort}`));
-        console.log(
-            chalk.dim(
-                `  API Key: ${apiKey.substring(0, 16)}...${apiKey.substring(apiKey.length - 4)}`
-            )
-        );
-        console.log('');
-        console.log(chalk.dim('  To register this instance on another Tars, run:'));
-        console.log(
-            chalk.cyan(
-                `  tars swarm add --name ${(config.assistantName || 'tars').toLowerCase()} \\`
-            )
-        );
-        console.log(
-            chalk.cyan(
-                `    --url http://<this-host>:${swarmConfig.swarmPort}/.well-known/agent.json \\`
-            )
-        );
-        console.log(chalk.cyan(`    --key ${apiKey}`));
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // ── Step 8: Installing ────────────────────────────────────
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 8: Installing'));
+    console.log(chalk.bold('\nStep 7: Installing'));
     console.log(chalk.dim('──────────────────'));
 
-    // 1. Audit and Heal
+    // Audit and Heal
     const auditor = new BrainAuditor(tarsHome);
     await auditor.audit({ silent: true });
 
-    // 2. Provision isolated environment
+    // Provision isolated environment
     const installSpinner = ora('Provisioning environment...').start();
-    const geminiDir = path.join(tarsHome, '.gemini');
 
     await fs.mkdir(path.join(tarsHome, 'data', 'uploads'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'logs'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'apps'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'extensions'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'tmp'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'history'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'extensions'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'tmp'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'chats'), { recursive: true });
 
-    installSpinner.succeed('Directories created (~/.tars/.gemini/)');
+    installSpinner.succeed('Directories created (~/.tars/)');
 
-    // ── Legacy Cleanup ──────────────────────────────
+    // Legacy Cleanup
     const cleanupSpinner = ora('Checking for legacy components...').start();
     const oldDash = path.join(tarsHome, 'dashboard');
     if (fsSync.existsSync(oldDash)) {
         await fs.rm(oldDash, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
         cleanupSpinner.text = 'Cleaned up legacy dashboard directory.';
     }
-    const oldStandaloneDash = path.resolve(tarsHome, '..', 'apps', 'tars-dash');
-    if (fsSync.existsSync(oldStandaloneDash)) {
-        await fs.rm(oldStandaloneDash, {
-            recursive: true,
-            force: true,
-            maxRetries: 3,
-            retryDelay: 200
-        });
-        cleanupSpinner.text = 'Cleaned up legacy standalone dashboard.';
-    }
     cleanupSpinner.succeed('Cleanup complete.');
 
-    // ── Write Tars configuration ─────────────────────
+    // Save final configuration
     const saveSpinner = ora('Saving configuration...').start();
-    const finalModel = config.geminiModel === 'custom' ? config.customModel : config.geminiModel;
     const intervalSec =
-        (config.heartbeatMinutes === 'custom' ? config.customHeartbeat : config.heartbeatMinutes) *
-        60;
-
-    const contextTokens =
-        config.contextWindowTokens === 'custom'
-            ? parseInt(config.customContextWindow, 10)
-            : config.contextWindowTokens;
+        (identityConfig.heartbeatMinutes === 'custom'
+            ? identityConfig.customHeartbeat
+            : identityConfig.heartbeatMinutes) * 60;
 
     const configData: any = {
-        assistantName: config.assistantName,
+        assistantName: identityConfig.assistantName,
         discordToken,
         discordOwnerId: existingConfig.discordOwnerId,
-        geminiModel: finalModel,
-        inferenceBackend: config.inferenceBackend,
-        heartbeatIntervalSec: intervalSec
+        piProvider,
+        piModel,
+        piBaseUrl,
+        heartbeatIntervalSec: intervalSec,
+        inferenceBackend: 'tars'
     };
-
-    // Backend-specific config
-    if (isLocal) {
-        configData.localInferenceUrl = config.localInferenceUrl;
-        configData.contextWindowTokens = contextTokens;
-    }
-
-    // Swarm config (only written if enabled)
-    if (swarmConfig.enableSwarm) {
-        configData.swarm = {
-            enabled: true,
-            port: parseInt(swarmConfig.swarmPort, 10),
-            description: swarmConfig.swarmDescription || '',
-            skills: existingSwarm.skills || []
-        };
-    }
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
@@ -740,15 +403,12 @@ export async function setup() {
         }
     }
 
-    // ── Done ──────────────────────────────────────────────
+    // Done
     console.log(chalk.green.bold('\n✅ Tars is ready!'));
-    if (isLocal) {
-        console.log(chalk.dim(`\n  Backend:        Local Model @ ${config.localInferenceUrl}`));
-        console.log(
-            chalk.dim(`  Context Window: ${(contextTokens || 8192).toLocaleString()} tokens`)
-        );
-    } else {
-        console.log(chalk.dim(`\n  Backend:        Gemini Cloud (${finalModel})`));
+    console.log(chalk.dim(`\n  Provider:       ${piProvider}`));
+    console.log(chalk.dim(`  Model:          ${piModel}`));
+    if (piBaseUrl) {
+        console.log(chalk.dim(`  Base URL:       ${piBaseUrl}`));
     }
     console.log(`\n  Start Tars:     ${chalk.cyan('tars start')}`);
     console.log(`  Check status:   ${chalk.cyan('tars status')}`);

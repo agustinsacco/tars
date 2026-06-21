@@ -21,7 +21,7 @@ export interface SessionData {
 }
 
 /**
- * Manages Gemini CLI session persistence with token tracking
+ * Manages Tars session persistence with token tracking
  */
 export class SessionManager {
     private readonly sessionFilePath: string;

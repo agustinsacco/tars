@@ -1,5 +1,5 @@
 import { Config } from '../config/config.js';
-import { GeminiEngine } from '../supervisor/gemini-engine.js';
+import { TarsEngine } from '../supervisor/tars-engine.js';
 import logger from '../utils/logger.js';
 
 async function main() {
@@ -8,7 +8,7 @@ async function main() {
     const config = Config.getInstance();
     console.log(`🏠 Home Dir: ${config.homeDir}`);
 
-    const engine = new GeminiEngine(config);
+    const engine = new TarsEngine(config);
 
     // Provide a mocked DiscordBot so the send_discord_message tool is injected
     engine.setChannelManager({

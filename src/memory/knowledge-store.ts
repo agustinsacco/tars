@@ -129,6 +129,16 @@ export class KnowledgeStore {
      */
     async search(query: string, limit: number = 5): Promise<MemoryResult[]> {
         try {
+            const sanitizedQuery = query
+                .replace(/[-\/\\^$*+?.()|[\]{}]/g, ' ')
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean)
+                .map((term) => `"${term.replace(/"/g, '""')}"`)
+                .join(' AND ');
+
+            if (!sanitizedQuery) return [];
+
             const results = this.db
                 .prepare(
                     `
@@ -141,7 +151,7 @@ export class KnowledgeStore {
                 LIMIT ?
             `
                 )
-                .all(query, limit) as any[];
+                .all(sanitizedQuery, limit) as any[];
 
             return results.map((r) => ({
                 path: r.path,

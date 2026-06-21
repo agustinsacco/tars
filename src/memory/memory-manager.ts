@@ -42,7 +42,7 @@ export class MemoryManager {
             }
 
             // 2. Sync Skills
-            const skillsDir = path.join(this.config.homeDir, '.gemini', 'skills');
+            const skillsDir = path.join(this.config.homeDir, 'skills');
             try {
                 await fsPromises.access(skillsDir);
                 await this.syncDir(skillsDir, 'skills');
@@ -59,48 +59,38 @@ export class MemoryManager {
         }
     }
 
-    /**
-     * Finds and indexes past session conversations for episodic memory.
-     */
     private async syncSessions(): Promise<void> {
-        const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
+        const chatsDir = path.join(this.config.homeDir, 'chats');
         try {
-            await fsPromises.access(tmpDir); // check exists
-            const projectDirs = await fsPromises.readdir(tmpDir);
+            await fsPromises.access(chatsDir); // check exists
+            const files = (await fsPromises.readdir(chatsDir)).filter((f) => f.endsWith('.json'));
 
-            for (const dir of projectDirs) {
-                const chatsDir = path.join(tmpDir, dir, 'chats');
+            for (const file of files) {
                 try {
-                    await fsPromises.access(chatsDir);
-                    const files = (await fsPromises.readdir(chatsDir)).filter((f) =>
-                        f.endsWith('.json')
-                    );
+                    const fullPath = path.join(chatsDir, file);
+                    const raw = await fsPromises.readFile(fullPath, 'utf-8');
+                    const session = JSON.parse(raw);
 
-                    for (const file of files) {
-                        try {
-                            const fullPath = path.join(chatsDir, file);
-                            const raw = await fsPromises.readFile(fullPath, 'utf-8');
-                            const session = JSON.parse(raw);
+                    const messages = Array.isArray(session) ? session : session.messages;
 
-                            if (session.messages && session.messages.length > 0) {
-                                const transcript = session.messages
-                                    .map((m: any) => {
-                                        const role = m.type === 'user' ? 'USER' : 'ASSISTANT';
-                                        const text = Array.isArray(m.content)
-                                            ? m.content.map((c: any) => c.text).join(' ')
-                                            : m.content || '[Action]';
-                                        return `${role}: ${text}`;
-                                    })
-                                    .join('\n\n');
+                    if (messages && messages.length > 0) {
+                        const transcript = messages
+                            .map((m: any) => {
+                                const role = m.role === 'user' ? 'USER' : 'ASSISTANT';
+                                let text = '';
+                                if (Array.isArray(m.content)) {
+                                    text = m.content.map((c: any) => c.text || '').join(' ');
+                                } else {
+                                    text = m.content || '';
+                                }
+                                return `${role}: ${text}`;
+                            })
+                            .join('\n\n');
 
-                                await this.knowledgeStore.indexFile(`history/${file}`, transcript);
-                            }
-                        } catch (err) {
-                            // Skip invalid session files
-                        }
+                        await this.knowledgeStore.indexFile(`history/${file}`, transcript);
                     }
-                } catch {
-                    // chats dir doesn't exist
+                } catch (err) {
+                    // Skip invalid session files
                 }
             }
         } catch {
@@ -117,10 +107,7 @@ export class MemoryManager {
                     await this.syncDir(fullPath, category);
                 } else if (entry.name.endsWith('.md')) {
                     const content = await fsPromises.readFile(fullPath, 'utf-8');
-                    const relPath = path.relative(
-                        path.join(this.config.homeDir, '.gemini'),
-                        fullPath
-                    );
+                    const relPath = path.relative(this.config.homeDir, fullPath);
                     await this.knowledgeStore.indexFile(relPath, content);
                 }
             }

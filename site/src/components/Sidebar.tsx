@@ -48,7 +48,7 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
             { title: 'Supervisor Engine', href: '/architecture/supervisor' },
             { title: 'Heartbeat Protocol', href: '/architecture/heartbeat' },
-            { title: 'Core Intelligence', href: '/architecture/gemini-cli' },
+            { title: 'Core Intelligence', href: '/architecture/tars-engine' },
             { title: 'Configuration', href: '/architecture/configuration' }
         ]
     },

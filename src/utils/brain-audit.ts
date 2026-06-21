@@ -43,7 +43,7 @@ export class BrainAuditor {
     }
 
     private cleanupAnomalies(log: (msg: string) => void): void {
-        const anomalies = ['.tars', '~', 'tmp/gemini-cli'];
+        const anomalies = ['.tars', '~', 'tmp/gemini-cli', 'tmp/tars-cli'];
         for (const anomaly of anomalies) {
             const anomalyPath = path.join(this.tarsHome, anomaly);
             if (fs.existsSync(anomalyPath)) {
@@ -53,7 +53,7 @@ export class BrainAuditor {
         }
 
         // Deep check for tilde anomalies in extensions
-        const extDir = path.join(this.tarsHome, '.gemini', 'extensions');
+        const extDir = path.join(this.tarsHome, 'extensions');
         if (fs.existsSync(extDir)) {
             const extensions = fs.readdirSync(extDir);
             for (const ext of extensions) {
@@ -67,12 +67,7 @@ export class BrainAuditor {
     }
 
     private rehomeExtensions(log: (msg: string) => void): void {
-        const enablementPath = path.join(
-            this.tarsHome,
-            '.gemini',
-            'extensions',
-            'extension-enablement.json'
-        );
+        const enablementPath = path.join(this.tarsHome, 'extensions', 'extension-enablement.json');
         if (!fs.existsSync(enablementPath)) return;
 
         try {
@@ -90,7 +85,7 @@ export class BrainAuditor {
     }
 
     private auditSkills(log: (msg: string) => void): void {
-        const skillsDir = path.join(this.tarsHome, '.gemini', 'skills');
+        const skillsDir = path.join(this.tarsHome, 'skills');
         if (!fs.existsSync(skillsDir)) return;
 
         const entries = fs.readdirSync(skillsDir);

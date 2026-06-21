@@ -58,10 +58,7 @@ program
     .description('Check the status of the assistant supervisor')
     .action(status);
 
-program
-    .command('quota')
-    .description('Check current Gemini API rate limits and quotas')
-    .action(quota);
+program.command('quota').description('Check current model rate limits and quotas').action(quota);
 
 program
     .command('export')
@@ -107,16 +104,6 @@ program
     .action(async (action, queryArgs) => {
         const { memory } = await import('./commands/memory.js');
         return memory(action, ...queryArgs);
-    });
-
-program
-    .command('swarm')
-    .description('Manage Swarm peers (remote A2A agents)')
-    .argument('<action>', 'Action to perform (status, add, remove, list)')
-    .argument('[args...]', 'Additional arguments')
-    .action(async (action, args) => {
-        const { swarm } = await import('./commands/swarm.js');
-        return swarm(action, ...args);
     });
 
 program

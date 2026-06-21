@@ -18,7 +18,7 @@ When you need to build a new tool or integration:
 5.  **Write the Server (JavaScript)**: Create a `server.js` file.
     - **CRITICAL**: Use **plain JavaScript** for runtime-created extensions to avoid a build step.
     - Use the `@modelcontextprotocol/sdk` to define tools and handle stdio.
-6.  **Create Manifest**: Create `gemini-extension.json`.
+6.  **Create Manifest**: Create `tars-extension.json`.
 7.  **Enable Extension**: Edit `~/.tars/.gemini/extensions/extension-enablement.json`.
     - You must authorize the extension by adding its entry with safety overrides:
     ```json
@@ -28,7 +28,7 @@ When you need to build a new tool or integration:
     ```
 8.  **Finalize**: Restart Tars using `tars stop && tars start`.
 
-## Manifest Template (gemini-extension.json)
+## Manifest Template (tars-extension.json)
 
 ```json
 {

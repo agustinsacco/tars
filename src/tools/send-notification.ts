@@ -1,76 +1,49 @@
-import {
-    BaseDeclarativeTool,
-    ToolInvocation,
-    BaseToolInvocation,
-    ToolResult,
-    Kind,
-    ExecuteOptions
-} from '@google/gemini-cli-core';
-import type { MessageBus } from '@google/gemini-cli-core/dist/src/confirmation-bus/message-bus.js';
+import { AgentTool } from '@earendil-works/pi-agent-core';
 import { ChannelManager } from '../channels/channel-manager.js';
+import { Type, Static } from 'typebox';
 
-interface NotifyParams {
-    message: string;
-}
+const NotifyParamsSchema = Type.Object({
+    message: Type.String({
+        description: 'The text content of the message to send to the user.'
+    })
+});
 
-class SendNotificationInvocation extends BaseToolInvocation<NotifyParams, ToolResult> {
-    constructor(
-        params: NotifyParams,
-        private channelManager: ChannelManager
-    ) {
-        super(params, null as unknown as MessageBus, 'send_notification', 'Send Notification');
-    }
-
-    getDescription(): string {
-        return `Sending proactive notification: ${this.params.message.substring(0, 50)}${this.params.message.length > 50 ? '...' : ''}`;
-    }
-
-    async execute(options: ExecuteOptions): Promise<ToolResult> {
-        try {
-            await this.channelManager.notify(this.params.message);
-            return {
-                llmContent: [{ text: '✅ Message successfully queued for delivery to the user.' }],
-                returnDisplay: 'Notification sent successfully.'
-            };
-        } catch (error: any) {
-            return {
-                llmContent: [{ text: `❌ Failed to send notification: ${error.message}` }],
-                returnDisplay: `Error: ${error.message}`
-            };
-        }
-    }
-}
+type NotifyParams = Static<typeof NotifyParamsSchema>;
 
 /**
  * Tool to send proactive notifications to the user via enabled channels
  */
-export class SendNotificationTool extends BaseDeclarativeTool<NotifyParams, ToolResult> {
-    constructor(private readonly channelManager: ChannelManager) {
-        super(
-            'send_notification',
-            'Send Notification',
-            'Send a proactive message or notification back to the user. Use this tool during background tasks to report results, alert the user to issues, or ask questions that you want them to see when they return.',
-            Kind.Communicate,
-            {
-                type: 'object',
-                properties: {
-                    message: {
-                        type: 'string',
-                        description: 'The text content of the message to send to the user.'
-                    }
-                },
-                required: ['message']
-            },
-            null as unknown as MessageBus,
-            true, // isOutputMarkdown
-            false // canUpdateOutput
-        );
-    }
+export class SendNotificationTool implements AgentTool<typeof NotifyParamsSchema> {
+    public readonly name = 'send_notification';
+    public readonly label = 'Send Notification';
+    public readonly description =
+        'Send a proactive message or notification back to the user. Use this tool during background tasks to report results, alert the user to issues, or ask questions that you want them to see when they return.';
+    public readonly parameters = NotifyParamsSchema;
 
-    protected createInvocation(
-        params: NotifyParams,
-        _messageBus: MessageBus
-    ): ToolInvocation<NotifyParams, ToolResult> {
-        return new SendNotificationInvocation(params, this.channelManager);
+    constructor(private readonly channelManager: ChannelManager) {}
+
+    async execute(toolCallId: string, params: NotifyParams) {
+        try {
+            await this.channelManager.notify(params.message);
+            return {
+                content: [
+                    {
+                        type: 'text' as const,
+                        text: '✅ Message successfully queued for delivery to the user.'
+                    }
+                ],
+                details: { status: 'success' }
+            };
+        } catch (error: any) {
+            return {
+                content: [
+                    {
+                        type: 'text' as const,
+                        text: `❌ Failed to send notification: ${error.message}`
+                    }
+                ],
+                details: { status: 'error', error: error.message }
+            };
+        }
     }
 }

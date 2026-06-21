@@ -19,20 +19,22 @@ describe('GetQuotaTool - Local Model Support', () => {
             lastInteractionAt: string;
             totalNetTokens: number;
             compressionCount: number;
+            lastInputTokens: number;
         } | null,
         tarsConfig: {
-            inferenceBackend: string;
+            piProvider: string;
             contextWindowTokens: number;
-            geminiModel: string;
-            localInferenceUrl: string;
+            piModel: string;
+            piBaseUrl: string;
         }
     ) {
         const contextWindow = tarsConfig.contextWindowTokens || 0;
-        const model = tarsConfig.geminiModel || 'unknown';
-        const endpoint = tarsConfig.localInferenceUrl || 'unknown';
+        const model = tarsConfig.piModel || 'unknown';
+        const provider = tarsConfig.piProvider || 'unknown';
+        const endpoint = tarsConfig.piBaseUrl || 'unknown';
 
         let resultText = '### Session Resource Usage\n\n';
-        resultText += `- **Backend**: Local Inference (${tarsConfig.inferenceBackend})\n`;
+        resultText += `- **Provider**: \`${provider}\`\n`;
         resultText += `- **Model**: \`${model}\`\n`;
         resultText += `- **Endpoint**: \`${endpoint}\`\n`;
         resultText += `- **Context Window**: ${contextWindow.toLocaleString()} tokens\n\n`;
@@ -40,17 +42,18 @@ describe('GetQuotaTool - Local Model Support', () => {
         if (stats) {
             const usagePercent =
                 contextWindow > 0
-                    ? ((stats.totalInputTokens / contextWindow) * 100).toFixed(1)
+                    ? ((stats.lastInputTokens / contextWindow) * 100).toFixed(1)
                     : 'N/A';
 
             resultText += '#### Current Session\n\n';
             resultText += `- **Session ID**: \`${stats.sessionId}\`\n`;
             resultText += `- **Created**: ${stats.createdAt}\n`;
             resultText += `- **Interactions**: ${stats.interactionCount}\n`;
-            resultText += `- **Context Tokens (Last)**: ${stats.totalInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${usagePercent}%)\n`;
+            resultText += `- **Context Size (Current)**: ${stats.lastInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${usagePercent}%)\n`;
             resultText += `- **Output Tokens (Cumulative)**: ${stats.totalOutputTokens.toLocaleString()}\n`;
-            resultText += `- **Cached Tokens**: ${stats.totalCachedTokens.toLocaleString()}\n`;
+            resultText += `- **Cached Tokens (Current)**: ${stats.totalCachedTokens.toLocaleString()}\n`;
             resultText += `- **Net Input Tokens (Cumulative)**: ${stats.totalNetTokens.toLocaleString()}\n`;
+            resultText += `- **Total Input Tokens (Cumulative)**: ${stats.totalInputTokens.toLocaleString()}\n`;
             resultText += `- **Compressions**: ${stats.compressionCount}\n`;
             resultText += `- **Last Interaction**: ${stats.lastInteractionAt}\n`;
         } else {
@@ -62,15 +65,15 @@ describe('GetQuotaTool - Local Model Support', () => {
 
     it('should include model name and endpoint in local usage report', () => {
         const result = formatLocalUsage(null, {
-            inferenceBackend: 'llamacpp',
+            piProvider: 'google',
             contextWindowTokens: 262144,
-            geminiModel: 'qwen35_distilled',
-            localInferenceUrl: 'http://stark:8086/v1'
+            piModel: 'gemini-2.5-flash',
+            piBaseUrl: 'https://generativelanguage.googleapis.com'
         });
 
-        expect(result).toContain('llamacpp');
-        expect(result).toContain('qwen35_distilled');
-        expect(result).toContain('http://stark:8086/v1');
+        expect(result).toContain('google');
+        expect(result).toContain('gemini-2.5-flash');
+        expect(result).toContain('https://generativelanguage.googleapis.com');
         expect(result).toContain('262,144');
     });
 
@@ -79,7 +82,8 @@ describe('GetQuotaTool - Local Model Support', () => {
             {
                 sessionId: 'test-session-123',
                 createdAt: '2026-04-18T00:00:00Z',
-                totalInputTokens: 131072, // 50% of 262144
+                totalInputTokens: 131072,
+                lastInputTokens: 131072, // 50% of 262144
                 totalOutputTokens: 5000,
                 totalCachedTokens: 0,
                 interactionCount: 25,
@@ -88,10 +92,10 @@ describe('GetQuotaTool - Local Model Support', () => {
                 compressionCount: 2
             },
             {
-                inferenceBackend: 'llamacpp',
+                piProvider: 'google',
                 contextWindowTokens: 262144,
-                geminiModel: 'qwen35_distilled',
-                localInferenceUrl: 'http://localhost:8080'
+                piModel: 'gemini-2.5-flash',
+                piBaseUrl: 'https://generativelanguage.googleapis.com'
             }
         );
 
@@ -104,14 +108,14 @@ describe('GetQuotaTool - Local Model Support', () => {
 
     it('should handle null session data gracefully', () => {
         const result = formatLocalUsage(null, {
-            inferenceBackend: 'llamacpp',
+            piProvider: 'openai',
             contextWindowTokens: 8192,
-            geminiModel: 'llama3',
-            localInferenceUrl: 'http://localhost:8080'
+            piModel: 'gpt-4o',
+            piBaseUrl: 'https://api.openai.com/v1'
         });
 
         expect(result).toContain('No active session data available');
-        expect(result).toContain('llama3');
+        expect(result).toContain('gpt-4o');
     });
 
     it('should handle zero context window without division error', () => {
@@ -120,6 +124,7 @@ describe('GetQuotaTool - Local Model Support', () => {
                 sessionId: 'test',
                 createdAt: '2026-01-01T00:00:00Z',
                 totalInputTokens: 1000,
+                lastInputTokens: 1000,
                 totalOutputTokens: 500,
                 totalCachedTokens: 0,
                 interactionCount: 5,
@@ -128,10 +133,10 @@ describe('GetQuotaTool - Local Model Support', () => {
                 compressionCount: 0
             },
             {
-                inferenceBackend: 'llamacpp',
+                piProvider: 'google',
                 contextWindowTokens: 0,
-                geminiModel: 'test-model',
-                localInferenceUrl: 'http://localhost:8080'
+                piModel: 'gemini-2.5-flash',
+                piBaseUrl: 'https://generativelanguage.googleapis.com'
             }
         );
 
@@ -142,7 +147,7 @@ describe('GetQuotaTool - Local Model Support', () => {
 });
 
 describe('Session-Aware Usage Accumulation', () => {
-    // Test the accumulation logic that lives in gemini-engine.ts run loop
+    // Test the accumulation logic that lives in tars-engine.ts run loop
     // Extracted here as a pure-function test
 
     it('should accumulate multi-turn usage correctly', () => {
@@ -191,7 +196,7 @@ describe('Session-Aware Usage Accumulation', () => {
             cachedContentTokenCount: 0
         };
 
-        // This simulates the ternary in gemini-engine.ts done event emission
+        // This simulates the ternary in tars-engine.ts done event emission
         const usageStats =
             accumulatedInputTokens > 0 || accumulatedOutputTokens > 0
                 ? {
@@ -269,7 +274,7 @@ describe('Session-Aware Usage Accumulation', () => {
 
 describe('Local Compaction - Role Boundary Safety', () => {
     it('should find nearest user role boundary for truncation', () => {
-        // Simulate the compaction logic from gemini-engine.ts
+        // Simulate the compaction logic from tars-engine.ts
         const history = [
             { role: 'user' }, // 0
             { role: 'model' }, // 1
@@ -366,45 +371,26 @@ describe('Local Compaction - Role Boundary Safety', () => {
 describe('System Prompt Template Variables', () => {
     it('should hydrate all infrastructure template variables', () => {
         let template = `
-- **Inference Backend**: {{INFERENCE_BACKEND}}
+- **Provider**: {{PROVIDER}}
 - **Model**: {{MODEL_NAME}}
 - **Context Window**: {{CONTEXT_WINDOW}} tokens
-- **Inference Endpoint**: {{INFERENCE_ENDPOINT}}
 `;
         const config = {
-            inferenceBackend: 'llamacpp',
-            geminiModel: 'qwen35_distilled',
-            contextWindowTokens: 262144,
-            localInferenceUrl: 'http://stark:8086/v1'
+            piProvider: 'google',
+            piModel: 'gemini-2.5-flash',
+            contextWindowTokens: 262144
         };
 
-        template = template.replace(/{{INFERENCE_BACKEND}}/g, config.inferenceBackend);
-        template = template.replace(/{{MODEL_NAME}}/g, config.geminiModel);
+        template = template.replace(/{{PROVIDER}}/g, config.piProvider);
+        template = template.replace(/{{MODEL_NAME}}/g, config.piModel);
         template = template.replace(
             /{{CONTEXT_WINDOW}}/g,
             config.contextWindowTokens.toLocaleString()
         );
-        template = template.replace(
-            /{{INFERENCE_ENDPOINT}}/g,
-            config.inferenceBackend === 'llamacpp' ? config.localInferenceUrl : 'Google AI API'
-        );
 
-        expect(template).toContain('llamacpp');
-        expect(template).toContain('qwen35_distilled');
+        expect(template).toContain('google');
+        expect(template).toContain('gemini-2.5-flash');
         expect(template).toContain('262,144');
-        expect(template).toContain('http://stark:8086/v1');
         expect(template).not.toContain('{{');
-    });
-
-    it('should use Google AI API for non-local backends', () => {
-        let template = '{{INFERENCE_ENDPOINT}}';
-        const config = { inferenceBackend: 'gemini', localInferenceUrl: 'http://localhost:8080' };
-
-        template = template.replace(
-            /{{INFERENCE_ENDPOINT}}/g,
-            config.inferenceBackend === 'llamacpp' ? config.localInferenceUrl : 'Google AI API'
-        );
-
-        expect(template).toBe('Google AI API');
     });
 });

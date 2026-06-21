@@ -16,7 +16,7 @@ const ALL_PAGES: SearchResult[] = [
 
     { title: 'Supervisor Engine', href: '/architecture/supervisor', section: 'Architecture' },
     { title: 'Heartbeat Protocol', href: '/architecture/heartbeat', section: 'Architecture' },
-    { title: 'Core Intelligence', href: '/architecture/gemini-cli', section: 'Architecture' },
+    { title: 'Core Intelligence', href: '/architecture/tars-engine', section: 'Architecture' },
     { title: 'Configuration', href: '/architecture/configuration', section: 'Architecture' },
     { title: 'Multi-Agent', href: '/capabilities/agents', section: 'Capabilities' },
     { title: 'Persistent Memory', href: '/capabilities/memory', section: 'Capabilities' },

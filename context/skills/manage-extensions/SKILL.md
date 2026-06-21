@@ -9,7 +9,7 @@ Use this skill when you need to manage Tars' MCP extensions. Tars integrates ext
 
 ## How It Works
 
-Tars performs **Extension Discovery** at startup. It scans the extensions directory for `gemini-extension.json` files. Enablement state and safety overrides are persisted in `~/.tars/.gemini/extensions/extension-enablement.json`.
+Tars performs **Extension Discovery** at startup. It scans the extensions directory for `tars-extension.json` files. Enablement state and safety overrides are persisted in `~/.tars/.gemini/extensions/extension-enablement.json`.
 
 ## Operational Tasks
 
@@ -44,7 +44,7 @@ To **disable**, simply remove its key from the JSON object.
 ### 3. Install a New Extension
 
 1. Create a directory in `~/.tars/.gemini/extensions/<name>`.
-2. Add a `gemini-extension.json` manifest.
+2. Add a `tars-extension.json` manifest.
 3. Add the extension server code (prefer plain JavaScript for runtime extensions).
 4. Register it in `extension-enablement.json`.
 5. Restart Tars.
@@ -60,5 +60,5 @@ tars stop && tars start
 ## Important Notes
 
 1. **JS vs TS**: Extensions created at runtime should use **plain JavaScript** with ESM (`type: "module"` in `package.json` or `.js` extension with `import`/`export`) to avoid a compilation step.
-2. **Path Substitution**: Use `${extensionPath}` in your `gemini-extension.json` `args` or `env` to ensure paths resolve correctly regardless of the host's absolute path.
+2. **Path Substitution**: Use `${extensionPath}` in your `tars-extension.json` `args` or `env` to ensure paths resolve correctly regardless of the host's absolute path.
 3. **Safety**: Always include appropriate path patterns in the `overrides` array in `extension-enablement.json` to allow the extension to access your workspace.

@@ -1,11 +1,10 @@
 import { Config } from '../config/config.js';
-import { GeminiEngine } from './gemini-engine.js';
+import { TarsEngine, ToolStatus } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
 import { CronService } from './cron-service.js';
 import { DashboardService } from './dashboard-service.js';
-import { SwarmService } from '../swarm/swarm-service.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
@@ -19,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Install the fixed system prompt into the Tars home directory.
- * This ensures Gemini CLI uses Tars' custom persona instead of the default coding-centric prompt.
+ * This ensures the agent uses Tars' custom persona instead of the default coding-centric prompt.
  */
 function installSystemPrompt(config: Config): void {
     // Walk up from dist/supervisor/ or src/supervisor/ to find prompts/system.md
@@ -54,16 +53,11 @@ function installSystemPrompt(config: Config): void {
     let promptContent = fs.readFileSync(srcPrompt, 'utf-8');
     promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
     promptContent = promptContent.replace(/{{INSTANCE_NAME}}/g, config.instanceName);
-    promptContent = promptContent.replace(/{{INSTANCE_ROLE}}/g, config.instanceRole);
-    promptContent = promptContent.replace(/{{INFERENCE_BACKEND}}/g, config.inferenceBackend);
-    promptContent = promptContent.replace(/{{MODEL_NAME}}/g, config.geminiModel);
+    promptContent = promptContent.replace(/{{PROVIDER}}/g, config.piProvider);
+    promptContent = promptContent.replace(/{{MODEL_NAME}}/g, config.piModel);
     promptContent = promptContent.replace(
         /{{CONTEXT_WINDOW}}/g,
         config.contextWindowTokens.toLocaleString()
-    );
-    promptContent = promptContent.replace(
-        /{{INFERENCE_ENDPOINT}}/g,
-        config.inferenceBackend === 'llamacpp' ? config.localInferenceUrl : 'Google AI API'
     );
 
     // Always overwrite to ensure latest prompt is deployed
@@ -106,8 +100,8 @@ function installSkills(config: Config): void {
         return;
     }
 
-    // 2. Define target directory (~/.tars/.gemini/skills)
-    const skillsDest = path.join(config.homeDir, '.gemini', 'skills');
+    // 2. Define target directory (~/.tars/skills)
+    const skillsDest = path.join(config.homeDir, 'skills');
 
     try {
         if (!fs.existsSync(skillsDest)) {
@@ -138,65 +132,11 @@ function installSkills(config: Config): void {
 }
 
 /**
- * Install and sync built-in agents into the Tars runtime directory.
- */
-function installAgents(config: Config): void {
-    let searchDir = __dirname;
-    let agentsSrc = '';
-
-    for (let i = 0; i < 5; i++) {
-        const candidate = path.join(searchDir, 'context', 'agents');
-        const srcCandidate = path.join(searchDir, '..', 'context', 'agents');
-
-        if (fs.existsSync(candidate)) {
-            agentsSrc = candidate;
-            break;
-        } else if (fs.existsSync(srcCandidate)) {
-            agentsSrc = srcCandidate;
-            break;
-        }
-        const rootCandidate = path.join(searchDir, '..', '..', 'context', 'agents');
-        if (fs.existsSync(rootCandidate)) {
-            agentsSrc = rootCandidate;
-            break;
-        }
-
-        searchDir = path.dirname(searchDir);
-    }
-
-    if (!agentsSrc) {
-        logger.warn('⚠️ Could not locate built-in agents directory');
-        return;
-    }
-
-    const agentsDest = path.join(config.homeDir, '.gemini', 'agents');
-
-    try {
-        if (!fs.existsSync(agentsDest)) {
-            fs.mkdirSync(agentsDest, { recursive: true });
-        }
-
-        const builtInAgents = fs.readdirSync(agentsSrc);
-
-        for (const agentName of builtInAgents) {
-            const srcAgentPath = path.join(agentsSrc, agentName);
-            const destAgentPath = path.join(agentsDest, agentName);
-
-            if (!fs.statSync(srcAgentPath).isFile() || !agentName.endsWith('.md')) continue;
-
-            fs.copyFileSync(srcAgentPath, destAgentPath);
-        }
-    } catch (error) {
-        logger.error(`❌ Failed to sync agents: ${error}`);
-    }
-}
-
-/**
  * Automatically install/link extensions and enable them.
  */
 function installExtensions(config: Config): void {
     const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
-    const targetExtensionsDir = path.join(config.homeDir, '.gemini', 'extensions');
+    const targetExtensionsDir = path.join(config.homeDir, 'extensions');
     const enablementFile = path.join(targetExtensionsDir, 'extension-enablement.json');
 
     if (!fs.existsSync(repoExtensionsDir)) {
@@ -322,7 +262,7 @@ function installDefaultSettings(config: Config): void {
         'config',
         'settings.json-template'
     );
-    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+    const targetSettings = path.join(config.homeDir, 'settings.json');
 
     if (fs.existsSync(targetSettings)) return;
 
@@ -337,7 +277,7 @@ function installDefaultSettings(config: Config): void {
  * Ensure existing settings.json has required settings
  */
 function patchSettings(config: Config): void {
-    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+    const targetSettings = path.join(config.homeDir, 'settings.json');
     if (!fs.existsSync(targetSettings)) return;
 
     const settingsTemplate = path.join(
@@ -456,24 +396,24 @@ async function main() {
         // 2. Install components
         installSystemPrompt(config);
         installSkills(config);
-        installAgents(config);
         installExtensions(config);
         installDashboard(config);
         installDefaultSettings(config);
         patchSettings(config);
 
         // 3. Initialize Core Services
-        const gemini = new GeminiEngine(config);
+        const tarsEngine = new TarsEngine(config);
         const sessionManager = new SessionManager(config.sessionFilePath);
-        const supervisor = new Supervisor(gemini, sessionManager);
+        const supervisor = new Supervisor(tarsEngine, sessionManager);
 
         // 4. Initialize Multi-Channel Interface
         const channelManager = new ChannelManager();
 
         // 5. Inject Interface into Engine
-        gemini.setChannelManager(channelManager);
-        gemini.setSessionManager(sessionManager);
-        await gemini.initialize();
+        tarsEngine.setChannelManager(channelManager);
+        supervisor.setChannelManager(channelManager);
+        tarsEngine.setSessionManager(sessionManager);
+        await tarsEngine.initialize();
 
         // 6. Connect Routing
         channelManager.onMessage(async (message) => {
@@ -491,30 +431,40 @@ async function main() {
 
             const formatStatusContent = (
                 turnCount: number,
-                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                recentTools: ToolStatus[],
                 isMilestone: boolean
             ): string => {
                 const lines: string[] = [];
 
                 if (isMilestone) {
                     lines.push(`⚡ **Milestone ${turnCount}** — still going strong...`);
-                    lines.push('');
                 }
 
+                const executedCount = recentTools.filter((t) => t.status === 'completed').length;
                 lines.push(
-                    `⏳ **Working...** (Turn ${turnCount}, ${recentTools.length} tools executed)`
+                    `⏳ **Working...** (Turn ${turnCount} | ${executedCount} tools executed)`
                 );
-                lines.push('');
 
-                // Show last ~8 tool calls
-                const toolsToShow = recentTools.slice(-8);
-                for (const tool of toolsToShow) {
-                    const preview = tool.responsePreview
-                        .replace(/\n/g, ' ')
-                        .replace(/\*\*/g, '')
-                        .substring(0, 80);
-                    const size = formatSize(tool.responseSize);
-                    lines.push(`🛠️ **${tool.name}** — \`${preview}\` (${size})`);
+                // Show last ~5 tool calls (moving window)
+                const toolsToShow = recentTools.slice(-5);
+                if (toolsToShow.length > 0) {
+                    lines.push('');
+                    for (const tool of toolsToShow) {
+                        if (tool.status === 'running') {
+                            lines.push(`⚙️ **${tool.name}** — *Executing...*`);
+                        } else {
+                            let preview = (tool.responsePreview || '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/[`*#_\[\]]/g, '') // remove markdown characters
+                                .trim();
+
+                            if (preview.length > 80) {
+                                preview = preview.substring(0, 77) + '...';
+                            }
+                            const size = formatSize(tool.responseSize || 0);
+                            lines.push(`🛠️ **${tool.name}** — "${preview}" (${size})`);
+                        }
+                    }
                 }
 
                 lines.push('');
@@ -525,7 +475,7 @@ async function main() {
 
             const updateStatus = async (
                 turnCount: number,
-                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                recentTools: ToolStatus[],
                 isMilestone: boolean
             ): Promise<void> => {
                 const content = formatStatusContent(turnCount, recentTools, isMilestone);
@@ -610,14 +560,12 @@ async function main() {
         const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
         const cron = new CronService(supervisor, config, channelManager);
         const dashboard = new DashboardService(config);
-        const swarm = new SwarmService(config, supervisor);
 
         // Start everything
         await channelManager.start();
         await heartbeat.start();
         await cron.start();
         await dashboard.start();
-        await swarm.start();
 
         logger.info('✨ Tars successfully initialized and running.');
 
@@ -628,7 +576,6 @@ async function main() {
             heartbeat.stop();
             cron.stop();
             dashboard.stop();
-            swarm.stop();
             process.exit(0);
         });
     } catch (error: any) {

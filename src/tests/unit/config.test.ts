@@ -35,9 +35,9 @@ describe('Config', () => {
         expect(config.heartbeatIntervalMs).toBe(300000); // Default 300s
     });
 
-    it('should default contextWindowTokens to 1048576', () => {
+    it('should default contextWindowTokens to 128000', () => {
         const config = Config.getInstance();
-        expect(config.contextWindowTokens).toBe(1048576);
+        expect(config.contextWindowTokens).toBe(128000);
     });
 
     it('should override contextWindowTokens from env var', () => {
@@ -46,9 +46,9 @@ describe('Config', () => {
         expect(config.contextWindowTokens).toBe(8192);
     });
 
-    it('should default compressionThreshold to 0.5', () => {
+    it('should default compressionThreshold to 0.625', () => {
         const config = Config.getInstance();
-        expect(config.compressionThreshold).toBe(0.5);
+        expect(config.compressionThreshold).toBe(0.625);
     });
 
     it('should override compressionThreshold from env var', () => {

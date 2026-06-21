@@ -13,14 +13,6 @@ export interface ChannelConfig {
     ownerId?: string;
 }
 
-export interface SwarmConfig {
-    enabled: boolean;
-    port: number;
-    description: string;
-    skills: string[];
-    apiKey: string;
-}
-
 export class Config {
     private static instance: Config;
 
@@ -39,25 +31,27 @@ export class Config {
     public readonly channels: Record<string, ChannelConfig> = {};
     public primaryChannel: string = 'discord';
 
-    // Gemini
+    // Gemini (Legacy fallback/compatibility)
     public readonly geminiModel: string;
     public readonly assistantName: string;
     public readonly instanceName: string;
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
 
+    // Pi Agent SDK Configuration
+    public readonly piProvider: string;
+    public readonly piModel: string;
+    public readonly piBaseUrl: string;
+
     // Inference Backend
-    public readonly inferenceBackend: 'gemini' | 'llamacpp';
+    public readonly inferenceBackend: 'tars' | 'llamacpp';
     public readonly localInferenceUrl: string;
 
     // Feature Flags — per-backend toggles for optional features
     public readonly statusUpdates: {
-        gemini: boolean;
+        tars: boolean;
         llamacpp: boolean;
     };
-
-    // Swarm (A2A)
-    public readonly swarm: SwarmConfig;
 
     // Context & Compression
     public readonly contextWindowTokens: number;
@@ -97,9 +91,18 @@ export class Config {
         this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
         this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
         this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
-        this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
+        this.piProvider = process.env.PI_PROVIDER || jsonConfig.piProvider || 'google';
+        this.piModel = process.env.PI_MODEL || jsonConfig.piModel || 'gemini-2.5-flash';
+        this.piBaseUrl = process.env.PI_BASE_URL || jsonConfig.piBaseUrl || '';
+        const rawBackend = (
+            process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
-            'gemini') as 'gemini' | 'llamacpp';
+            'tars'
+        ).toLowerCase();
+        this.inferenceBackend =
+            rawBackend === 'pi' || rawBackend === 'gemini' || rawBackend === 'tars'
+                ? 'tars'
+                : 'llamacpp';
         this.localInferenceUrl =
             process.env.LOCAL_INFERENCE_URL ||
             jsonConfig.localInferenceUrl ||
@@ -114,7 +117,12 @@ export class Config {
         };
         const suJson = jsonConfig.statusUpdates || {};
         this.statusUpdates = {
-            gemini: parseBool(process.env.STATUS_UPDATES_GEMINI ?? suJson.gemini),
+            tars: parseBool(
+                process.env.STATUS_UPDATES_TARS ??
+                    process.env.STATUS_UPDATES_GEMINI ??
+                    suJson.tars ??
+                    suJson.gemini
+            ),
             llamacpp: parseBool(process.env.STATUS_UPDATES_LLAMACPP ?? suJson.llamacpp)
         };
 
@@ -123,13 +131,11 @@ export class Config {
         this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
 
         this.contextWindowTokens = parseInt(
-            String(
-                process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '1048576'
-            ),
+            String(process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '128000'),
             10
         );
         this.compressionThreshold = parseFloat(
-            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.5')
+            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.625')
         );
 
         this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);
@@ -137,19 +143,6 @@ export class Config {
             String(process.env.GEMINI_MAX_TPM || jsonConfig.maxTPM || '900000'),
             10
         );
-
-        // Swarm Config (A2A remote agent support)
-        const swarmJson = jsonConfig.swarm || {};
-        this.swarm = {
-            enabled:
-                (process.env.SWARM_ENABLED || swarmJson.enabled) === true ||
-                process.env.SWARM_ENABLED === 'true' ||
-                swarmJson.enabled === true,
-            port: parseInt(String(process.env.SWARM_PORT || swarmJson.port || '3100'), 10),
-            description: process.env.SWARM_DESCRIPTION || swarmJson.description || '',
-            skills: swarmJson.skills || [],
-            apiKey: ''
-        };
 
         // 4. Initialize Channels
         this.channels = jsonConfig.channels || {};
@@ -171,16 +164,8 @@ export class Config {
         // 6. Derived Paths
         this.taskFilePath = path.join(this.homeDir, 'data', 'tasks.json');
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
-        this.systemPromptPath = path.join(this.homeDir, '.gemini', 'system.md');
+        this.systemPromptPath = path.join(this.homeDir, 'system.md');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
-
-        // Load swarm API key from secrets (after secrets are loaded into env)
-        if (this.swarm.enabled) {
-            this.swarm = {
-                ...this.swarm,
-                apiKey: process.env.SWARM_API_KEY || secrets.SWARM_API_KEY || ''
-            };
-        }
 
         if (!this.discordToken && !Object.values(this.channels).some((c) => c.enabled)) {
             logger.warn('⚠️ No active communication channels found. Please run `tars setup`.');
