@@ -21,7 +21,7 @@ describe('Supervisor', () => {
                 onEvent({ type: 'done' });
             }),
             runSync: vi.fn().mockResolvedValue('task output'),
-            compressSession: vi.fn().mockResolvedValue(undefined),
+            compressSession: vi.fn().mockResolvedValue(true),
             refreshSystemInstruction: vi.fn()
         };
         mockSessionManager = {
@@ -151,10 +151,27 @@ describe('Supervisor', () => {
             onEvent({ type: 'done', usageStats });
         });
 
-        await supervisor.run('hello', vi.fn());
+        const events: any[] = [];
+        await supervisor.run('hello', (e) => events.push(e));
 
         expect(mockGemini.compressSession).toHaveBeenCalled();
         expect(mockSessionManager.recordCompression).toHaveBeenCalled();
+
+        // Verify compaction notifications were sent
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'text',
+                role: 'assistant',
+                content: expect.stringContaining('Compacting session memory')
+            })
+        );
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'text',
+                role: 'assistant',
+                content: expect.stringContaining('Session memory compacted')
+            })
+        );
     });
 
     it('should NOT trigger compression when under threshold', async () => {
@@ -176,8 +193,17 @@ describe('Supervisor', () => {
             onEvent({ type: 'done', usageStats: { inputTokens: 600000, outputTokens: 5000 } });
         });
 
-        // Should not throw
-        await expect(supervisor.run('hello', vi.fn())).resolves.not.toThrow();
+        const events: any[] = [];
+        await expect(supervisor.run('hello', (e) => events.push(e))).resolves.not.toThrow();
+
+        // Verify compaction failure notification was sent
+        expect(events).toContainEqual(
+            expect.objectContaining({
+                type: 'text',
+                role: 'assistant',
+                content: expect.stringContaining('Memory compaction failed: Compression timeout')
+            })
+        );
     });
 
     it('should show user-friendly busy message', async () => {

@@ -63,7 +63,7 @@ export class GetQuotaTool implements AgentTool<typeof GetQuotaParamsSchema> {
 
     public getLocalUsage(): string {
         const stats: SessionData | null = this.sessionManager?.getStats() || null;
-        const contextWindow = this.tarsConfig?.contextWindowTokens || 128000;
+        const contextWindow = this.tarsConfig?.contextWindowTokens ?? 128000;
         const model = this.tarsConfig?.piModel || 'unknown';
         const provider = this.tarsConfig?.piProvider || 'unknown';
         const endpoint = this.tarsConfig?.piBaseUrl || 'API';

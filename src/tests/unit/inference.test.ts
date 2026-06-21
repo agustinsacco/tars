@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// We need to test the GetQuotaTool's invocation logic directly.
-// Since the tool uses a class hierarchy from the core SDK, we'll test
-// the local usage logic by constructing the invocation manually.
+import { GetQuotaTool } from '../../tools/get-quota.js';
 
 describe('GetQuotaTool - Local Model Support', () => {
-    // Simulate what GetQuotaInvocation.getLocalUsage() produces
-    // by extracting the logic into a testable pure function.
-
     function formatLocalUsage(
         stats: {
             sessionId: string;
@@ -28,39 +22,11 @@ describe('GetQuotaTool - Local Model Support', () => {
             piBaseUrl: string;
         }
     ) {
-        const contextWindow = tarsConfig.contextWindowTokens || 0;
-        const model = tarsConfig.piModel || 'unknown';
-        const provider = tarsConfig.piProvider || 'unknown';
-        const endpoint = tarsConfig.piBaseUrl || 'unknown';
-
-        let resultText = '### Session Resource Usage\n\n';
-        resultText += `- **Provider**: \`${provider}\`\n`;
-        resultText += `- **Model**: \`${model}\`\n`;
-        resultText += `- **Endpoint**: \`${endpoint}\`\n`;
-        resultText += `- **Context Window**: ${contextWindow.toLocaleString()} tokens\n\n`;
-
-        if (stats) {
-            const usagePercent =
-                contextWindow > 0
-                    ? ((stats.lastInputTokens / contextWindow) * 100).toFixed(1)
-                    : 'N/A';
-
-            resultText += '#### Current Session\n\n';
-            resultText += `- **Session ID**: \`${stats.sessionId}\`\n`;
-            resultText += `- **Created**: ${stats.createdAt}\n`;
-            resultText += `- **Interactions**: ${stats.interactionCount}\n`;
-            resultText += `- **Context Size (Current)**: ${stats.lastInputTokens.toLocaleString()} / ${contextWindow.toLocaleString()} (${usagePercent}%)\n`;
-            resultText += `- **Output Tokens (Cumulative)**: ${stats.totalOutputTokens.toLocaleString()}\n`;
-            resultText += `- **Cached Tokens (Current)**: ${stats.totalCachedTokens.toLocaleString()}\n`;
-            resultText += `- **Net Input Tokens (Cumulative)**: ${stats.totalNetTokens.toLocaleString()}\n`;
-            resultText += `- **Total Input Tokens (Cumulative)**: ${stats.totalInputTokens.toLocaleString()}\n`;
-            resultText += `- **Compressions**: ${stats.compressionCount}\n`;
-            resultText += `- **Last Interaction**: ${stats.lastInteractionAt}\n`;
-        } else {
-            resultText += '*No active session data available.*\n';
-        }
-
-        return resultText;
+        const sessionManager = {
+            getStats: () => stats
+        } as any;
+        const tool = new GetQuotaTool(sessionManager, tarsConfig);
+        return tool.getLocalUsage();
     }
 
     it('should include model name and endpoint in local usage report', () => {
