@@ -147,7 +147,7 @@ describe('GetQuotaTool - Local Model Support', () => {
 });
 
 describe('Session-Aware Usage Accumulation', () => {
-    // Test the accumulation logic that lives in gemini-engine.ts run loop
+    // Test the accumulation logic that lives in tars-engine.ts run loop
     // Extracted here as a pure-function test
 
     it('should accumulate multi-turn usage correctly', () => {
@@ -196,7 +196,7 @@ describe('Session-Aware Usage Accumulation', () => {
             cachedContentTokenCount: 0
         };
 
-        // This simulates the ternary in gemini-engine.ts done event emission
+        // This simulates the ternary in tars-engine.ts done event emission
         const usageStats =
             accumulatedInputTokens > 0 || accumulatedOutputTokens > 0
                 ? {
@@ -274,7 +274,7 @@ describe('Session-Aware Usage Accumulation', () => {
 
 describe('Local Compaction - Role Boundary Safety', () => {
     it('should find nearest user role boundary for truncation', () => {
-        // Simulate the compaction logic from gemini-engine.ts
+        // Simulate the compaction logic from tars-engine.ts
         const history = [
             { role: 'user' }, // 0
             { role: 'model' }, // 1

@@ -1,7 +1,7 @@
 /**
  * Discord Message Formatter
  *
- * Transforms Gemini CLI output (GitHub Flavored Markdown)
+ * Transforms Tars CLI output (GitHub Flavored Markdown)
  * into Discord-compatible formatting.
  *
  * Discord supports:
