@@ -10,6 +10,7 @@ import { Client, GatewayIntentBits } from 'discord.js';
 import { BrainAuditor } from '../../utils/brain-audit.js';
 import { getTarsHome } from '../../utils/paths.js';
 import { SecretsManager } from '../../utils/secrets-manager.js';
+import { migrateLegacyConfig } from '../../utils/migration-manager.js';
 import crypto from 'node:crypto';
 
 /**
@@ -32,6 +33,9 @@ export async function setup() {
 
     const tarsHome = getTarsHome();
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
+
+    // Run automated migration manager
+    await migrateLegacyConfig(tarsHome);
 
     // Load existing config for defaults
     let existingConfig: any = {};
