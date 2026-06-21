@@ -1,6 +1,7 @@
 import { Config } from '../config/config.js';
 import { TarsEngine, ToolStatus } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
+import { GetQuotaTool } from '../tools/get-quota.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
 import { CronService } from './cron-service.js';
@@ -417,6 +418,66 @@ async function main() {
 
         // 6. Connect Routing
         channelManager.onMessage(async (message) => {
+            const rawPrompt = message.content.trim();
+
+            if (rawPrompt.startsWith('/')) {
+                const parts = rawPrompt.split(' ');
+                const command = parts[0].toLowerCase();
+
+                if (command === '/reset' || command === '/clear') {
+                    try {
+                        const stats = sessionManager.getStats();
+                        if (stats) {
+                            const chatFile = path.join(
+                                config.homeDir,
+                                'chats',
+                                `${stats.sessionId}.json`
+                            );
+                            if (fs.existsSync(chatFile)) {
+                                await fs.promises.unlink(chatFile).catch(() => {});
+                            }
+                        }
+                        await sessionManager.clear();
+                        await message.reply(
+                            '✨ **Session Reset:** I have cleared the current session context and started a new, clean conversation.'
+                        );
+                    } catch (e: any) {
+                        await message.reply(`❌ **Error resetting session:** ${e.message}`);
+                    }
+                    return;
+                }
+
+                if (command === '/quota' || command === '/stats') {
+                    const stats = sessionManager.getStats();
+                    if (!stats) {
+                        await message.reply('📊 **No active session stats found.**');
+                        return;
+                    }
+
+                    const quotaTool = new GetQuotaTool(sessionManager, {
+                        piProvider: config.piProvider,
+                        contextWindowTokens: config.contextWindowTokens,
+                        piModel: config.piModel,
+                        piBaseUrl: config.piBaseUrl
+                    });
+
+                    const usageText = quotaTool.getLocalUsage();
+                    await message.reply(usageText);
+                    return;
+                }
+
+                if (command === '/help') {
+                    const helpText = [
+                        `🤖 **Tars Deterministic Commands**`,
+                        `• \`/reset\` or \`/clear\` - Reset active session and start a new clean conversation.`,
+                        `• \`/quota\` or \`/stats\` - View token consumption, active context size, and session statistics.`,
+                        `• \`/help\` - Show this help menu.`
+                    ].join('\n');
+                    await message.reply(helpText);
+                    return;
+                }
+            }
+
             let responseBuffer = '';
             let replyCount = 0;
 
@@ -497,7 +558,7 @@ async function main() {
                 }
             };
 
-            const flush = async () => {
+            const flush = async (isDone = false) => {
                 const text = responseBuffer.trim();
                 if (!text) return;
 
@@ -505,6 +566,16 @@ async function main() {
                 // Prepend the binding alert to the first message if we just auto-bound
                 if (replyCount === 0 && message.metadata?.wasAutoBound) {
                     finalContent = `🔒 **System Alert:** I have permanently bound my background notification channel to your Discord account.\n\n${finalContent}`;
+                }
+
+                if (isDone) {
+                    const stats = sessionManager.getStats();
+                    if (stats && stats.lastInputTokens > 0) {
+                        const limit = config.contextWindowTokens;
+                        const consumed = stats.lastInputTokens;
+                        const pct = ((consumed / limit) * 100).toFixed(1);
+                        finalContent += `\n\n*Session context: ${consumed.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}% used)*`;
+                    }
                 }
 
                 await message.reply(finalContent);
@@ -538,7 +609,7 @@ async function main() {
                             await flush();
                             await message.reply(`❌ **Error:** ${event.error}`);
                         } else if (event.type === 'done') {
-                            await flush();
+                            await flush(true);
                         }
                     },
                     undefined,
