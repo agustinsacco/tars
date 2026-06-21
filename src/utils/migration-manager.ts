@@ -73,6 +73,24 @@ export async function migrateLegacyConfig(tarsHome: string) {
 
         // Migrate folders
         await migrateFolder('extensions', targetExtensions);
+
+        // Rename gemini-extension.json to tars-extension.json in targetExtensions
+        if (fsSync.existsSync(targetExtensions)) {
+            const extDirs = await fs.readdir(targetExtensions).catch(() => [] as string[]);
+            for (const extDir of extDirs) {
+                const extPath = path.join(targetExtensions, extDir);
+                const stat = await fs.stat(extPath).catch(() => null);
+                if (stat?.isDirectory() || stat?.isSymbolicLink()) {
+                    const oldManifest = path.join(extPath, 'gemini-extension.json');
+                    const newManifest = path.join(extPath, 'tars-extension.json');
+                    if (fsSync.existsSync(oldManifest) && !fsSync.existsSync(newManifest)) {
+                        await fs.rename(oldManifest, newManifest).catch(() => {});
+                        logger.info(`Renamed legacy manifest to tars-extension.json in ${extDir}`);
+                    }
+                }
+            }
+        }
+
         await migrateFolder('skills', targetSkills);
         await migrateFolder('agents', targetAgents);
         await migrateFolder('chats', targetChats);
