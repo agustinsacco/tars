@@ -1,46 +1,44 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Tars Engine Core
-description: How Tars integrates directly with the Tars Core engine.
+description: How Tars integrates with the Pi Agent SDK.
 section: Architecture
 ---
 
 ## Overview
 
-Tars has transitioned from a CLI-based wrapper to a **bare-metal Node.js integration** using the `@google/gemini-cli-core` library. This eliminates subprocess overhead, improves event streaming reliability, and allows for deeper integration.
+Tars core logic is built on top of the **Pi Agent SDK** (`@earendil-works/pi-agent-core` & `@earendil-works/pi-ai`). This provides native tool execution, built-in context window management, and robust streaming capabilities, completely replacing the deprecated Google companion core libraries.
 
 ## Integration Architecture
 
-The `TarsEngine` class acts as the bridge between Tars and the Core library. It manages the lifecycle of the client and handles session initialization, authentication, and tool discovery.
+The `TarsEngine` class wraps the Pi SDK's `Agent` class to handle:
 
-## Environment & Discovery
+- **Session Lifecycle**: Initializing conversation state, loading messages, and managing prompt execution.
+- **Model Inference**: Resolving the target model via `@earendil-works/pi-ai` and local credentials.
+- **Tool Registration**: Converting and exposing local and MCP tools to the agent runner.
 
-Tars maintains an isolated environment in `~/.tars/.gemini/`. During initialization, the engine performs the following:
+## Core Dependencies
 
-1.  **Extension Discovery**: Scans `~/.tars/extensions/` for `tars-extension.json` files.
-2.  **Path Resolution**: Automatically resolves `${extensionPath}` placeholders in extension configurations to ensure MCP servers start correctly.
-3.  **Folder Trust**: Configures the Core library to trust the Tars home directory, enabling privileged tool execution.
+Tars utilizes the following Pi SDK packages:
 
-## Event Stream
+| Package                           | Purpose                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `@earendil-works/pi-agent-core`   | Core `Agent` class, streaming loop, and tool execution protocol.       |
+| `@earendil-works/pi-ai`           | Model definition, providers configuration, and token count utilities.  |
+| `@earendil-works/pi-coding-agent` | Native tools for workspace interaction (reading, writing, grep, etc.). |
 
-The engine exposes a streaming interface that emits typed events directly from the Core library:
+## Extension & MCP Bridge
 
-| Event Type      | Description                            |
-| --------------- | -------------------------------------- |
-| `text`          | A chunk of the AI's text response      |
-| `tool_call`     | Tool invocation (MCP extension call)   |
-| `tool_response` | Tool execution result                  |
-| `error`         | An error from the Core library         |
-| `done`          | Stream complete (includes usage stats) |
+Because the Pi Agent SDK operates on a native `AgentTool` protocol, Tars implements a custom `McpBridge` (`src/supervisor/mcp-bridge.ts`).
 
-### Session Management
+1. **Discovery**: The bridge scans `~/.tars/extensions/` for active MCP configurations.
+2. **Translation**: Converts each MCP server schema into a schema-valid Zod definition and native `AgentTool`.
+3. **Execution**: Intercepts tool calls, forwards them to the underlying MCP server over Stdio, and returns the parsed output to the agent loop.
 
-`TarsEngine` tracks the `sessionId` and persists it via `SessionManager`. This ensures that conversation history is preserved across restarts without manual file surgery.
+## Event Stream Mapping
 
-## Tool Discovery
+The supervisor listens to the `Agent.subscribe()` stream and maps events into standard `TarsEngineEvent` payloads for consumption by the Discord channel and the Admin Dashboard:
 
-Extensions are loaded via the `SimpleExtensionLoader`. Once registered, the Core library automatically discovers and integrates all tools defined in the extensions' MCP servers. This is how Tars gains capabilities like `tars-memory` and `tars-tasks`.
-
-## Synchronous Execution
-
-For background tasks (like memory indexing or health checks), the engine provides a `runSync(prompt)` method that returns the full text response once completion is reached, simplifying logic for non-interactive routines.
+- `assistantMessageEvent` text/thinking chunks are mapped to `text` events.
+- Tool call execution starts and completions are monitored to update the in-progress status displays.
+- Token metrics are extracted at completion and saved to the database.
