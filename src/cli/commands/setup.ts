@@ -65,10 +65,13 @@ export async function setup() {
                 { name: 'Google (Gemini SDK / API Key)', value: 'google' },
                 { name: 'OpenAI (GPT-4o, etc.)', value: 'openai' },
                 { name: 'Anthropic (Claude 3.5 Sonnet, etc.)', value: 'anthropic' },
-                { name: 'Local Stark (Qwen 3.6 @ stark:8086)', value: 'local-stark' },
+                { name: 'Local (Llama.cpp, Ollama, LM Studio, etc.)', value: 'local' },
                 { name: 'Custom (OpenAI-compatible proxy/local endpoint)', value: 'custom' }
             ],
-            default: existingConfig.piProvider || 'google'
+            default:
+                existingConfig.piProvider === 'local-stark'
+                    ? 'local'
+                    : existingConfig.piProvider || 'google'
         }
     ]);
 
@@ -131,26 +134,34 @@ export async function setup() {
         secretsManager.set('ANTHROPIC_API_KEY', piApiKey);
         process.env.ANTHROPIC_API_KEY = piApiKey;
         defaultModel = 'claude-3-5-sonnet-latest';
-    } else if (piProvider === 'local-stark') {
+    } else if (piProvider === 'local' || piProvider === 'local-stark') {
         const answers = await inquirer.prompt([
             {
                 type: 'input',
                 name: 'baseUrl',
-                message: 'Stark Endpoint URL:',
-                default: existingConfig.piBaseUrl || 'http://stark:8086/v1'
+                message: 'Local Endpoint URL:',
+                default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
+                validate: (input) => {
+                    try {
+                        new URL(input);
+                        return true;
+                    } catch {
+                        return 'Invalid URL';
+                    }
+                }
             },
             {
                 type: 'password',
                 name: 'apiKey',
-                message: 'Stark API Key:',
-                default: secrets.STARK_API_KEY || 'dummy-key'
+                message: 'Local API Key (press Enter to skip):',
+                default: secrets.LOCAL_API_KEY || secrets.STARK_API_KEY || ''
             }
         ]);
         piBaseUrl = answers.baseUrl;
         piApiKey = answers.apiKey;
-        secretsManager.set('STARK_API_KEY', piApiKey);
-        process.env.STARK_API_KEY = piApiKey;
-        defaultModel = 'Qwen3.6-35B-A3B-Q8';
+        secretsManager.set('LOCAL_API_KEY', piApiKey);
+        process.env.LOCAL_API_KEY = piApiKey;
+        defaultModel = 'qwen2.5-coder-7b';
     } else {
         const answers = await inquirer.prompt([
             {
@@ -170,8 +181,8 @@ export async function setup() {
             {
                 type: 'password',
                 name: 'apiKey',
-                message: 'Custom Endpoint API Key:',
-                default: secrets.CUSTOM_API_KEY || 'dummy-key'
+                message: 'Custom Endpoint API Key (press Enter to skip):',
+                default: secrets.CUSTOM_API_KEY || ''
             }
         ]);
         piBaseUrl = answers.baseUrl;
@@ -188,6 +199,34 @@ export async function setup() {
             message: `Enter Model ID (default recommended: ${defaultModel}):`,
             default: existingConfig.piModel || defaultModel,
             validate: (input) => input.length > 0 || 'Model ID is required'
+        }
+    ]);
+
+    // ══════════════════════════════════════════════════════════
+    // ── Step 2.5: Context Window & Compaction Settings ───────
+    // ══════════════════════════════════════════════════════════
+    console.log(chalk.bold('\nStep 2.5: Context Window & Compaction'));
+    console.log(chalk.dim('─────────────────────────────────────'));
+
+    const isCloud = ['google', 'openai', 'anthropic'].includes(piProvider);
+    const defaultContextWindow = isCloud ? 128000 : 8192;
+
+    const limitAnswers = await inquirer.prompt([
+        {
+            type: 'number',
+            name: 'contextWindowTokens',
+            message: 'Context Window Size (in tokens):',
+            default: existingConfig.contextWindowTokens || defaultContextWindow,
+            validate: (input: any) =>
+                (Number.isInteger(input) && input > 0) || 'Must be a positive integer'
+        },
+        {
+            type: 'number',
+            name: 'compressionThreshold',
+            message: 'Compaction Threshold (trigger summary when context is X% full, 0.1 to 0.9):',
+            default: existingConfig.compressionThreshold || 0.625,
+            validate: (input: any) =>
+                (input >= 0.1 && input <= 0.9) || 'Threshold must be between 0.1 and 0.9'
         }
     ]);
 
@@ -382,7 +421,9 @@ export async function setup() {
         piModel,
         piBaseUrl,
         heartbeatIntervalSec: intervalSec,
-        inferenceBackend: 'tars'
+        inferenceBackend: 'tars',
+        contextWindowTokens: limitAnswers.contextWindowTokens,
+        compressionThreshold: limitAnswers.compressionThreshold
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));

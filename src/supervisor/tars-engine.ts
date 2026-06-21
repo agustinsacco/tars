@@ -154,13 +154,20 @@ export class TarsEngine extends EventEmitter {
             return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
         if (providerName === 'openai') return process.env.OPENAI_API_KEY;
         if (providerName === 'anthropic') return process.env.ANTHROPIC_API_KEY;
-        if (providerName === 'local-stark') return process.env.STARK_API_KEY;
-        if (providerName === 'custom') return process.env.CUSTOM_API_KEY;
+        if (providerName === 'local' || providerName === 'local-stark')
+            return process.env.LOCAL_API_KEY || process.env.STARK_API_KEY || '';
+        if (providerName === 'custom') return process.env.CUSTOM_API_KEY || '';
         if (providerName === this.tarsConfig.piProvider) {
             if (this.tarsConfig.piProvider === 'google')
                 return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
             if (this.tarsConfig.piProvider === 'openai') return process.env.OPENAI_API_KEY;
             if (this.tarsConfig.piProvider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
+            if (
+                this.tarsConfig.piProvider === 'local' ||
+                this.tarsConfig.piProvider === 'local-stark'
+            )
+                return process.env.LOCAL_API_KEY || process.env.STARK_API_KEY || '';
+            if (this.tarsConfig.piProvider === 'custom') return process.env.CUSTOM_API_KEY || '';
         }
         return undefined;
     }
