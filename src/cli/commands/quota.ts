@@ -20,7 +20,6 @@ export async function quota() {
             piBaseUrl: config.piBaseUrl
         });
 
-        // @ts-ignore - access private helper getLocalUsage
         const usageText = quotaTool.getLocalUsage();
 
         spinner.stop();

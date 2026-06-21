@@ -12,7 +12,7 @@ import { AttachmentContext } from '../types/index.js';
 
 import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
-import { GetQuotaTool } from '../tools/get-quota.js';
+
 import { SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
 import { McpBridge } from './mcp-bridge.js';
@@ -121,15 +121,6 @@ export class TarsEngine extends EventEmitter {
             nativeTools.push(new SendNotificationTool(this.channelManager) as any);
             logger.info('🔌 Registered native tool: send_notification');
         }
-        nativeTools.push(
-            new GetQuotaTool(this.sessionManager, {
-                piProvider: this.tarsConfig.piProvider,
-                contextWindowTokens: this.tarsConfig.contextWindowTokens,
-                piModel: this.tarsConfig.piModel,
-                piBaseUrl: this.tarsConfig.piBaseUrl
-            }) as any
-        );
-        logger.info('🔌 Registered native tool: get_model_quota');
 
         // Gather coding tools
         let codingTools: AgentTool<any>[] = [];
