@@ -4,6 +4,7 @@ import { TarsOutputHandler, AttachmentContext } from '../types/index.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';
+import { ChannelManager } from '../channels/channel-manager.js';
 
 /**
  * Tars Supervisor - Core Orchestrator
@@ -13,6 +14,7 @@ export class Supervisor {
     private readonly config: Config;
     public readonly memory: MemoryManager;
     private processingSince: number | null = null;
+    private channelManager?: ChannelManager;
 
     constructor(
         private readonly tarsEngine: TarsEngine,
@@ -20,6 +22,10 @@ export class Supervisor {
     ) {
         this.config = Config.getInstance();
         this.memory = new MemoryManager(this.config);
+    }
+
+    public setChannelManager(channelManager: ChannelManager): void {
+        this.channelManager = channelManager;
     }
 
     /**
@@ -54,6 +60,11 @@ export class Supervisor {
 
             // Track user activity for idle suppression
             await this.sessionManager.touchActivity();
+
+            // Proactive compression check before run starts
+            if (sessionIdToUse) {
+                await this.performCompressionIfNeeded(sessionIdToUse, onEvent, onStatus);
+            }
 
             let toolCallCount = 0;
             const callIdToNameMap = new Map<string, string>();
@@ -123,34 +134,11 @@ export class Supervisor {
                     if (event.type === 'done') {
                         if (event.usageStats) {
                             await this.sessionManager.updateUsage(event.usageStats);
-
-                            // Proactive compression check
-                            if (
-                                this.sessionManager.needsCompression(
-                                    this.config.contextWindowTokens,
-                                    this.config.compressionThreshold
-                                )
-                            ) {
-                                logger.info(
-                                    '[Supervisor] Context threshold exceeded — triggering compression'
-                                );
-                                try {
-                                    const didCompress = await this.tarsEngine.compressSession();
-                                    await this.sessionManager.recordCompression();
-
-                                    if (didCompress) {
-                                        await onEvent({
-                                            type: 'text',
-                                            role: 'assistant',
-                                            content:
-                                                '\n\n✨ *Session memory compacted to optimally save context space while retaining historical facts.*',
-                                            sessionId: sessionIdToUse
-                                        } as any);
-                                    }
-                                } catch (e: any) {
-                                    logger.warn(`[Supervisor] Compression failed: ${e.message}`);
-                                }
-                            }
+                            await this.performCompressionIfNeeded(
+                                sessionIdToUse!,
+                                onEvent,
+                                onStatus
+                            );
                         }
                     }
                     await onEvent(event as any);
@@ -185,6 +173,15 @@ export class Supervisor {
             throw new Error('Supervisor is busy');
         }
 
+        const isCron = prompt.includes('Task Directive:');
+        const taskType = isCron ? 'scheduled cron task' : 'background heartbeat check';
+
+        if (this.channelManager) {
+            await this.channelManager.notify(
+                `⏳ *Starting a background task (${taskType}). Please hold on while I finish...*`
+            );
+        }
+
         logger.info(`⚙️ Executing background task...`);
 
         try {
@@ -194,12 +191,105 @@ export class Supervisor {
             const activeSessionId = await this.sessionManager.load();
             const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined);
 
+            if (this.channelManager) {
+                await this.channelManager.notify(
+                    `✅ *Finished background task (${taskType}). I am free now.*`
+                );
+            }
             return result;
         } catch (error: any) {
             logger.error(`❌ Background task failed: ${error.message}`);
+            if (this.channelManager) {
+                await this.channelManager.notify(
+                    `⚠️ *Background task (${taskType}) failed:* ${error.message}`
+                );
+            }
             throw error;
         } finally {
             this.processingSince = null;
+        }
+    }
+
+    /**
+     * Checks if the session needs compression and performs it, updating status if requested.
+     */
+    private async performCompressionIfNeeded(
+        sessionIdToUse: string,
+        onEvent: TarsOutputHandler,
+        onStatus?: StatusUpdateHandler
+    ): Promise<void> {
+        if (
+            this.sessionManager.needsCompression(
+                this.config.contextWindowTokens,
+                this.config.compressionThreshold
+            )
+        ) {
+            logger.info('[Supervisor] Context threshold exceeded — triggering compression');
+
+            if (onStatus) {
+                await onStatus(
+                    0,
+                    [
+                        ...this.tarsEngine.activeTools,
+                        {
+                            id: 'compression',
+                            name: 'Memory Compactor',
+                            status: 'running'
+                        }
+                    ],
+                    false
+                );
+            }
+
+            try {
+                const didCompress = await this.tarsEngine.compressSession();
+                await this.sessionManager.recordCompression();
+
+                if (didCompress) {
+                    if (onStatus) {
+                        await onStatus(
+                            0,
+                            [
+                                ...this.tarsEngine.activeTools,
+                                {
+                                    id: 'compression',
+                                    name: 'Memory Compactor',
+                                    status: 'completed',
+                                    responsePreview:
+                                        'Successfully compacted session memory to optimally save context space while retaining historical facts.',
+                                    responseSize: 114
+                                }
+                            ],
+                            false
+                        );
+                    }
+                    await onEvent({
+                        type: 'text',
+                        role: 'assistant',
+                        content:
+                            '\n\n✨ *Session memory compacted to optimally save context space while retaining historical facts.*',
+                        sessionId: sessionIdToUse
+                    } as any);
+                }
+            } catch (e: any) {
+                logger.warn(`[Supervisor] Compression failed: ${e.message}`);
+                if (onStatus) {
+                    await onStatus(
+                        0,
+                        [
+                            ...this.tarsEngine.activeTools,
+                            {
+                                id: 'compression',
+                                name: 'Memory Compactor',
+                                status: 'completed',
+                                responsePreview: `Compression failed: ${e.message}`,
+                                responseSize: e.message.length
+                            }
+                        ],
+                        false
+                    );
+                }
+            }
         }
     }
 

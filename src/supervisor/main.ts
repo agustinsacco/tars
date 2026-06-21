@@ -411,6 +411,7 @@ async function main() {
 
         // 5. Inject Interface into Engine
         tarsEngine.setChannelManager(channelManager);
+        supervisor.setChannelManager(channelManager);
         tarsEngine.setSessionManager(sessionManager);
         await tarsEngine.initialize();
 

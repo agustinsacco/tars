@@ -69,6 +69,7 @@ export class TarsEngine extends EventEmitter {
     private rateLimiter: LocalRateLimiter;
     private mcpBridge!: McpBridge;
     private allTools: AgentTool<any>[] = [];
+    public activeTools: ToolStatus[] = [];
 
     constructor(private readonly tarsConfig: TarsConfig) {
         super();
@@ -230,7 +231,7 @@ export class TarsEngine extends EventEmitter {
         });
 
         // Track tool executions for status reporting
-        const recentTools: ToolStatus[] = [];
+        this.activeTools = [];
         let turnCount = 0;
 
         // Subscribe to agent event stream
@@ -261,14 +262,14 @@ export class TarsEngine extends EventEmitter {
                         sessionId: sid
                     });
 
-                    recentTools.push({
+                    this.activeTools.push({
                         id: event.toolCallId,
                         name: event.toolName,
                         status: 'running'
                     });
 
                     if (onStatus) {
-                        onStatus(turnCount, recentTools.slice(-10), turnCount % 20 === 0);
+                        onStatus(turnCount, this.activeTools.slice(-10), turnCount % 20 === 0);
                     }
                 } else if (event.type === 'tool_execution_end') {
                     const responseStr =
@@ -298,13 +299,13 @@ export class TarsEngine extends EventEmitter {
                         }
                     } catch (e) {}
 
-                    const runningTool = recentTools.find((t) => t.id === event.toolCallId);
+                    const runningTool = this.activeTools.find((t) => t.id === event.toolCallId);
                     if (runningTool) {
                         runningTool.status = 'completed';
                         runningTool.responsePreview = cleanPreview.substring(0, 500);
                         runningTool.responseSize = responseStr.length;
                     } else {
-                        recentTools.push({
+                        this.activeTools.push({
                             id: event.toolCallId,
                             name: event.toolName,
                             status: 'completed',
@@ -315,7 +316,7 @@ export class TarsEngine extends EventEmitter {
                     turnCount++;
 
                     if (onStatus) {
-                        onStatus(turnCount, recentTools.slice(-10), turnCount % 20 === 0);
+                        onStatus(turnCount, this.activeTools.slice(-10), turnCount % 20 === 0);
                     }
                 }
             } catch (err: any) {
