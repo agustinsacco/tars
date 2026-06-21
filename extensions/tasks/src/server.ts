@@ -25,70 +25,52 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
             {
-                name: 'create_task',
-                description: 'Create a new scheduled task',
+                name: 'manage_tasks',
+                description:
+                    'Manage scheduled tasks. Supports creating, listing, modifying, toggling, and deleting tasks.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        title: { type: 'string', description: 'Task title' },
+                        action: {
+                            type: 'string',
+                            enum: ['create', 'list', 'delete', 'toggle', 'modify'],
+                            description: 'The task management operation to perform'
+                        },
+                        id: {
+                            type: 'string',
+                            description: 'Task ID. Required for delete, toggle, and modify actions.'
+                        },
+                        title: {
+                            type: 'string',
+                            description: 'Task title. Required for create.'
+                        },
                         prompt: {
                             type: 'string',
-                            description: 'The prompt for Gemini CLI to execute'
+                            description:
+                                'The prompt instructions for Tars to execute on schedule. Required for create.'
                         },
-                        schedule: { type: 'string', description: 'Cron expression or ISO date' },
-                        mode: { type: 'string', enum: ['notify', 'silent'], default: 'silent' }
-                    },
-                    required: ['title', 'prompt', 'schedule']
-                }
-            },
-            {
-                name: 'list_tasks',
-                description: 'List all scheduled tasks',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        enabledOnly: { type: 'boolean', default: false }
-                    }
-                }
-            },
-            {
-                name: 'delete_task',
-                description: 'Delete a task by ID',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        id: { type: 'string' }
-                    },
-                    required: ['id']
-                }
-            },
-            {
-                name: 'toggle_task',
-                description: 'Enable or disable a task',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        id: { type: 'string', description: 'Task ID' },
+                        schedule: {
+                            type: 'string',
+                            description:
+                                'Cron expression or ISO date/time string. Required for create.'
+                        },
                         enabled: {
                             type: 'boolean',
-                            description: 'Whether the task should be enabled'
+                            description: 'Whether the task is enabled. Required for toggle.'
+                        },
+                        mode: {
+                            type: 'string',
+                            enum: ['notify', 'silent'],
+                            default: 'silent',
+                            description: 'Notification mode for task execution results'
+                        },
+                        enabledOnly: {
+                            type: 'boolean',
+                            default: false,
+                            description: 'When action is list, filter to enabled tasks only.'
                         }
                     },
-                    required: ['id', 'enabled']
-                }
-            },
-            {
-                name: 'modify_task',
-                description: 'Modify an existing task',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        id: { type: 'string', description: 'Task ID' },
-                        title: { type: 'string', description: 'New title' },
-                        prompt: { type: 'string', description: 'New prompt' },
-                        schedule: { type: 'string', description: 'New cron or ISO date' }
-                    },
-                    required: ['id']
+                    required: ['action']
                 }
             }
         ]
@@ -102,9 +84,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
     try {
-        switch (name) {
-            case 'create_task': {
-                const { title, prompt, schedule, mode = 'silent' } = args as any;
+        if (name !== 'manage_tasks') {
+            throw new Error(`Unknown tool: ${name}`);
+        }
+
+        const {
+            action,
+            id,
+            title,
+            prompt,
+            schedule,
+            enabled,
+            mode = 'silent',
+            enabledOnly
+        } = args as any;
+        if (!action) throw new Error('Action is required.');
+
+        switch (action) {
+            case 'create': {
+                if (!title || !prompt || !schedule) {
+                    throw new Error('title, prompt, and schedule are required for create action.');
+                }
 
                 // Calculate next run
                 let nextRun: string;
@@ -152,8 +152,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 };
             }
 
-            case 'list_tasks': {
-                const { enabledOnly } = args as any;
+            case 'list': {
                 const tasks = await store.loadTasks();
                 const filtered = enabledOnly ? tasks.filter((t) => t.enabled) : tasks;
 
@@ -178,8 +177,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 return { content: [{ type: 'text', text }] };
             }
 
-            case 'delete_task': {
-                const { id } = args as any;
+            case 'delete': {
+                if (!id) throw new Error('Task ID is required for delete action.');
                 const success = await store.deleteTask(id);
                 return {
                     content: [
@@ -191,8 +190,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 };
             }
 
-            case 'toggle_task': {
-                const { id, enabled } = args as any;
+            case 'toggle': {
+                if (!id || enabled === undefined) {
+                    throw new Error('Task ID and enabled boolean are required for toggle action.');
+                }
                 const task = await store.updateTask(id, { enabled });
                 return {
                     content: [
@@ -206,8 +207,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 };
             }
 
-            case 'modify_task': {
-                const { id, title, prompt, schedule } = args as any;
+            case 'modify': {
+                if (!id) throw new Error('Task ID is required for modify action.');
                 const updates: any = {};
                 if (title) updates.title = title;
                 if (prompt) updates.prompt = prompt;
@@ -240,7 +241,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             }
 
             default:
-                throw new Error(`Unknown tool: ${name}`);
+                throw new Error(`Unknown action: ${action}`);
         }
     } catch (error: any) {
         return {
