@@ -1,13 +1,13 @@
-import { GeminiEngine, StatusUpdateHandler } from './gemini-engine.js';
+import { TarsEngine, StatusUpdateHandler } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
-import { GeminiOutputHandler, AttachmentContext } from '../types/index.js';
+import { TarsOutputHandler, AttachmentContext } from '../types/index.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';
 
 /**
  * Tars Supervisor - Core Orchestrator
- * Handles session management and Gemini Engine execution.
+ * Handles session management and Tars Engine execution.
  */
 export class Supervisor {
     private readonly config: Config;
@@ -15,7 +15,7 @@ export class Supervisor {
     private processingSince: number | null = null;
 
     constructor(
-        private readonly gemini: GeminiEngine,
+        private readonly tarsEngine: TarsEngine,
         private readonly sessionManager: SessionManager
     ) {
         this.config = Config.getInstance();
@@ -23,11 +23,11 @@ export class Supervisor {
     }
 
     /**
-     * Executes a user prompt through the Gemini CLI
+     * Executes a user prompt through the Tars CLI
      */
     public async run(
         content: string,
-        onEvent: GeminiOutputHandler,
+        onEvent: TarsOutputHandler,
         sessionId?: string,
         attachments?: AttachmentContext[],
         onStatus?: StatusUpdateHandler
@@ -58,11 +58,11 @@ export class Supervisor {
             let toolCallCount = 0;
             const callIdToNameMap = new Map<string, string>();
 
-            // Run Gemini CLI
-            await this.gemini.run(
+            // Run Tars CLI
+            await this.tarsEngine.run(
                 content,
                 async (event) => {
-                    // Learn session ID from Gemini CLI if it was newly generated
+                    // Learn session ID from Tars CLI if it was newly generated
                     if (event.sessionId && !sessionIdToUse) {
                         sessionIdToUse = event.sessionId;
                         this.sessionManager
@@ -135,7 +135,7 @@ export class Supervisor {
                                     '[Supervisor] Context threshold exceeded — triggering compression'
                                 );
                                 try {
-                                    const didCompress = await this.gemini.compressSession();
+                                    const didCompress = await this.tarsEngine.compressSession();
                                     await this.sessionManager.recordCompression();
 
                                     if (didCompress) {
@@ -164,7 +164,7 @@ export class Supervisor {
             // instead of destroying the session
             if (memoryMutated) {
                 logger.info('[Supervisor] Memory mutated — refreshing system instruction in-place');
-                this.gemini.refreshSystemInstruction();
+                this.tarsEngine.refreshSystemInstruction();
             }
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
@@ -192,7 +192,7 @@ export class Supervisor {
 
             // Run in the active session so context is shared
             const activeSessionId = await this.sessionManager.load();
-            const result = await this.gemini.runSync(prompt, activeSessionId || undefined);
+            const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined);
 
             return result;
         } catch (error: any) {

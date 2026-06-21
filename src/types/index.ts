@@ -30,7 +30,7 @@ export interface AttachmentContext {
     mimeType: string;
 }
 
-export interface GeminiEvent {
+export interface TarsEvent {
     type:
         | 'tool_call'
         | 'tool_response'
@@ -58,4 +58,4 @@ export interface UsageStats {
     cachedTokens?: number;
 }
 
-export type GeminiOutputHandler = (event: GeminiEvent) => void;
+export type TarsOutputHandler = (event: TarsEvent) => void;

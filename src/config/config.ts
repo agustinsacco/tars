@@ -44,12 +44,12 @@ export class Config {
     public readonly piBaseUrl: string;
 
     // Inference Backend
-    public readonly inferenceBackend: 'gemini' | 'llamacpp';
+    public readonly inferenceBackend: 'tars' | 'llamacpp';
     public readonly localInferenceUrl: string;
 
     // Feature Flags — per-backend toggles for optional features
     public readonly statusUpdates: {
-        gemini: boolean;
+        tars: boolean;
         llamacpp: boolean;
     };
 
@@ -96,7 +96,7 @@ export class Config {
         this.piBaseUrl = process.env.PI_BASE_URL || jsonConfig.piBaseUrl || '';
         this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
-            'gemini') as 'gemini' | 'llamacpp';
+            'tars') as 'tars' | 'llamacpp';
         this.localInferenceUrl =
             process.env.LOCAL_INFERENCE_URL ||
             jsonConfig.localInferenceUrl ||
@@ -111,7 +111,12 @@ export class Config {
         };
         const suJson = jsonConfig.statusUpdates || {};
         this.statusUpdates = {
-            gemini: parseBool(process.env.STATUS_UPDATES_GEMINI ?? suJson.gemini),
+            tars: parseBool(
+                process.env.STATUS_UPDATES_TARS ??
+                    process.env.STATUS_UPDATES_GEMINI ??
+                    suJson.tars ??
+                    suJson.gemini
+            ),
             llamacpp: parseBool(process.env.STATUS_UPDATES_LLAMACPP ?? suJson.llamacpp)
         };
 

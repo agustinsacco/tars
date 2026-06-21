@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GeminiEngine } from '../../supervisor/gemini-engine.js';
+import { TarsEngine } from '../../supervisor/tars-engine.js';
 import { Config as TarsConfig } from '../../config/config.js';
 import fs from 'fs';
 import path from 'path';
 
 vi.mock('fs');
 
-describe('GeminiEngine', () => {
-    let engine: GeminiEngine;
+describe('TarsEngine', () => {
+    let engine: TarsEngine;
     let mockTarsConfig: TarsConfig;
 
     beforeEach(() => {
@@ -19,7 +19,7 @@ describe('GeminiEngine', () => {
             piModel: 'gpt-4o',
             systemPromptPath: '/mock/home/system.md'
         } as any;
-        engine = new GeminiEngine(mockTarsConfig);
+        engine = new TarsEngine(mockTarsConfig);
     });
 
     describe('migrateLegacyConversation', () => {

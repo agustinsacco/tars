@@ -1,5 +1,6 @@
 import { Agent, AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
 import { getModel, Model, Message, Usage } from '@earendil-works/pi-ai';
+import { createCodingTools } from '@earendil-works/pi-coding-agent';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
@@ -16,7 +17,7 @@ import { SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
 import { McpBridge } from './mcp-bridge.js';
 
-export interface GeminiEngineEvent {
+export interface TarsEngineEvent {
     type: string;
     role?: 'user' | 'assistant' | 'system';
     content?: string;
@@ -32,7 +33,7 @@ export interface GeminiEngineEvent {
     error?: string;
 }
 
-export type GeminiEngineOutputHandler = (event: GeminiEngineEvent) => void | Promise<void>;
+export type TarsEngineOutputHandler = (event: TarsEngineEvent) => void | Promise<void>;
 
 /**
  * Snapshot of a completed tool call for status reporting.
@@ -53,12 +54,12 @@ export type StatusUpdateHandler = (
 ) => void | Promise<void>;
 
 /**
- * GeminiEngine - Wraps the Pi Agent SDK as a drop-in replacement.
+ * TarsEngine - Wraps the Pi Agent SDK as a drop-in replacement.
  *
  * Interacts with configured providers (Google, OpenAI, Anthropic, or Custom).
  * Operates within the ~/.tars isolated environment.
  */
-export class GeminiEngine extends EventEmitter {
+export class TarsEngine extends EventEmitter {
     private initialized = false;
     private currentSessionId: string | null = null;
     private channelManager?: ChannelManager;
@@ -90,12 +91,12 @@ export class GeminiEngine extends EventEmitter {
     }
 
     /**
-     * Initializes the Pi Agent Engine and discovers MCP extensions.
+     * Initializes the Tars Engine and discovers MCP extensions.
      */
     public async initialize(initialSessionId?: string): Promise<void> {
         if (this.initialized) return;
 
-        logger.info('🚀 Initializing Pi Agent Engine...');
+        logger.info('🚀 Initializing Tars Engine...');
 
         if (!fs.existsSync(this.tarsConfig.homeDir)) {
             fs.mkdirSync(this.tarsConfig.homeDir, { recursive: true });
@@ -127,23 +128,34 @@ export class GeminiEngine extends EventEmitter {
         );
         logger.info('🔌 Registered native tool: get_model_quota');
 
-        this.allTools = [...mcpTools, ...nativeTools];
+        // Gather coding tools
+        let codingTools: AgentTool<any>[] = [];
+        try {
+            codingTools = createCodingTools(this.tarsConfig.homeDir) as any[];
+            logger.info(`🔌 Loaded ${codingTools.length} standard coding tools.`);
+        } catch (err: any) {
+            logger.error(`⚠️ Failed to initialize coding tools: ${err.message}`);
+        }
+
+        this.allTools = [...mcpTools, ...nativeTools, ...codingTools];
         this.initialized = true;
         this.currentSessionId = initialSessionId || uuidv4();
-        logger.info('✨ Pi Agent Engine initialized successfully.');
+        logger.info('✨ Tars Engine initialized successfully.');
     }
 
     /**
      * Returns the API key mapped to the provider name from process.env.
      */
     private getApiKeyForProvider(providerName: string): string | undefined {
-        if (providerName === 'google') return process.env.GEMINI_API_KEY;
+        if (providerName === 'google')
+            return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
         if (providerName === 'openai') return process.env.OPENAI_API_KEY;
         if (providerName === 'anthropic') return process.env.ANTHROPIC_API_KEY;
         if (providerName === 'local-stark') return process.env.STARK_API_KEY;
         if (providerName === 'custom') return process.env.CUSTOM_API_KEY;
         if (providerName === this.tarsConfig.piProvider) {
-            if (this.tarsConfig.piProvider === 'google') return process.env.GEMINI_API_KEY;
+            if (this.tarsConfig.piProvider === 'google')
+                return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
             if (this.tarsConfig.piProvider === 'openai') return process.env.OPENAI_API_KEY;
             if (this.tarsConfig.piProvider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
         }
@@ -155,7 +167,7 @@ export class GeminiEngine extends EventEmitter {
      */
     public async run(
         prompt: string,
-        onEvent: GeminiEngineOutputHandler,
+        onEvent: TarsEngineOutputHandler,
         sessionId?: string,
         attachments?: AttachmentContext[],
         onStatus?: StatusUpdateHandler

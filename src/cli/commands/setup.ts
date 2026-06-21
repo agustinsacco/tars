@@ -87,12 +87,19 @@ export async function setup() {
             {
                 type: 'password',
                 name: 'apiKey',
-                message: 'Enter GEMINI_API_KEY:',
-                default: secrets.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+                message: 'Enter TARS_API_KEY (Google Cloud API Key):',
+                default:
+                    secrets.TARS_API_KEY ||
+                    secrets.GEMINI_API_KEY ||
+                    process.env.TARS_API_KEY ||
+                    process.env.GEMINI_API_KEY ||
+                    '',
                 validate: (input) => input.length > 0 || 'API Key is required'
             }
         ]);
         piApiKey = answers.apiKey;
+        secretsManager.set('TARS_API_KEY', piApiKey);
+        process.env.TARS_API_KEY = piApiKey;
         secretsManager.set('GEMINI_API_KEY', piApiKey);
         process.env.GEMINI_API_KEY = piApiKey;
         defaultModel = 'gemini-2.5-flash';
@@ -375,7 +382,7 @@ export async function setup() {
         piModel,
         piBaseUrl,
         heartbeatIntervalSec: intervalSec,
-        inferenceBackend: 'pi'
+        inferenceBackend: 'tars'
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));

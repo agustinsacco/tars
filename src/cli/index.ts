@@ -58,10 +58,7 @@ program
     .description('Check the status of the assistant supervisor')
     .action(status);
 
-program
-    .command('quota')
-    .description('Check current Gemini API rate limits and quotas')
-    .action(quota);
+program.command('quota').description('Check current model rate limits and quotas').action(quota);
 
 program
     .command('export')

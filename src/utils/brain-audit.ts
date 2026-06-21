@@ -43,7 +43,7 @@ export class BrainAuditor {
     }
 
     private cleanupAnomalies(log: (msg: string) => void): void {
-        const anomalies = ['.tars', '~', 'tmp/gemini-cli'];
+        const anomalies = ['.tars', '~', 'tmp/gemini-cli', 'tmp/tars-cli'];
         for (const anomaly of anomalies) {
             const anomalyPath = path.join(this.tarsHome, anomaly);
             if (fs.existsSync(anomalyPath)) {

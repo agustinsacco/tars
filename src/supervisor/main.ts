@@ -1,5 +1,5 @@
 import { Config } from '../config/config.js';
-import { GeminiEngine } from './gemini-engine.js';
+import { TarsEngine } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
@@ -18,7 +18,7 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Install the fixed system prompt into the Tars home directory.
- * This ensures Gemini CLI uses Tars' custom persona instead of the default coding-centric prompt.
+ * This ensures the agent uses Tars' custom persona instead of the default coding-centric prompt.
  */
 function installSystemPrompt(config: Config): void {
     // Walk up from dist/supervisor/ or src/supervisor/ to find prompts/system.md
@@ -402,17 +402,17 @@ async function main() {
         patchSettings(config);
 
         // 3. Initialize Core Services
-        const gemini = new GeminiEngine(config);
+        const tarsEngine = new TarsEngine(config);
         const sessionManager = new SessionManager(config.sessionFilePath);
-        const supervisor = new Supervisor(gemini, sessionManager);
+        const supervisor = new Supervisor(tarsEngine, sessionManager);
 
         // 4. Initialize Multi-Channel Interface
         const channelManager = new ChannelManager();
 
         // 5. Inject Interface into Engine
-        gemini.setChannelManager(channelManager);
-        gemini.setSessionManager(sessionManager);
-        await gemini.initialize();
+        tarsEngine.setChannelManager(channelManager);
+        tarsEngine.setSessionManager(sessionManager);
+        await tarsEngine.initialize();
 
         // 6. Connect Routing
         channelManager.onMessage(async (message) => {
