@@ -28,7 +28,8 @@ Alternatively, you can edit your `config.json` (located in your Tars home direct
 {
     "assistantName": "Case",
     "discordToken": "...",
-    "geminiModel": "..."
+    "piProvider": "google",
+    "piModel": "gemini-2.5-flash"
 }
 ```
 

@@ -13,7 +13,7 @@ Tars uses Discord as its primary interface. This provides a secure, cross-platfo
 
 ### Local-First Intelligence
 
-Powered by **Google Gemini**, Tars bridges the gap between high-level reasoning and low-level system execution:
+Powered by the **Pi Agent SDK**, Tars supports cloud models (Gemini, Claude, GPT) and local models (Qwen) to bridge the gap between high-level reasoning and low-level system execution:
 
 - **Native Execution:** Tars can run bash commands, script workflows, and manage system resources directly.
 - **Background Autonomy:** It doesn't wait for your prompt. Tars runs on a continuous heartbeat to execute scheduled tasks and monitor system health.

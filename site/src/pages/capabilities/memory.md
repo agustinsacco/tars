@@ -43,4 +43,4 @@ Your agent's knowledge resides entirely on your local machine:
 - **Core Facts:** `~/.tars/data/memory/facts.json`
 - **Daily Notes:** `~/.tars/data/memory/notes/`
 - **Search Index:** `~/.tars/data/knowledge.db`
-- **Transcripts:** `~/.tars/.gemini/tmp/*/chats/`
+- **Transcripts:** `~/.tars/chats/`

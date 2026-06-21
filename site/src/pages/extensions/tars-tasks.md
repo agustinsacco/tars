@@ -77,4 +77,4 @@ The extension runs as a standalone Node.js MCP server using `@modelcontextprotoc
 StdioServerTransport → Server → Tool Handlers → TaskStore → tasks.json
 ```
 
-The Gemini CLI spawns this server on-demand when the AI invokes any task-related tool.
+The Tars supervisor manages and runs this server when the AI invokes any task-related tool.

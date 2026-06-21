@@ -26,6 +26,8 @@ program
 program
     .command('start')
     .description('Start the assistant supervisor in the background')
+    .option('--name <name>', 'Instance name')
+    .option('--role <role>', 'Instance role')
     .action(start);
 
 program.command('stop').description('Stop the assistant supervisor').action(stop);

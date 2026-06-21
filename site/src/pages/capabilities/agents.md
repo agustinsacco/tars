@@ -28,7 +28,7 @@ The `scaffolder` is a specialized agent for structural project setup. It is capa
 
 ## Creation & Management
 
-Sub-agents are stored as markdown files in `~/.tars/.gemini/agents/`. Each file contains the system instructions for that specific persona.
+Sub-agents are managed dynamically by the supervisor and the Pi Agent SDK runtime. Each sub-agent runs with system instructions tailored for that specific persona.
 
 Tars can create new sub-agents at runtime if it identifies a repeating persona that would benefit from specialized isolation.
 

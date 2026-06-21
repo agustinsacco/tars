@@ -25,7 +25,7 @@ When Tars encounters a recurring task or a complex workflow, it can create a new
 
 1. User asks Tars to do something complex
 2. Tars solves it and recognizes the pattern
-3. Tars writes a new `SKILL.md` in `~/.tars/.gemini/skills/`
+3. Tars writes a new `SKILL.md` in `~/.tars/skills/`
 4. Future invocations reference the skill for consistent execution
 
 ## Extension Development

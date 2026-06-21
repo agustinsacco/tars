@@ -21,8 +21,11 @@ Located at `~/.tars/config.json`:
 {
     "assistantName": "Tars",
     "discordToken": "...",
-    "geminiModel": "auto",
-    "heartbeatIntervalSec": 60
+    "piProvider": "google",
+    "piModel": "gemini-2.5-flash",
+    "piBaseUrl": "",
+    "heartbeatIntervalSec": 1800,
+    "inferenceBackend": "tars"
 }
 ```
 
@@ -30,11 +33,14 @@ This file is created by `tars setup` and can be edited manually.
 
 ## All Configuration Fields
 
-| Field                  | Env Variable             | Default | Description             |
-| ---------------------- | ------------------------ | ------- | ----------------------- |
-| `discordToken`         | `DISCORD_TOKEN`          | —       | Discord bot token       |
-| `geminiModel`          | `GEMINI_MODEL`           | `auto`  | Gemini model to use     |
-| `heartbeatIntervalSec` | `HEARTBEAT_INTERVAL_SEC` | `300`   | Heartbeat tick interval |
+| Field                  | Env Variable             | Default            | Description                                             |
+| ---------------------- | ------------------------ | ------------------ | ------------------------------------------------------- |
+| `discordToken`         | `DISCORD_TOKEN`          | —                  | Discord bot token                                       |
+| `piProvider`           | `PI_PROVIDER`            | `google`           | AI model provider (google, openai, anthropic, custom)   |
+| `piModel`              | `PI_MODEL`               | `gemini-2.5-flash` | Model ID to use for inference                           |
+| `piBaseUrl`            | `PI_BASE_URL`            | —                  | Custom endpoint base URL (for custom or local provider) |
+| `heartbeatIntervalSec` | `HEARTBEAT_INTERVAL_SEC` | `1800`             | Heartbeat tick interval (in seconds)                    |
+| `inferenceBackend`     | `INFERENCE_BACKEND`      | `tars`             | Supervisor execution runtime ('tars' or 'llamacpp')     |
 
 ## Derived Paths
 
@@ -44,7 +50,7 @@ These are computed automatically from the home directory (`~/.tars`):
 | ------------------ | --------------------------- |
 | `taskFilePath`     | `~/.tars/data/tasks.json`   |
 | `sessionFilePath`  | `~/.tars/data/session.json` |
-| `systemPromptPath` | `~/.tars/.gemini/system.md` |
+| `systemPromptPath` | `~/.tars/system.md`         |
 | `memoryDbPath`     | `~/.tars/data/knowledge.db` |
 
 ## Secrets Management
@@ -71,7 +77,7 @@ At startup, the `Config` constructor:
 1. Instantiates `SecretsManager` with the home directory path
 2. Reads all key-value pairs from `~/.tars/.env`
 3. Loads them into `process.env` so they're available globally
-4. The Gemini Engine (and integrated Core library) utilizes these environment variables
+4. The Pi Agent SDK utilizes these environment variables
 
 ### File Format
 

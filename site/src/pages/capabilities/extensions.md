@@ -11,9 +11,9 @@ Extensions are **MCP (Model Context Protocol) servers** that expose tools to Tar
 
 ## How Extensions Work
 
-1.  **Engine Initialization**: During startup, `GeminiEngine` scans `~/.tars/.gemini/extensions/` for `tars-extension.json` files.
+1.  **Engine Initialization**: During startup, `TarsEngine` scans `~/.tars/extensions/` for `tars-extension.json` files.
 2.  **Manifest Parsing**: The engine converts the manifest into an internal `MCPServerConfig`, resolving `${extensionPath}` tokens to absolute paths.
-3.  **Discovery**: High-level tools from all enabled extensions are merged into the Gemini Core's tool definition list.
+3.  **Discovery**: High-level tools from all enabled extensions are merged into the TarsEngine's tool definition list.
 4.  **Execution**: When the AI invokes a tool, the Core library manages the stdio connection to the extension's binary (e.g., `node server.js`).
 
 ## Extension Structure
@@ -39,12 +39,12 @@ Each extension is an npm package with a manifest:
 
 Tars manages extensions through its internal bootstrap process:
 
-- **Built-in Extensions**: Source code from the repository's `extensions/` directory is **copied** to `~/.tars/.gemini/extensions/` on startup.
+- **Built-in Extensions**: Source code from the repository's `extensions/` directory is **copied** to `~/.tars/extensions/` on startup.
 - **Runtime Extensions**: Created via the `extension-builder` skill directly in the target directory.
 
 ### Extension Enablement
 
-Extensions must be authorized in `~/.tars/.gemini/extensions/extension-enablement.json`. Tars uses this file to manage security overrides:
+Extensions must be authorized in `~/.tars/extensions/extension-enablement.json`. Tars uses this file to manage security overrides:
 
 ```json
 {

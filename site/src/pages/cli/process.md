@@ -94,7 +94,7 @@ tars refresh --extensions-only
 The refresh process:
 
 1. Locates the bundled source (`dash/`, `extensions/`) inside the installed npm package.
-2. Deletes the existing copies at `~/.tars/apps/dashboard/` and `~/.tars/.gemini/extensions/`.
+2. Deletes the existing copies at `~/.tars/apps/dashboard/` and `~/.tars/extensions/`.
 3. Copies the latest source and runs `npm install` + `npm run build`.
 
 ## tars stop
@@ -138,16 +138,16 @@ Equivalent to `pm2 logs tars-supervisor`. Shows all supervisor output including:
 - Discord message handling
 - Heartbeat ticks and **Cron Service task checks**
 - Memory sync operations
-- Gemini CLI interactions
+- Pi Agent SDK interactions
 - Extension hydration and build logs
 - Error traces
 
 ### Debug logs
 
-For deeper debugging, check the raw Gemini CLI output:
+For deeper debugging of the AI engine's behavior, tool calling, and thought process without Discord, use the native debug CLI:
 
 ```bash
-ls /tmp/gemini-debug-*.log
+TARS_SUPERVISOR_MODE=true npx tsx src/scripts/debug-cli.ts "your prompt here"
 ```
 
-These timestamped files contain the raw JSON line stream from the CLI subprocess.
+This streams raw JSON events showing each thought step, tool execution, and response chunk.

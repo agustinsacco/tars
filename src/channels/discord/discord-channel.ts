@@ -138,6 +138,7 @@ export class DiscordChannel implements CommunicationChannel {
             logger.warn(
                 `[Discord] Status edit rate limit hit (${this.statusEditCount} edits). Falling back to new message.`
             );
+            await this.deleteLastStatusMessage();
             this.clearStatus();
             return false;
         }
@@ -166,8 +167,25 @@ export class DiscordChannel implements CommunicationChannel {
         } catch (e: any) {
             // Message may have been deleted or we lost access
             logger.warn(`[Discord] Failed to edit status message: ${e.message}`);
+            await this.deleteLastStatusMessage();
             this.clearStatus();
             return false;
+        }
+    }
+
+    /**
+     * Delete the last tracked status message from Discord.
+     */
+    private async deleteLastStatusMessage(): Promise<void> {
+        if (!this.lastStatusMessage) return;
+        try {
+            const channel = await this.client.channels.fetch(this.lastStatusMessage.channelId);
+            if (channel && channel.isTextBased()) {
+                const msg = await channel.messages.fetch(this.lastStatusMessage.messageId);
+                await msg.delete().catch(() => {});
+            }
+        } catch (e: any) {
+            logger.warn(`[Discord] Failed to delete status message: ${e.message}`);
         }
     }
 

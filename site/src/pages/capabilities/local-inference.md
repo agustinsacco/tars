@@ -1,78 +1,60 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Local Inference (LlamaCpp)
-description: How to configure Tars to use local models for 100% privacy.
+title: Local & Custom Inference
+description: How to configure Tars to use local or custom model providers.
 section: Capabilities
 ---
 
-Tars is designed to be flexible with its intelligence layer. While it uses Google's Gemini models by default for high-performance reasoning, you can configure it to use a local inference backend like **LlamaCpp** or any API that provides an OpenAI-compatible `/v1/chat/completions` endpoint.
+Tars is designed to be model-agnostic. While it supports Google's Gemini models for high-performance cloud reasoning, you can easily configure it to use a local inference server or custom OpenAI-compatible proxy endpoints.
 
-### Why Local Inference?
+### Why Local or Custom Inference?
 
-- **100% Private**: Your data never leaves your machine.
-- **Offline Capable**: Work without an internet connection.
-- **Cost Control**: Avoid API usage fees for high-volume background tasks.
-- **Model Choice**: Use specialized local models (e.g., Llama 3, Mistral, DeepSeek) for specific workflows.
+- **Privacy & Security**: Keep your data entirely within your local network or private infrastructure.
+- **Offline Capabilities**: Run autonomous system checks and maintenance without active internet connections.
+- **Cost Efficiency**: Avoid cloud API rate limits and execution fees for high-volume background tasks.
+- **Customized/Specialized Models**: Run fine-tuned developer models (like Llama 3, Mistral, or Qwen) optimized for your local codebase.
 
-### Configuration
+### Configuration via Setup Wizard
 
-You can enable local inference exclusively through the Tars CLI. Do not manually edit your environment files.
-
-Run the setup wizard and select "LlamaCpp" when prompted for the inference backend:
+You can configure your provider settings by running the interactive setup wizard:
 
 ```bash
 tars setup
 ```
 
-The wizard will explicitly guide you to configure:
+When prompted for the **AI Model Provider**, you can select:
 
-1. **Inference Backend:** Select `llamacpp`.
-2. **Endpoint URL:** Enter your server address (e.g., `http://localhost:8080`).
-3. **Model Name:** Enter the exact model ID loaded (e.g., `llama3` or `qwen-35b`).
+1. **Local Stark**: Pre-configured to point to a local model endpoint at `http://stark:8086/v1` running the Qwen 3.6 model.
+2. **Custom**: Provide any custom OpenAI-compatible endpoint URL (e.g., `http://localhost:8080/v1`) and custom model identifier.
 
-> [!WARNING]  
-> **Crucial Router Decoupling:** When using local inference, you **must not** leave `GEMINI_MODEL` set to `auto` (the default). If set to `auto`, the internal Gemini SDK will attempt to ping Google's servers to calculate prompt complexity routing (which will fail with a 400 error if you don't have a valid Google API key). Specifying any concrete model name (like `llama3` or `local`) successfully forces the internal router to bypass Google and stream directly from your local hardware!
+The wizard will save your configuration directly to `~/.tars/config.json` and configure the Pi SDK defaults.
 
 ### Recommended Model Setup: Qwen
 
-For optimal performance with Tars agentic tool-calling capabilities and complex routing, we highly recommend the **Qwen** series of models (specifically variants like `Qwen3.5-35B-A3B` / `30B MoE` or the highly efficient `Qwen3.5 9B Opus Instruct`).
+For optimal performance with Tars' autonomous tool-calling capabilities and complex routing, we highly recommend the **Qwen** series of models (specifically variants like `Qwen3.6-35B-A3B` / `30B MoE` or the highly efficient `Qwen3.5 9B Opus Instruct`).
 
-These models are heavily optimized for coding, instruction following, and natively output extremely reliable strict JSON parameter payloads when utilizing Tars tools.
+These models are heavily optimized for coding, instruction following, and natively output extremely reliable strict JSON parameter payloads when executing TARS tools.
 
 #### Example: Running Qwen via Llama.cpp
 
-To boot the Qwen model on your local inference server (`stark:8086` for example), you can download the `.gguf` bindings (such as `Qwen3.5-35B-A3B-Q6_K.gguf`) from HuggingFace and run `llama-server` like this:
+To boot a Qwen model on your local server, you can download the `.gguf` bindings from HuggingFace and run `llama-server` like this:
 
 ```bash
 ./llama-server -m models/Qwen3.5-35B-A3B-Q6_K.gguf --port 8086 --ctx-size 8192 --parallel 1
 ```
 
-Then update your Tars configuration by running the interactive setup wizard:
+Once running, select the **Local Stark** or **Custom** provider option in `tars setup` and point it to your server endpoint.
 
-```bash
-tars setup
-```
+### Supported Local Backends
 
-Select `LlamaCpp`, enter `http://stark:8086`, and provide the explicit model name (`qwen-35b`).
+Any inference engine exposing an OpenAI-compatible Chat Completions API is supported natively by the Pi Agent SDK:
 
-### Protocol Bridge
-
-Tars uses a custom `LlamaCppGenerator` that acts as a bridge between the **Gemini CLI Core SDK** and your local provider. It handles the following translations automatically:
-
-1. **Multi-Part Content**: Maps Gemini's complex part-based messages into the flat OpenAI message format.
-2. **Tool Calling**: Translates Model Context Protocol (MCP) tool definitions into OpenAI function specs and routes responses back into the core loop.
-3. **Token Estimation**: Provides heuristic-based token counting for local models that don't expose a dedicated endpoint.
-
-### Supported Backends
-
-Any backend that supports the OpenAI Chat Completions API will work, including:
-
-- [Llama.cpp](https://github.com/ggerganov/llama.cpp) (using the `--server` mode)
-- [Ollama](https://ollama.com/) (using the OpenAI compatibility layer)
+- [Llama.cpp](https://github.com/ggerganov/llama.cpp) (running in `--server` mode)
+- [Ollama](https://ollama.com/) (using its OpenAI compatibility layer)
 - [LM Studio](https://lmstudio.ai/)
 - [vLLM](https://github.com/vllm-project/vllm)
 
 ### Limitations
 
-- **Embeddings**: Currently, semantic memory search still requires a Gemini embedding model or a locally configured alternative.
-- **Multimodal**: Image and file attachments are currently optimized for Gemini and may have limited support depending on your local backend's vision capabilities.
+- **Embeddings**: Semantic search within local memory still utilizes a lightweight embedding model or a locally configured equivalent.
+- **Multimodal**: Image and file attachments are optimized for cloud-supported multimodal APIs and may have limited functionality depending on your local backend's vision capabilities.

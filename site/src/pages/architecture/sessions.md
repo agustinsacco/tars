@@ -7,7 +7,7 @@ section: Architecture
 
 ## Overview
 
-The `SessionManager` class persists Gemini CLI session data to disk, tracking token usage across interactions. This enables session resumption and provides visibility into context consumption.
+The `SessionManager` class persists conversation session data to disk, tracking token usage across interactions. This enables session resumption and provides visibility into context consumption.
 
 ## Session Data
 
@@ -15,7 +15,7 @@ Each session tracks the following:
 
 | Field               | Type       | Description                                  |
 | ------------------- | ---------- | -------------------------------------------- |
-| `sessionId`         | string     | Gemini CLI session identifier                |
+| `sessionId`         | string     | Pi Agent SDK session identifier              |
 | `createdAt`         | ISO string | When the session started                     |
 | `totalInputTokens`  | number     | Current context size (input tokens)          |
 | `totalOutputTokens` | number     | Cumulative output tokens generated           |
@@ -37,7 +37,7 @@ The file is updated after every interaction via `updateUsage()`.
 
 ## Usage Tracking
 
-After each Gemini CLI interaction, the Supervisor calls `updateUsage()` with the latest token counts. The manager computes:
+After each Pi Agent SDK interaction, the Supervisor calls `updateUsage()` with the latest token counts. The manager computes:
 
 ```
 netInput = max(0, inputTokens - cachedTokens)
