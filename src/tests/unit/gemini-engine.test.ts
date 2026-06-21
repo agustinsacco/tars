@@ -17,7 +17,7 @@ describe('GeminiEngine', () => {
             geminiModel: 'gemini-pro',
             piProvider: 'openai',
             piModel: 'gpt-4o',
-            systemPromptPath: '/mock/home/.gemini/system.md'
+            systemPromptPath: '/mock/home/system.md'
         } as any;
         engine = new GeminiEngine(mockTarsConfig);
     });

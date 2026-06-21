@@ -106,8 +106,8 @@ function installSkills(config: Config): void {
         return;
     }
 
-    // 2. Define target directory (~/.tars/.gemini/skills)
-    const skillsDest = path.join(config.homeDir, '.gemini', 'skills');
+    // 2. Define target directory (~/.tars/skills)
+    const skillsDest = path.join(config.homeDir, 'skills');
 
     try {
         if (!fs.existsSync(skillsDest)) {
@@ -169,7 +169,7 @@ function installAgents(config: Config): void {
         return;
     }
 
-    const agentsDest = path.join(config.homeDir, '.gemini', 'agents');
+    const agentsDest = path.join(config.homeDir, 'agents');
 
     try {
         if (!fs.existsSync(agentsDest)) {
@@ -196,7 +196,7 @@ function installAgents(config: Config): void {
  */
 function installExtensions(config: Config): void {
     const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
-    const targetExtensionsDir = path.join(config.homeDir, '.gemini', 'extensions');
+    const targetExtensionsDir = path.join(config.homeDir, 'extensions');
     const enablementFile = path.join(targetExtensionsDir, 'extension-enablement.json');
 
     if (!fs.existsSync(repoExtensionsDir)) {
@@ -322,7 +322,7 @@ function installDefaultSettings(config: Config): void {
         'config',
         'settings.json-template'
     );
-    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+    const targetSettings = path.join(config.homeDir, 'settings.json');
 
     if (fs.existsSync(targetSettings)) return;
 
@@ -337,7 +337,7 @@ function installDefaultSettings(config: Config): void {
  * Ensure existing settings.json has required settings
  */
 function patchSettings(config: Config): void {
-    const targetSettings = path.join(config.homeDir, '.gemini', 'settings.json');
+    const targetSettings = path.join(config.homeDir, 'settings.json');
     if (!fs.existsSync(targetSettings)) return;
 
     const settingsTemplate = path.join(

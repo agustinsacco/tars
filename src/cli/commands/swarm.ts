@@ -20,7 +20,7 @@ import { SecretsManager } from '../../utils/secrets-manager.js';
  * Returns the agents directory path for swarm peer registration.
  */
 function getAgentsDir(): string {
-    return path.join(getTarsHome(), '.gemini', 'agents');
+    return path.join(getTarsHome(), 'agents');
 }
 
 /**

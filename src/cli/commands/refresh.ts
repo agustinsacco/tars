@@ -35,8 +35,7 @@ export interface RefreshOptions {
 export async function refreshExtensions(tarsHome: string, silent = false): Promise<boolean> {
     const packageRoot = getPackageRoot();
     const extensionsSrc = path.join(packageRoot, 'extensions');
-    const geminiDir = path.join(tarsHome, '.gemini');
-    const extensionsDest = path.join(geminiDir, 'extensions');
+    const extensionsDest = path.join(tarsHome, 'extensions');
 
     if (!fs.existsSync(extensionsSrc)) {
         if (!silent) console.log(chalk.yellow('  ⚠ Extensions source not found. Skipping.'));

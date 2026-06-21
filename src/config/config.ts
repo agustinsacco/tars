@@ -179,7 +179,7 @@ export class Config {
         // 6. Derived Paths
         this.taskFilePath = path.join(this.homeDir, 'data', 'tasks.json');
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
-        this.systemPromptPath = path.join(this.homeDir, '.gemini', 'system.md');
+        this.systemPromptPath = path.join(this.homeDir, 'system.md');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
 
         // Load swarm API key from secrets (after secrets are loaded into env)

@@ -410,16 +410,15 @@ export async function setup() {
 
     // Provision isolated environment
     const installSpinner = ora('Provisioning environment...').start();
-    const geminiDir = path.join(tarsHome, '.gemini');
 
     await fs.mkdir(path.join(tarsHome, 'data', 'uploads'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'logs'), { recursive: true });
     await fs.mkdir(path.join(tarsHome, 'apps'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'extensions'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'tmp'), { recursive: true });
-    await fs.mkdir(path.join(geminiDir, 'history'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'extensions'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'tmp'), { recursive: true });
+    await fs.mkdir(path.join(tarsHome, 'chats'), { recursive: true });
 
-    installSpinner.succeed('Directories created (~/.tars/.gemini/)');
+    installSpinner.succeed('Directories created (~/.tars/)');
 
     // Legacy Cleanup
     const cleanupSpinner = ora('Checking for legacy components...').start();

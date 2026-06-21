@@ -96,7 +96,7 @@ export class HeartbeatService {
 
         // Session file garbage collection (rate-limited by the same sync interval)
         if (this.sessionManager) {
-            const tmpDir = path.join(this.config.homeDir, '.gemini', 'tmp');
+            const tmpDir = path.join(this.config.homeDir, 'tmp');
             try {
                 await this.sessionManager.garbageCollect(tmpDir, 3, 50);
             } catch (e: any) {

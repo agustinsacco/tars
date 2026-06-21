@@ -29,7 +29,7 @@ export class McpBridge {
      * Discovers and starts all MCP servers, returning their tools mapped to AgentTools.
      */
     public async initialize(): Promise<AgentTool<any>[]> {
-        const extensionsDir = path.join(this.homeDir, '.gemini', 'extensions');
+        const extensionsDir = path.join(this.homeDir, 'extensions');
         if (!fs.existsSync(extensionsDir)) return [];
 
         const extensions: McpExtension[] = [];

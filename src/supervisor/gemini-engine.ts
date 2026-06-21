@@ -171,7 +171,7 @@ export class GeminiEngine extends EventEmitter {
         const history = await this.loadHistory(sid);
 
         // Get system prompt
-        const systemPromptPath = path.join(this.tarsConfig.homeDir, '.gemini', 'system.md');
+        const systemPromptPath = this.tarsConfig.systemPromptPath;
         let systemPrompt = '';
         if (fs.existsSync(systemPromptPath)) {
             systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
@@ -511,7 +511,7 @@ export class GeminiEngine extends EventEmitter {
      * or the legacy Core history directory.
      */
     private async loadHistory(sessionId: string): Promise<AgentMessage[]> {
-        const chatsDir = path.join(this.tarsConfig.homeDir, '.gemini', 'chats');
+        const chatsDir = path.join(this.tarsConfig.homeDir, 'chats');
         const newChatPath = path.join(chatsDir, `${sessionId}.json`);
 
         if (fs.existsSync(newChatPath)) {
@@ -540,7 +540,7 @@ export class GeminiEngine extends EventEmitter {
      * Saves session history to the Pi chats directory.
      */
     private async saveHistory(sessionId: string, messages: AgentMessage[]): Promise<void> {
-        const chatsDir = path.join(this.tarsConfig.homeDir, '.gemini', 'chats');
+        const chatsDir = path.join(this.tarsConfig.homeDir, 'chats');
         if (!fs.existsSync(chatsDir)) {
             await fs.promises.mkdir(chatsDir, { recursive: true });
         }
