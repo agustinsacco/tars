@@ -7,14 +7,14 @@ section: Extensibility
 
 ## Overview
 
-Skills are structured instruction sets stored as markdown files in `~/.tars/.gemini/skills/`. They extend Tars' capabilities by providing step-by-step guides for specific tasks.
+Skills are structured instruction sets stored as markdown files in `~/.tars/skills/`. They extend Tars' capabilities by providing step-by-step guides for specific tasks.
 
 ## Skill Structure
 
 Each skill lives in its own directory:
 
 ```
-~/.tars/.gemini/skills/
+~/.tars/skills/
 ├── tars-ops/
 │   └── SKILL.md
 ├── create-extension/
@@ -51,7 +51,7 @@ The YAML frontmatter provides metadata, and the markdown body contains the actua
 The `installSkills()` function runs on every `tars start`:
 
 1. Scans the repository's `skills/` directory for built-in skills
-2. Copies them to `~/.tars/.gemini/skills/`, **overwriting** existing built-in skills
+2. Copies them to `~/.tars/skills/`, **overwriting** existing built-in skills
 3. **Preserves** any user-created skills that don't conflict with built-in names
 
 This ensures built-in skills are always up-to-date after a package update, while user skills remain untouched.
@@ -60,4 +60,4 @@ This ensures built-in skills are always up-to-date after a package update, while
 
 Tars can create new skills through the `create-skill` built-in skill. When asked, it generates a new `SKILL.md` file with appropriate frontmatter and instructions.
 
-Users can also manually create skill directories in `~/.tars/.gemini/skills/`.
+Users can also manually create skill directories in `~/.tars/skills/`.

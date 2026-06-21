@@ -64,7 +64,7 @@ At supervisor startup:
 
 1. `SecretsManager.load()` reads `~/.tars/.env`
 2. All key-value pairs are injected into `process.env`
-3. The Gemini CLI subprocess inherits these environment variables
+3. The Tars supervisor passes these variables to the Pi Agent SDK and custom MCP servers during startup
 4. Tars (and its extensions) can access secrets via `process.env.KEY_NAME`
 
 This means secrets are available to both Tars and any MCP extensions it runs.

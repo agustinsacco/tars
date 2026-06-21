@@ -18,7 +18,7 @@ tars memory search "deployment process"
 ```
 🧠 Search Results for: "deployment process"
 
-[1] GEMINI.md (Score: 0.85)
+[1] active_memory/facts.txt (Score: 0.85)
 The deployment process uses GitHub Actions with a staging → production pipeline...
 
 [2] history/session-2025-01-15.json (Score: 0.72)
@@ -42,14 +42,14 @@ tars memory sync
 
 This manually runs the same `fullSync()` pipeline that the Heartbeat executes on every tick:
 
-1. Indexes `~/.tars/.gemini/GEMINI.md`
-2. Indexes all `.md` files in `~/.tars/.gemini/skills/` (recursive)
-3. Indexes session transcripts from `~/.tars/.gemini/tmp/*/chats/*.json`
+1. Indexes active memory: `~/.tars/data/memory/facts.json` (indexed as `active_memory/facts.txt`)
+2. Indexes all `.md` files in `~/.tars/skills/` (recursive)
+3. Indexes session transcripts from `~/.tars/chats/*.json`
 
 ### When to Use
 
 You typically don't need to manually sync — the Heartbeat handles this automatically. Manual sync is useful when:
 
-- You've manually edited GEMINI.md or skill files
+- You've manually edited configuration or custom skill files
 - You want to verify the knowledge store is up-to-date
 - Debugging search results that seem stale

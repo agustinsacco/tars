@@ -13,7 +13,7 @@ npm install -g @saccolabs/tars
 
 ### Dependencies
 
-Tars requires **Node.js 22.0.2+**. The Gemini Core engine is included automatically.
+Tars requires **Node.js 22.0.2+**. The Pi Agent SDK core dependencies are included automatically.
 
 ### Verification
 
