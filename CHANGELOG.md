@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.0](https://github.com/agustinsacco/tars/compare/v1.31.0...v1.32.0) (2026-06-21)
+
+
+### Features
+
+* migrate to pi agent sdk and implement background compaction notifications ([#131](https://github.com/agustinsacco/tars/issues/131)) ([0fd90f0](https://github.com/agustinsacco/tars/commit/0fd90f048edb070955c481e6406f8eadd99c5b95))
+
 ## [1.31.0](https://github.com/agustinsacco/tars/compare/v1.30.0...v1.31.0) (2026-05-13)
 
 
