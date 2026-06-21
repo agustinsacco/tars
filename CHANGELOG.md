@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.32.1](https://github.com/agustinsacco/tars/compare/v1.32.0...v1.32.1) (2026-06-21)
+
+
+### Bug Fixes
+
+* resolve status update spacing and duplicate notifications ([#133](https://github.com/agustinsacco/tars/issues/133)) ([7c588e0](https://github.com/agustinsacco/tars/commit/7c588e0e847fb0b16b0fad162af7aa5abaed6dc3))
+
 ## [1.32.0](https://github.com/agustinsacco/tars/compare/v1.31.0...v1.32.0) (2026-06-21)
 
 
