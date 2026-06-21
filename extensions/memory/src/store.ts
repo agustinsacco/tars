@@ -164,30 +164,40 @@ export class MemoryStore {
                 const { DatabaseSync } = await import('node:sqlite');
                 const db = new DatabaseSync(dbPath);
 
-                const dbResults = db
-                    .prepare(
-                        `
-                    SELECT f.path, c.content, rank as score
-                    FROM chunks_fts fts
-                    JOIN chunks c ON fts.rowid = c.id
-                    JOIN files f ON c.file_id = f.id
-                    WHERE chunks_fts MATCH ?
-                    ORDER BY rank
-                    LIMIT 5
-                `
-                    )
-                    .all(query) as any[];
+                const sanitizedQuery = query
+                    .replace(/[-\/\\^$*+?.()|[\]{}]/g, ' ')
+                    .trim()
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map((term) => `"${term.replace(/"/g, '""')}"`)
+                    .join(' AND ');
 
-                for (const r of dbResults) {
-                    // Prettify the source path (e.g. history/session-XXX.json -> Session history)
-                    let source = r.path;
-                    if (source.startsWith('history/')) {
-                        const dateMatch = source.match(/session-(\d{4}-\d{2}-\d{2})/);
-                        source = dateMatch
-                            ? `Past Session ${dateMatch[1]}`
-                            : 'Past Session history';
+                if (sanitizedQuery) {
+                    const dbResults = db
+                        .prepare(
+                            `
+                        SELECT f.path, c.content, rank as score
+                        FROM chunks_fts fts
+                        JOIN chunks c ON fts.rowid = c.id
+                        JOIN files f ON c.file_id = f.id
+                        WHERE chunks_fts MATCH ?
+                        ORDER BY rank
+                        LIMIT 5
+                    `
+                        )
+                        .all(sanitizedQuery) as any[];
+
+                    for (const r of dbResults) {
+                        // Prettify the source path (e.g. history/session-XXX.json -> Session history)
+                        let source = r.path;
+                        if (source.startsWith('history/')) {
+                            const dateMatch = source.match(/session-(\d{4}-\d{2}-\d{2})/);
+                            source = dateMatch
+                                ? `Past Session ${dateMatch[1]}`
+                                : 'Past Session history';
+                        }
+                        results.push(`[${source}] ${r.content.trim()}`);
                     }
-                    results.push(`[${source}] ${r.content.trim()}`);
                 }
                 db.close();
             } catch (error) {
