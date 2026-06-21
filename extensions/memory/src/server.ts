@@ -23,73 +23,49 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
             {
-                name: 'memory_store_fact',
+                name: 'manage_facts',
                 description:
-                    'Store or overwrite a core fact about the user. Facts are key-value pairs that persist across sessions. Use for preferences, identity, rules, and durable information. If the key already exists, the value is overwritten (not appended).',
+                    'Manage core facts about the user. Facts are persistent key-value pairs representing preferences, rules, identity, and durable information.',
                 inputSchema: {
                     type: 'object',
                     properties: {
+                        action: {
+                            type: 'string',
+                            enum: ['store', 'delete', 'list'],
+                            description: 'The operation to perform: store, delete, or list facts'
+                        },
                         key: {
                             type: 'string',
                             description:
-                                'A unique, snake_case identifier for the fact (e.g. "favorite_color", "employer", "timezone")'
+                                'A unique, snake_case identifier for the fact (e.g. "favorite_color", "timezone"). Required for store and delete actions.'
                         },
                         value: {
                             type: 'string',
-                            description: 'The value of the fact'
+                            description: 'The value of the fact. Required for store action.'
                         }
                     },
-                    required: ['key', 'value']
+                    required: ['action']
                 }
             },
             {
-                name: 'memory_delete_fact',
-                description: 'Delete a stored fact by its key.',
+                name: 'manage_notes',
+                description:
+                    'Append timestamped notes to the daily journal or search across all facts, daily notes, and past sessions.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        key: { type: 'string', description: 'The key of the fact to delete' }
-                    },
-                    required: ['key']
-                }
-            },
-            {
-                name: 'memory_list_facts',
-                description:
-                    'List all stored core facts. Use this to review what the user has asked you to remember.',
-                inputSchema: {
-                    type: 'object',
-                    properties: {}
-                }
-            },
-            {
-                name: 'memory_add_note',
-                description:
-                    "Append a timestamped note to today's daily log. Use for project context, decisions, observations, and anything that does not need to be loaded into every session. Notes are searchable but not injected into the main context window.",
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        content: {
+                        action: {
                             type: 'string',
-                            description: 'The note content to record'
-                        }
-                    },
-                    required: ['content']
-                }
-            },
-            {
-                name: 'memory_search',
-                description:
-                    'Search across all stored facts and daily notes by keyword. Returns matching entries from both long-term facts and short-term daily notes.',
-                inputSchema: {
-                    type: 'object',
-                    properties: {
-                        query: {
+                            enum: ['add', 'search'],
+                            description: 'The operation to perform: add a note, or search memory'
+                        },
+                        queryOrContent: {
                             type: 'string',
-                            description: 'The search query (keyword match)'
+                            description:
+                                'The content of the note to add, or the keyword search query.'
                         }
                     },
-                    required: ['query']
+                    required: ['action', 'queryOrContent']
                 }
             }
         ]
@@ -104,86 +80,90 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     try {
         switch (name) {
-            case 'memory_store_fact': {
-                const { key, value } = args as any;
-                if (!key || !value) throw new Error('Both key and value are required.');
+            case 'manage_facts': {
+                const { action, key, value } = args as any;
+                if (!action) throw new Error('Action is required.');
 
-                const fact = await store.storeFact(key.trim(), value.trim());
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `✅ Stored fact: "${fact.key}" = "${fact.value}"`
-                        }
-                    ]
-                };
-            }
-
-            case 'memory_delete_fact': {
-                const { key } = args as any;
-                const deleted = await store.deleteFact(key);
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: deleted
-                                ? `✅ Deleted fact: "${key}"`
-                                : `❌ Fact "${key}" not found.`
-                        }
-                    ]
-                };
-            }
-
-            case 'memory_list_facts': {
-                const facts = await store.listFacts();
-                if (facts.length === 0) {
+                if (action === 'store') {
+                    if (!key || !value)
+                        throw new Error('Both key and value are required to store a fact.');
+                    const fact = await store.storeFact(key.trim(), value.trim());
                     return {
-                        content: [{ type: 'text', text: 'No facts stored yet.' }]
+                        content: [
+                            {
+                                type: 'text',
+                                text: `✅ Stored fact: "${fact.key}" = "${fact.value}"`
+                            }
+                        ]
                     };
-                }
-
-                const text = facts
-                    .map((f) => `• **${f.key}**: ${f.value} _(updated ${f.updatedAt})_`)
-                    .join('\n');
-
-                return { content: [{ type: 'text', text }] };
-            }
-
-            case 'memory_add_note': {
-                const { content } = args as any;
-                if (!content) throw new Error('Content is required.');
-
-                const fileName = await store.addNote(content.trim());
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `✅ Note added to ${fileName}`
-                        }
-                    ]
-                };
-            }
-
-            case 'memory_search': {
-                const { query } = args as any;
-                if (!query) throw new Error('Query is required.');
-
-                const results = await store.search(query.trim());
-                if (results.length === 0) {
+                } else if (action === 'delete') {
+                    if (!key) throw new Error('Key is required to delete a fact.');
+                    const deleted = await store.deleteFact(key);
                     return {
-                        content: [{ type: 'text', text: `No results found for "${query}".` }]
+                        content: [
+                            {
+                                type: 'text',
+                                text: deleted
+                                    ? `✅ Deleted fact: "${key}"`
+                                    : `❌ Fact "${key}" not found.`
+                            }
+                        ]
                     };
-                }
+                } else if (action === 'list') {
+                    const facts = await store.listFacts();
+                    if (facts.length === 0) {
+                        return {
+                            content: [{ type: 'text', text: 'No facts stored yet.' }]
+                        };
+                    }
 
-                const text = results.map((r) => `• ${r}`).join('\n');
-                return {
-                    content: [
-                        {
-                            type: 'text',
-                            text: `Found ${results.length} result(s):\n${text}`
-                        }
-                    ]
-                };
+                    const text = facts
+                        .map((f) => `• **${f.key}**: ${f.value} _(updated ${f.updatedAt})_`)
+                        .join('\n');
+
+                    return { content: [{ type: 'text', text }] };
+                } else {
+                    throw new Error(`Unknown action: ${action}`);
+                }
+            }
+
+            case 'manage_notes': {
+                const { action, queryOrContent } = args as any;
+                if (!action) throw new Error('Action is required.');
+                if (!queryOrContent) throw new Error('queryOrContent is required.');
+
+                if (action === 'add') {
+                    const fileName = await store.addNote(queryOrContent.trim());
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `✅ Note added to ${fileName}`
+                            }
+                        ]
+                    };
+                } else if (action === 'search') {
+                    const results = await store.search(queryOrContent.trim());
+                    if (results.length === 0) {
+                        return {
+                            content: [
+                                { type: 'text', text: `No results found for "${queryOrContent}".` }
+                            ]
+                        };
+                    }
+
+                    const text = results.map((r) => `• ${r}`).join('\n');
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Found ${results.length} result(s):\n${text}`
+                            }
+                        ]
+                    };
+                } else {
+                    throw new Error(`Unknown action: ${action}`);
+                }
             }
 
             default:

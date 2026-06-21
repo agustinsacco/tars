@@ -128,6 +128,22 @@ describe('Supervisor', () => {
         expect(mockSessionManager.forceInvalidate).not.toHaveBeenCalled();
     });
 
+    it('should refresh system instruction on manage_facts memory mutation', async () => {
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            onEvent({
+                type: 'tool_call',
+                toolName: 'tars-memory_manage_facts',
+                toolArgs: { action: 'store', key: 'test', value: 'data' }
+            });
+            onEvent({ type: 'done' });
+        });
+
+        await supervisor.run('store test fact', vi.fn());
+
+        expect(mockGemini.refreshSystemInstruction).toHaveBeenCalled();
+        expect(mockSessionManager.forceInvalidate).not.toHaveBeenCalled();
+    });
+
     it('should trigger compression when context threshold is exceeded', async () => {
         mockSessionManager.needsCompression.mockReturnValue(true);
         const usageStats = { inputTokens: 600000, outputTokens: 5000 };

@@ -101,7 +101,10 @@ export class Supervisor {
                         const toolName = event.toolName;
                         if (
                             toolName.includes('memory_store_fact') ||
-                            toolName.includes('memory_delete_fact')
+                            toolName.includes('memory_delete_fact') ||
+                            (toolName.includes('manage_facts') &&
+                                (event.toolArgs?.action === 'store' ||
+                                    event.toolArgs?.action === 'delete'))
                         ) {
                             logger.info(`   ✨ Memory Mutation: ${toolName}`);
                             memoryMutated = true;
