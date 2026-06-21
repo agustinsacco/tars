@@ -437,27 +437,32 @@ async function main() {
 
                 if (isMilestone) {
                     lines.push(`⚡ **Milestone ${turnCount}** — still going strong...`);
-                    lines.push('');
                 }
 
                 const executedCount = recentTools.filter((t) => t.status === 'completed').length;
                 lines.push(
-                    `⏳ **Working...** (Turn ${turnCount}, ${executedCount} tools executed)`
+                    `⏳ **Working...** (Turn ${turnCount} | ${executedCount} tools executed)`
                 );
-                lines.push('');
 
                 // Show last ~5 tool calls (moving window)
                 const toolsToShow = recentTools.slice(-5);
-                for (const tool of toolsToShow) {
-                    if (tool.status === 'running') {
-                        lines.push(`⚙️ **${tool.name}** — *Executing...*`);
-                    } else {
-                        const preview = (tool.responsePreview || '')
-                            .replace(/\n/g, ' ')
-                            .replace(/\*\*/g, '')
-                            .substring(0, 80);
-                        const size = formatSize(tool.responseSize || 0);
-                        lines.push(`🛠️ **${tool.name}** — \`${preview}\` (${size})`);
+                if (toolsToShow.length > 0) {
+                    lines.push('');
+                    for (const tool of toolsToShow) {
+                        if (tool.status === 'running') {
+                            lines.push(`⚙️ **${tool.name}** — *Executing...*`);
+                        } else {
+                            let preview = (tool.responsePreview || '')
+                                .replace(/\s+/g, ' ')
+                                .replace(/[`*#_\[\]]/g, '') // remove markdown characters
+                                .trim();
+
+                            if (preview.length > 80) {
+                                preview = preview.substring(0, 77) + '...';
+                            }
+                            const size = formatSize(tool.responseSize || 0);
+                            lines.push(`🛠️ **${tool.name}** — "${preview}" (${size})`);
+                        }
                     }
                 }
 

@@ -285,17 +285,30 @@ export class TarsEngine extends EventEmitter {
                         sessionId: sid
                     });
 
+                    let cleanPreview = responseStr;
+                    try {
+                        const parsed = JSON.parse(responseStr);
+                        if (parsed && Array.isArray(parsed.content)) {
+                            cleanPreview = parsed.content
+                                .filter((c: any) => c.type === 'text' && typeof c.text === 'string')
+                                .map((c: any) => c.text)
+                                .join(' ');
+                        } else if (parsed && typeof parsed.text === 'string') {
+                            cleanPreview = parsed.text;
+                        }
+                    } catch (e) {}
+
                     const runningTool = recentTools.find((t) => t.id === event.toolCallId);
                     if (runningTool) {
                         runningTool.status = 'completed';
-                        runningTool.responsePreview = responseStr.substring(0, 120);
+                        runningTool.responsePreview = cleanPreview.substring(0, 500);
                         runningTool.responseSize = responseStr.length;
                     } else {
                         recentTools.push({
                             id: event.toolCallId,
                             name: event.toolName,
                             status: 'completed',
-                            responsePreview: responseStr.substring(0, 120),
+                            responsePreview: cleanPreview.substring(0, 500),
                             responseSize: responseStr.length
                         });
                     }

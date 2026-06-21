@@ -81,16 +81,15 @@ export class DiscordChannel implements CommunicationChannel {
                 if (formatted.length > 8000) {
                     const filePath = this.processor.saveResponse(content, 'md');
                     const sent = await user.send({
-                        content: `🔔 **Task Notification** (Response too long, see attached):`,
+                        content: `🔔 **Notification** (Response too long, see attached):`,
                         files: [filePath, ...files]
                     });
                     this.trackStatusMessage(sent);
                 } else {
                     const chunks = MessageFormatter.split(formatted);
                     for (let i = 0; i < chunks.length; i++) {
-                        const prefix = i === 0 ? `🔔 **Task Notification:**\n` : ``;
                         const sent = await user.send({
-                            content: prefix + chunks[i],
+                            content: chunks[i],
                             files: i === chunks.length - 1 ? files : []
                         });
                         // Track the first chunk for editing
