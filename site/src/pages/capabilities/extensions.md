@@ -11,7 +11,7 @@ Extensions are **MCP (Model Context Protocol) servers** that expose tools to Tar
 
 ## How Extensions Work
 
-1.  **Engine Initialization**: During startup, `GeminiEngine` scans `~/.tars/.gemini/extensions/` for `gemini-extension.json` files.
+1.  **Engine Initialization**: During startup, `GeminiEngine` scans `~/.tars/.gemini/extensions/` for `tars-extension.json` files.
 2.  **Manifest Parsing**: The engine converts the manifest into an internal `MCPServerConfig`, resolving `${extensionPath}` tokens to absolute paths.
 3.  **Discovery**: High-level tools from all enabled extensions are merged into the Gemini Core's tool definition list.
 4.  **Execution**: When the AI invokes a tool, the Core library manages the stdio connection to the extension's binary (e.g., `node server.js`).
@@ -21,7 +21,7 @@ Extensions are **MCP (Model Context Protocol) servers** that expose tools to Tar
 Each extension is an npm package with a manifest:
 
 ```json
-// gemini-extension.json
+// tars-extension.json
 {
     "name": "tars-tasks",
     "version": "1.0.0",
@@ -58,7 +58,7 @@ Extensions must be authorized in `~/.tars/.gemini/extensions/extension-enablemen
 Tars is capable of self-modifying its own toolset via the `extension-builder` skill. The process involves:
 
 1.  Generating a plain JavaScript MCP server using `@modelcontextprotocol/sdk`.
-2.  Creating the `gemini-extension.json` manifest with relative path tokens.
+2.  Creating the `tars-extension.json` manifest with relative path tokens.
 3.  Registering the new extension in the enablement configuration.
 
 ## Core Extensions

@@ -35,7 +35,7 @@ Tars can create entirely new MCP extensions to integrate with external systems o
 1. Tars identifies a need for a new tool capability.
 2. Uses the **extension-builder** skill to scaffold the project.
 3. Generates a **plain JavaScript** MCP server (ESM) to avoid compilation overhead.
-4. Creates a `gemini-extension.json` manifest with native `${extensionPath}` tokens.
+4. Creates a `tars-extension.json` manifest with native `${extensionPath}` tokens.
 5. Authorizes the extension in `extension-enablement.json`.
 6. The tools are available after a quick `tars restart`.
 

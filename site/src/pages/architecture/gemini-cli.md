@@ -17,7 +17,7 @@ The `GeminiEngine` class acts as the bridge between Tars and the Gemini Core. It
 
 Tars maintains an isolated environment in `~/.tars/.gemini/`. During initialization, the engine performs the following:
 
-1.  **Extension Discovery**: Scans `~/.tars/.gemini/extensions/` for `gemini-extension.json` files.
+1.  **Extension Discovery**: Scans `~/.tars/.gemini/extensions/` for `tars-extension.json` files.
 2.  **Path Resolution**: Automatically resolves `${extensionPath}` placeholders in extension configurations to ensure MCP servers start correctly.
 3.  **Folder Trust**: Configures the Core library to trust the Tars home directory, enabling privileged tool execution.
 

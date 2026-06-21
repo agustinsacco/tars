@@ -58,7 +58,13 @@ export async function refreshExtensions(tarsHome: string, silent = false): Promi
         const spinner = silent ? null : ora(`  Refreshing extension: ${finalExtName}...`).start();
 
         try {
-            if (fs.existsSync(linkTarget)) {
+            let exists = false;
+            try {
+                await fsp.lstat(linkTarget);
+                exists = true;
+            } catch {}
+
+            if (exists) {
                 await fsp.rm(linkTarget, {
                     recursive: true,
                     force: true,
@@ -74,6 +80,37 @@ export async function refreshExtensions(tarsHome: string, silent = false): Promi
         } catch (err: any) {
             allOk = false;
             if (spinner) spinner.warn(`  Extension ${finalExtName} failed: ${err.message}`);
+        }
+    }
+
+    // Hydrate any user-installed or restored extensions missing node_modules
+    if (fs.existsSync(extensionsDest)) {
+        const destEntries = fs.readdirSync(extensionsDest);
+        for (const destName of destEntries) {
+            const extPath = path.join(extensionsDest, destName);
+            if (!fs.statSync(extPath).isDirectory()) continue;
+
+            const pkgJson = path.join(extPath, 'package.json');
+            const nodeModules = path.join(extPath, 'node_modules');
+            if (fs.existsSync(pkgJson) && !fs.existsSync(nodeModules)) {
+                const spinner = silent
+                    ? null
+                    : ora(`  Hydrating restored extension: ${destName}...`).start();
+                try {
+                    execSync('npm install', { cwd: extPath, stdio: 'pipe' });
+                    const pkgRaw = fs.readFileSync(pkgJson, 'utf-8');
+                    const pkg = JSON.parse(pkgRaw);
+                    if (pkg.scripts && pkg.scripts.build) {
+                        execSync('npm run build', { cwd: extPath, stdio: 'pipe' });
+                    }
+                    if (spinner) spinner.succeed(`  Extension hydrated: ${destName}`);
+                } catch (err: any) {
+                    allOk = false;
+                    const msg = err.stdout?.toString() || err.stderr?.toString() || err.message;
+                    if (spinner)
+                        spinner.warn(`  Extension hydration failed for ${destName}: ${msg}`);
+                }
+            }
         }
     }
 

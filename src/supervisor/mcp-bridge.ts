@@ -39,7 +39,10 @@ export class McpBridge {
             for (const entry of entries) {
                 if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
                 const extPath = path.resolve(extensionsDir, entry.name);
-                const configPath = path.join(extPath, 'gemini-extension.json');
+                let configPath = path.join(extPath, 'tars-extension.json');
+                if (!fs.existsSync(configPath)) {
+                    configPath = path.join(extPath, 'gemini-extension.json');
+                }
 
                 if (fs.existsSync(configPath)) {
                     try {
