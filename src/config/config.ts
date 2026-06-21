@@ -94,9 +94,15 @@ export class Config {
         this.piProvider = process.env.PI_PROVIDER || jsonConfig.piProvider || 'google';
         this.piModel = process.env.PI_MODEL || jsonConfig.piModel || 'gemini-2.5-flash';
         this.piBaseUrl = process.env.PI_BASE_URL || jsonConfig.piBaseUrl || '';
-        this.inferenceBackend = (process.env.INFERENCE_BACKEND ||
+        const rawBackend = (
+            process.env.INFERENCE_BACKEND ||
             jsonConfig.inferenceBackend ||
-            'tars') as 'tars' | 'llamacpp';
+            'tars'
+        ).toLowerCase();
+        this.inferenceBackend =
+            rawBackend === 'pi' || rawBackend === 'gemini' || rawBackend === 'tars'
+                ? 'tars'
+                : 'llamacpp';
         this.localInferenceUrl =
             process.env.LOCAL_INFERENCE_URL ||
             jsonConfig.localInferenceUrl ||

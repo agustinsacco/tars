@@ -39,9 +39,11 @@ export type TarsEngineOutputHandler = (event: TarsEngineEvent) => void | Promise
  * Snapshot of a completed tool call for status reporting.
  */
 export interface ToolStatus {
+    id?: string;
     name: string;
-    responsePreview: string;
-    responseSize: number; // bytes/chars
+    status: 'running' | 'completed';
+    responsePreview?: string;
+    responseSize?: number; // bytes/chars
 }
 
 /**
@@ -258,6 +260,16 @@ export class TarsEngine extends EventEmitter {
                         callId: event.toolCallId,
                         sessionId: sid
                     });
+
+                    recentTools.push({
+                        id: event.toolCallId,
+                        name: event.toolName,
+                        status: 'running'
+                    });
+
+                    if (onStatus) {
+                        onStatus(turnCount, recentTools.slice(-10), turnCount % 20 === 0);
+                    }
                 } else if (event.type === 'tool_execution_end') {
                     const responseStr =
                         typeof event.result === 'string'
@@ -273,12 +285,20 @@ export class TarsEngine extends EventEmitter {
                         sessionId: sid
                     });
 
-                    // Track recent tools for status reporting
-                    recentTools.push({
-                        name: event.toolName,
-                        responsePreview: responseStr.substring(0, 120),
-                        responseSize: responseStr.length
-                    });
+                    const runningTool = recentTools.find((t) => t.id === event.toolCallId);
+                    if (runningTool) {
+                        runningTool.status = 'completed';
+                        runningTool.responsePreview = responseStr.substring(0, 120);
+                        runningTool.responseSize = responseStr.length;
+                    } else {
+                        recentTools.push({
+                            id: event.toolCallId,
+                            name: event.toolName,
+                            status: 'completed',
+                            responsePreview: responseStr.substring(0, 120),
+                            responseSize: responseStr.length
+                        });
+                    }
                     turnCount++;
 
                     if (onStatus) {

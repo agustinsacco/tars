@@ -1,5 +1,5 @@
 import { Config } from '../config/config.js';
-import { TarsEngine } from './tars-engine.js';
+import { TarsEngine, ToolStatus } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
@@ -430,7 +430,7 @@ async function main() {
 
             const formatStatusContent = (
                 turnCount: number,
-                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                recentTools: ToolStatus[],
                 isMilestone: boolean
             ): string => {
                 const lines: string[] = [];
@@ -440,20 +440,25 @@ async function main() {
                     lines.push('');
                 }
 
+                const executedCount = recentTools.filter((t) => t.status === 'completed').length;
                 lines.push(
-                    `⏳ **Working...** (Turn ${turnCount}, ${recentTools.length} tools executed)`
+                    `⏳ **Working...** (Turn ${turnCount}, ${executedCount} tools executed)`
                 );
                 lines.push('');
 
-                // Show last ~8 tool calls
-                const toolsToShow = recentTools.slice(-8);
+                // Show last ~5 tool calls (moving window)
+                const toolsToShow = recentTools.slice(-5);
                 for (const tool of toolsToShow) {
-                    const preview = tool.responsePreview
-                        .replace(/\n/g, ' ')
-                        .replace(/\*\*/g, '')
-                        .substring(0, 80);
-                    const size = formatSize(tool.responseSize);
-                    lines.push(`🛠️ **${tool.name}** — \`${preview}\` (${size})`);
+                    if (tool.status === 'running') {
+                        lines.push(`⚙️ **${tool.name}** — *Executing...*`);
+                    } else {
+                        const preview = (tool.responsePreview || '')
+                            .replace(/\n/g, ' ')
+                            .replace(/\*\*/g, '')
+                            .substring(0, 80);
+                        const size = formatSize(tool.responseSize || 0);
+                        lines.push(`🛠️ **${tool.name}** — \`${preview}\` (${size})`);
+                    }
                 }
 
                 lines.push('');
@@ -464,7 +469,7 @@ async function main() {
 
             const updateStatus = async (
                 turnCount: number,
-                recentTools: Array<{ name: string; responsePreview: string; responseSize: number }>,
+                recentTools: ToolStatus[],
                 isMilestone: boolean
             ): Promise<void> => {
                 const content = formatStatusContent(turnCount, recentTools, isMilestone);
