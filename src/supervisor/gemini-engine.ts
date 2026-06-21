@@ -119,10 +119,10 @@ export class GeminiEngine extends EventEmitter {
         }
         nativeTools.push(
             new GetQuotaTool(this.sessionManager, {
-                inferenceBackend: this.tarsConfig.inferenceBackend,
+                piProvider: this.tarsConfig.piProvider,
                 contextWindowTokens: this.tarsConfig.contextWindowTokens,
-                geminiModel: this.tarsConfig.geminiModel,
-                localInferenceUrl: this.tarsConfig.localInferenceUrl
+                piModel: this.tarsConfig.piModel,
+                piBaseUrl: this.tarsConfig.piBaseUrl
             }) as any
         );
         logger.info('🔌 Registered native tool: get_model_quota');

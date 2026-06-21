@@ -5,7 +5,6 @@ import { Supervisor } from './supervisor.js';
 import { HeartbeatService } from './heartbeat-service.js';
 import { CronService } from './cron-service.js';
 import { DashboardService } from './dashboard-service.js';
-import { SwarmService } from '../swarm/swarm-service.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import logger from '../utils/logger.js';
 import fs from 'fs';
@@ -54,16 +53,11 @@ function installSystemPrompt(config: Config): void {
     let promptContent = fs.readFileSync(srcPrompt, 'utf-8');
     promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
     promptContent = promptContent.replace(/{{INSTANCE_NAME}}/g, config.instanceName);
-    promptContent = promptContent.replace(/{{INSTANCE_ROLE}}/g, config.instanceRole);
-    promptContent = promptContent.replace(/{{INFERENCE_BACKEND}}/g, config.inferenceBackend);
-    promptContent = promptContent.replace(/{{MODEL_NAME}}/g, config.geminiModel);
+    promptContent = promptContent.replace(/{{PROVIDER}}/g, config.piProvider);
+    promptContent = promptContent.replace(/{{MODEL_NAME}}/g, config.piModel);
     promptContent = promptContent.replace(
         /{{CONTEXT_WINDOW}}/g,
         config.contextWindowTokens.toLocaleString()
-    );
-    promptContent = promptContent.replace(
-        /{{INFERENCE_ENDPOINT}}/g,
-        config.inferenceBackend === 'llamacpp' ? config.localInferenceUrl : 'Google AI API'
     );
 
     // Always overwrite to ensure latest prompt is deployed
@@ -134,60 +128,6 @@ function installSkills(config: Config): void {
         }
     } catch (error) {
         logger.error(`❌ Failed to sync skills: ${error}`);
-    }
-}
-
-/**
- * Install and sync built-in agents into the Tars runtime directory.
- */
-function installAgents(config: Config): void {
-    let searchDir = __dirname;
-    let agentsSrc = '';
-
-    for (let i = 0; i < 5; i++) {
-        const candidate = path.join(searchDir, 'context', 'agents');
-        const srcCandidate = path.join(searchDir, '..', 'context', 'agents');
-
-        if (fs.existsSync(candidate)) {
-            agentsSrc = candidate;
-            break;
-        } else if (fs.existsSync(srcCandidate)) {
-            agentsSrc = srcCandidate;
-            break;
-        }
-        const rootCandidate = path.join(searchDir, '..', '..', 'context', 'agents');
-        if (fs.existsSync(rootCandidate)) {
-            agentsSrc = rootCandidate;
-            break;
-        }
-
-        searchDir = path.dirname(searchDir);
-    }
-
-    if (!agentsSrc) {
-        logger.warn('⚠️ Could not locate built-in agents directory');
-        return;
-    }
-
-    const agentsDest = path.join(config.homeDir, 'agents');
-
-    try {
-        if (!fs.existsSync(agentsDest)) {
-            fs.mkdirSync(agentsDest, { recursive: true });
-        }
-
-        const builtInAgents = fs.readdirSync(agentsSrc);
-
-        for (const agentName of builtInAgents) {
-            const srcAgentPath = path.join(agentsSrc, agentName);
-            const destAgentPath = path.join(agentsDest, agentName);
-
-            if (!fs.statSync(srcAgentPath).isFile() || !agentName.endsWith('.md')) continue;
-
-            fs.copyFileSync(srcAgentPath, destAgentPath);
-        }
-    } catch (error) {
-        logger.error(`❌ Failed to sync agents: ${error}`);
     }
 }
 
@@ -456,7 +396,6 @@ async function main() {
         // 2. Install components
         installSystemPrompt(config);
         installSkills(config);
-        installAgents(config);
         installExtensions(config);
         installDashboard(config);
         installDefaultSettings(config);
@@ -610,14 +549,12 @@ async function main() {
         const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
         const cron = new CronService(supervisor, config, channelManager);
         const dashboard = new DashboardService(config);
-        const swarm = new SwarmService(config, supervisor);
 
         // Start everything
         await channelManager.start();
         await heartbeat.start();
         await cron.start();
         await dashboard.start();
-        await swarm.start();
 
         logger.info('✨ Tars successfully initialized and running.');
 
@@ -628,7 +565,6 @@ async function main() {
             heartbeat.stop();
             cron.stop();
             dashboard.stop();
-            swarm.stop();
             process.exit(0);
         });
     } catch (error: any) {

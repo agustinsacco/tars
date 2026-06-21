@@ -26,10 +26,10 @@ export class GetQuotaTool implements AgentTool<typeof GetQuotaParamsSchema> {
     constructor(
         private sessionManager?: SessionManager,
         private tarsConfig?: {
-            inferenceBackend: string;
+            piProvider: string;
             contextWindowTokens: number;
-            geminiModel: string;
-            localInferenceUrl: string;
+            piModel: string;
+            piBaseUrl: string;
         }
     ) {}
 
@@ -64,11 +64,12 @@ export class GetQuotaTool implements AgentTool<typeof GetQuotaParamsSchema> {
     private getLocalUsage(): string {
         const stats: SessionData | null = this.sessionManager?.getStats() || null;
         const contextWindow = this.tarsConfig?.contextWindowTokens || 128000;
-        const model = this.tarsConfig?.geminiModel || 'unknown';
-        const endpoint = this.tarsConfig?.localInferenceUrl || 'unknown';
+        const model = this.tarsConfig?.piModel || 'unknown';
+        const provider = this.tarsConfig?.piProvider || 'unknown';
+        const endpoint = this.tarsConfig?.piBaseUrl || 'API';
 
         let resultText = '### Session Resource Usage\n\n';
-        resultText += `- **Backend**: Pi Coding Agent\n`;
+        resultText += `- **Provider**: \`${provider}\`\n`;
         resultText += `- **Model**: \`${model}\`\n`;
         resultText += `- **Endpoint**: \`${endpoint}\`\n`;
         resultText += `- **Context Window**: ${contextWindow.toLocaleString()} tokens\n\n`;

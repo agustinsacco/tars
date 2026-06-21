@@ -330,78 +330,9 @@ export async function setup() {
     }
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 7: Swarm Mode ────────────────────────────────────
+    // ── Step 7: Installing ────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 7: Swarm Mode (A2A)'));
-    console.log(chalk.dim('────────────────────────'));
-    console.log(chalk.dim('  Allow other Tars instances to discover and'));
-    console.log(chalk.dim('  delegate tasks to this agent using the A2A protocol.'));
-
-    const existingSwarm = existingConfig.swarm || {};
-    const existingSwarmKey = secrets.SWARM_API_KEY || '';
-
-    const swarmConfig = await inquirer.prompt([
-        {
-            type: 'confirm',
-            name: 'enableSwarm',
-            message: 'Enable Swarm Mode (allow other agents to connect)?',
-            default: existingSwarm.enabled || false
-        },
-        {
-            type: 'input',
-            name: 'swarmPort',
-            message: 'Swarm API Port:',
-            default: String(existingSwarm.port || '3100'),
-            when: (a) => a.enableSwarm,
-            validate: (input: string) => {
-                const n = parseInt(input, 10);
-                if (isNaN(n) || n < 1024 || n > 65535) {
-                    return 'Port must be a number between 1024 and 65535';
-                }
-                return true;
-            }
-        },
-        {
-            type: 'input',
-            name: 'swarmDescription',
-            message: 'Instance description (for other agents):',
-            default:
-                existingSwarm.description ||
-                `${identityConfig.assistantName || 'Tars'} — Autonomous AI assistant`,
-            when: (a) => a.enableSwarm
-        }
-    ]);
-
-    if (swarmConfig.enableSwarm) {
-        const apiKey = existingSwarmKey || `tars_swarm_${crypto.randomBytes(24).toString('hex')}`;
-        secretsManager.set('SWARM_API_KEY', apiKey);
-
-        console.log(chalk.green('  ✓ Swarm mode configured.'));
-        console.log(chalk.dim(`  Port: ${swarmConfig.swarmPort}`));
-        console.log(
-            chalk.dim(
-                `  API Key: ${apiKey.substring(0, 16)}...${apiKey.substring(apiKey.length - 4)}`
-            )
-        );
-        console.log('');
-        console.log(chalk.dim('  To register this instance on another Tars, run:'));
-        console.log(
-            chalk.cyan(
-                `  tars swarm add --name ${(identityConfig.assistantName || 'tars').toLowerCase()} \\`
-            )
-        );
-        console.log(
-            chalk.cyan(
-                `    --url http://<this-host>:${swarmConfig.swarmPort}/.well-known/agent.json \\`
-            )
-        );
-        console.log(chalk.cyan(`    --key ${apiKey}`));
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // ── Step 8: Installing ────────────────────────────────────
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 8: Installing'));
+    console.log(chalk.bold('\nStep 7: Installing'));
     console.log(chalk.dim('──────────────────'));
 
     // Audit and Heal
@@ -446,15 +377,6 @@ export async function setup() {
         heartbeatIntervalSec: intervalSec,
         inferenceBackend: 'pi'
     };
-
-    if (swarmConfig.enableSwarm) {
-        configData.swarm = {
-            enabled: true,
-            port: parseInt(swarmConfig.swarmPort, 10),
-            description: swarmConfig.swarmDescription || '',
-            skills: existingSwarm.skills || []
-        };
-    }
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
     saveSpinner.succeed('Configuration saved.');
