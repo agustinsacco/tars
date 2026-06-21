@@ -213,7 +213,7 @@ export class TarsEngine extends EventEmitter {
                 reasoning: false,
                 input: ['text'],
                 cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-                contextWindow: this.tarsConfig.contextWindowTokens || 104876,
+                contextWindow: this.tarsConfig.contextWindowTokens || 128000,
                 maxTokens: 32000
             };
         }

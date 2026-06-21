@@ -131,13 +131,11 @@ export class Config {
         this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
 
         this.contextWindowTokens = parseInt(
-            String(
-                process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '1048576'
-            ),
+            String(process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '128000'),
             10
         );
         this.compressionThreshold = parseFloat(
-            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.5')
+            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.625')
         );
 
         this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);
