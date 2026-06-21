@@ -5,27 +5,27 @@
 </div>
 
 <div align="center">
-  <a href="https://opensource.org/licenses/MIT">License: MIT</a> | <a href="https://www.typescriptlang.org/">TypeScript</a> | <a href="https://deepmind.google/technologies/gemini/">Powered by Gemini</a>
+  <a href="https://opensource.org/licenses/MIT">License: MIT</a> | <a href="https://www.typescriptlang.org/">TypeScript</a> | <a href="https://github.com/saccolabs/tars">Powered by Pi Agent SDK</a>
 </div>
 
 ---
 
-Tars is an autonomous, local-first AI assistant powered by Google's Gemini models. It provides a persistent, free alternative to subscription-based services by running directly on your machine. Tars maintains its own database of memories, tasks, and skills, allowing it to adapt to your workflow and retain context over time.
+Tars is an autonomous, local-first AI assistant powered by the **Pi Agent SDK**. It supports cloud models (Gemini, Claude, GPT) and local inference (Qwen) out of the box, running directly on your machine. Tars maintains its own database of memories, tasks, and skills, allowing it to adapt to your workflow and retain context over time.
 
 ## Philosophy
 
 Tars is designed for developers who need an assistant that integrates deeply with their local environment without the overhead of heavy containers or expensive cloud subscriptions.
 
-- **Private**: All data, including memories and task history, is stored locally in your home directory.
+- **Private**: All data, including memories and task history, is stored locally in your home directory (`~/.tars/`).
 - **Portable**: The entire "brain" can be exported and moved to a new machine seamlessly.
 - **Extensible**: Tars can write its own tools and extensions to expand its capabilities.
-- **Cost-Effective**: Utilizes the Gemini API (including the free tier) to handle complex reasoning tasks without local GPU requirements.
+- **Cost-Effective & Flexible**: Integrates with various cloud providers and local inference endpoints without requiring expensive subscription lock-in.
 
 ### Comparison
 
 | Feature     | Tars                      | Traditional Cloud Assistants                      |
 | :---------- | :------------------------ | :------------------------------------------------ |
-| **Cost**    | Free (Gemini Tier)        | Subscription / Token Usage Fees                   |
+| **Cost**    | Cloud APIs / Local        | Subscription / Token Usage Fees                   |
 | **Runtime** | Native Node.js Process    | Often Web-based or Heavy Local LLMs               |
 | **Latency** | Low (API Inference)       | High (Local Inference) or Variable (Cloud Queues) |
 | **Context** | Persistent Project Memory | Session-based / Limited Context Window            |
@@ -36,10 +36,10 @@ Tars is designed for developers who need an assistant that integrates deeply wit
 ## Key Features
 
 - **Multi-Agent Orchestration**: Delegates specialized tasks (like coding or research) to sub-agents for better accuracy.
-- **Native Gemini Core**: Integrated directly with the `@google/gemini-cli-core` library for high-speed, direct communication without subprocess overhead.
-- **Autonomous Persistence**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
-- **Local Inference Support**: Tars can now be configured to use local models via **LlamaCpp** (or any OpenAI-compatible API) as an alternative to Gemini, providing 100% privacy and offline capability.
-- **Context-Aware Memory**: Utilizes `GEMINI.md` files to maintain long-term awareness of project structures and decisions.
+- **Pi Agent SDK Core**: Built on the Pi Coding Agent SDK for high-performance reasoning, autonomous task execution, and native tool-calling.
+- **Autonomous Autonomy**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
+- **Local Inference Support**: Tars can be configured to run with local models (such as Qwen via llama-server, Ollama, LM Studio, etc.) for 100% privacy and offline capability.
+- **Context-Aware Memory**: Utilizes structured memory database files (`facts.json`, `notes/`) to maintain long-term awareness of project structures and decisions.
 
 ---
 
@@ -52,6 +52,8 @@ Full documentation is available at [tars.saccolabs.com](https://tars.saccolabs.c
 - **Build**: `npm run docs:build`
 - **Live Deployment**: `http://<ULTRON_IP>:5252`
 
+---
+
 ## Installation and Setup
 
 ### Prerequisites
@@ -60,7 +62,7 @@ Full documentation is available at [tars.saccolabs.com](https://tars.saccolabs.c
 
 ### Installation
 
-Tars is powered by the **Gemini CLI Core** library, which is automatically bundled during installation. No external CLI tools are required.
+Tars is powered by the **Pi Agent SDK**, which is automatically bundled during installation.
 
 ```bash
 npm install -g @saccolabs/tars
@@ -68,7 +70,7 @@ npm install -g @saccolabs/tars
 
 ### Initial Setup
 
-Run the setup wizard to authorize Gemini and connect your Discord bot:
+Run the setup wizard to configure your preferred AI model provider and connect your Discord bot:
 
 ```bash
 tars setup
