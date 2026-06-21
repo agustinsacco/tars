@@ -1,23 +1,23 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Gemini Native Core
-description: How Tars integrates directly with the Gemini CLI Core library.
+title: Tars Engine Core
+description: How Tars integrates directly with the Tars Core engine.
 section: Architecture
 ---
 
 ## Overview
 
-Tars has transitioned from a CLI-based wrapper to a **bare-metal Node.js integration** using the `@google/gemini-cli-core` library. This eliminates subprocess overhead, improves event streaming reliability, and allows for deeper integration with the Gemini ecosystem.
+Tars has transitioned from a CLI-based wrapper to a **bare-metal Node.js integration** using the `@google/gemini-cli-core` library. This eliminates subprocess overhead, improves event streaming reliability, and allows for deeper integration.
 
 ## Integration Architecture
 
-The `GeminiEngine` class acts as the bridge between Tars and the Gemini Core. It manages the lifecycle of the `GeminiClient` and handles session initialization, authentication, and tool discovery.
+The `TarsEngine` class acts as the bridge between Tars and the Core library. It manages the lifecycle of the client and handles session initialization, authentication, and tool discovery.
 
 ## Environment & Discovery
 
 Tars maintains an isolated environment in `~/.tars/.gemini/`. During initialization, the engine performs the following:
 
-1.  **Extension Discovery**: Scans `~/.tars/.gemini/extensions/` for `tars-extension.json` files.
+1.  **Extension Discovery**: Scans `~/.tars/extensions/` for `tars-extension.json` files.
 2.  **Path Resolution**: Automatically resolves `${extensionPath}` placeholders in extension configurations to ensure MCP servers start correctly.
 3.  **Folder Trust**: Configures the Core library to trust the Tars home directory, enabling privileged tool execution.
 
@@ -35,7 +35,7 @@ The engine exposes a streaming interface that emits typed events directly from t
 
 ### Session Management
 
-Sessions are managed natively by the Core library. Tars tracks the `sessionId` and persists it via `SessionManager`. This ensures that conversation history is preserved across restarts without manual file surgery.
+`TarsEngine` tracks the `sessionId` and persists it via `SessionManager`. This ensures that conversation history is preserved across restarts without manual file surgery.
 
 ## Tool Discovery
 
