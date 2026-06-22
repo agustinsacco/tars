@@ -138,6 +138,13 @@ export class TarsEngine extends EventEmitter {
     }
 
     /**
+     * Resets the active session ID to null so a new one is generated on the next run.
+     */
+    public resetSession(): void {
+        this.currentSessionId = null;
+    }
+
+    /**
      * Returns the API key mapped to the provider name from process.env.
      */
     private getApiKeyForProvider(providerName: string): string | undefined {

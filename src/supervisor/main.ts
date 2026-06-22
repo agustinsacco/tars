@@ -438,6 +438,7 @@ async function main() {
                             }
                         }
                         await sessionManager.clear();
+                        tarsEngine.resetSession();
                         await message.reply(
                             '✨ **Session Reset:** I have cleared the current session context and started a new, clean conversation.'
                         );
