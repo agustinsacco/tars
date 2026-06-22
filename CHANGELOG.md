@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.34.0](https://github.com/agustinsacco/tars/compare/v1.33.0...v1.34.0) (2026-06-22)
+
+
+### Features
+
+* add PR title validation to enforce conventional commit release triggers ([#139](https://github.com/agustinsacco/tars/issues/139)) ([3e525b8](https://github.com/agustinsacco/tars/commit/3e525b871228056b6faddbd9e14f912fc398aa83))
+* session metrics, compaction alerts, and swarm cleanup ([#138](https://github.com/agustinsacco/tars/issues/138)) ([7bd51b0](https://github.com/agustinsacco/tars/commit/7bd51b0fd2d5a4135035e55259f4d5ae2bae19ce))
+
 ## [1.33.0](https://github.com/agustinsacco/tars/compare/v1.32.1...v1.33.0) (2026-06-21)
 
 
