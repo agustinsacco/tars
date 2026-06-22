@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.33.0](https://github.com/agustinsacco/tars/compare/v1.32.1...v1.33.0) (2026-06-21)
+
+
+### Features
+
+* add token usage footer, transparent compaction alerts, and dete… ([#136](https://github.com/agustinsacco/tars/issues/136)) ([abff91f](https://github.com/agustinsacco/tars/commit/abff91f65f5c8bef9efc4477ae5b6e0347b0965f))
+
 ## [1.32.1](https://github.com/agustinsacco/tars/compare/v1.32.0...v1.32.1) (2026-06-21)
 
 
