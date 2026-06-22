@@ -371,7 +371,7 @@ export class TarsEngine extends EventEmitter {
                     totalCacheRead += u.cacheRead || 0;
 
                     // The last assistant message represents the final active context size sent to the model
-                    lastInputTokens = u.input || 0;
+                    lastInputTokens = (u.input || 0) + (u.cacheRead || 0);
                     lastOutputTokens = u.output || 0;
                 }
             }
@@ -388,7 +388,7 @@ export class TarsEngine extends EventEmitter {
                 totalInput = u.input || 0;
                 totalOutput = u.output || 0;
                 totalCacheRead = u.cacheRead || 0;
-                lastInputTokens = u.input || 0;
+                lastInputTokens = (u.input || 0) + (u.cacheRead || 0);
                 lastOutputTokens = u.output || 0;
             }
 
