@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.35.0](https://github.com/agustinsacco/tars/compare/v1.34.0...v1.35.0) (2026-06-22)
+
+
+### Features
+
+* remove autonomous heartbeat, update token footer with compaction stats, and implement multi-user Discord routing ([317fd47](https://github.com/agustinsacco/tars/commit/317fd471ea355b7bde2b0be1fab635a70f58abaa))
+
 ## [1.34.0](https://github.com/agustinsacco/tars/compare/v1.33.0...v1.34.0) (2026-06-22)
 
 
