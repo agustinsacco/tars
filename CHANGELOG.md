@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.35.1](https://github.com/agustinsacco/tars/compare/v1.35.0...v1.35.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* include cached tokens in active context size calculation to trigger compaction properly ([e987c13](https://github.com/agustinsacco/tars/commit/e987c13c0cbb064ae35f5fecbc6f37c6494a0c0a))
+* reset currentSessionId in TarsEngine on clear or reset command to generate a fresh UUID ([3b5c5de](https://github.com/agustinsacco/tars/commit/3b5c5de9246c66acb0b411014a7f621b14f9880e))
+
 ## [1.35.0](https://github.com/agustinsacco/tars/compare/v1.34.0...v1.35.0) (2026-06-22)
 
 
