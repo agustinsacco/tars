@@ -141,4 +141,46 @@ describe('DiscordChannel', () => {
             expect(processedCount).toBe(1);
         });
     });
+
+    describe('Routing & Notifications', () => {
+        it('should track last active user/channel and direct notifications to them', async () => {
+            discordChannel.onMessage(async () => {});
+
+            const mockMessage = {
+                id: 'msg-active',
+                content: 'Test message',
+                author: { id: 'user-active-123', username: 'active_user', bot: false },
+                guildId: null,
+                channelId: 'channel-active-456',
+                attachments: new Map(),
+                reply: vi.fn(),
+                channel: {
+                    sendTyping: vi.fn().mockResolvedValue({})
+                }
+            };
+
+            // Handle incoming message to set lastActiveUser
+            await discordChannel.handleIncomingMessage(mockMessage as any);
+
+            // Mock fetch channel and send
+            const mockSend = vi
+                .fn()
+                .mockResolvedValue({ id: 'sent-msg-1', channelId: 'channel-active-456' });
+            mockClient.channels.fetch.mockResolvedValue({
+                isTextBased: () => true,
+                send: mockSend
+            });
+
+            // Send notification
+            await discordChannel.notify('Hello to last active!');
+
+            // Verify it was routed to the last active channel
+            expect(mockClient.channels.fetch).toHaveBeenCalledWith('channel-active-456');
+            expect(mockSend).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    content: expect.stringContaining('Hello to last active!')
+                })
+            );
+        });
+    });
 });

@@ -114,13 +114,29 @@ export class SessionManager {
         this.sessionData.totalCachedTokens = usage.cachedTokens || 0; // Current cached state
         this.sessionData.interactionCount++;
         this.sessionData.lastInteractionAt = new Date().toISOString();
-        this.sessionData.lastInputTokens = usage.inputTokens; // Current context window size
+        this.sessionData.lastInputTokens =
+            (usage.lastInputTokens || usage.inputTokens) +
+            (usage.lastOutputTokens || usage.outputTokens || 0); // Current active context size
 
         // Persist to disk
         try {
             await this.atomicWrite();
         } catch (e) {
             logger.error(`[SessionManager] Failed to update usage: ${e}`);
+        }
+    }
+
+    /**
+     * Update the estimated context window size after a compression/compaction.
+     */
+    async updateTokensAfterCompression(tokens: number): Promise<void> {
+        if (!this.sessionData) return;
+        this.sessionData.lastInputTokens = tokens;
+        try {
+            await this.atomicWrite();
+            logger.info(`[SessionManager] Updated context token size post-compaction: ${tokens}`);
+        } catch (e) {
+            logger.error(`[SessionManager] Failed to update post-compaction tokens: ${e}`);
         }
     }
 

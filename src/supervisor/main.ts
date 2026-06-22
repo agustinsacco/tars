@@ -572,9 +572,11 @@ async function main() {
                     const stats = sessionManager.getStats();
                     if (stats && stats.lastInputTokens > 0) {
                         const limit = config.contextWindowTokens;
-                        const consumed = stats.lastInputTokens;
-                        const pct = ((consumed / limit) * 100).toFixed(1);
-                        finalContent += `\n\n*Session context: ${consumed.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}% used)*`;
+                        const active = stats.lastInputTokens;
+                        const cumulative = stats.totalInputTokens + stats.totalOutputTokens;
+                        const pct = ((active / limit) * 100).toFixed(1);
+                        const thresholdPct = (config.compressionThreshold * 100).toFixed(1);
+                        finalContent += `\n\n*Session context: ${active.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}% used, compaction at ${thresholdPct}%) | Session total: ${cumulative.toLocaleString()} tokens consumed*`;
                     }
                 }
 

@@ -22,6 +22,7 @@ export class DiscordChannel implements CommunicationChannel {
     private lastStatusMessage: { channelId: string; messageId: string } | null = null;
     private statusEditCount: number = 0;
     private statusEditResetAt: number = 0;
+    private lastActiveUser: { userId: string; channelId: string } | null = null;
     // Discord allows ~20 edits per message per 5-minute window
     private static readonly MAX_EDITS_PER_WINDOW = 18;
     private static readonly EDIT_WINDOW_MS = 5 * 60 * 1000;
@@ -71,16 +72,34 @@ export class DiscordChannel implements CommunicationChannel {
      * Tracks the last sent message for in-place editing (status updates).
      */
     public async notify(content: string, attachments?: string[]): Promise<void> {
-        if (!this.config.discordOwnerId || !content.trim()) return;
+        if (!content.trim()) return;
         try {
-            const user = await this.client.users.fetch(this.config.discordOwnerId);
-            if (user) {
+            let target: any = null;
+            if (this.lastActiveUser?.channelId) {
+                try {
+                    target = await this.client.channels.fetch(this.lastActiveUser.channelId);
+                } catch (err: any) {
+                    logger.debug(
+                        `[Discord] Could not fetch target active channel ${this.lastActiveUser.channelId}: ${err.message}`
+                    );
+                }
+            }
+
+            // Fallback to DM user if no active channel, or if it is not text-based
+            if (!target || !target.isTextBased()) {
+                const targetId = this.lastActiveUser?.userId || this.config.discordOwnerId;
+                if (targetId) {
+                    target = await this.client.users.fetch(targetId);
+                }
+            }
+
+            if (target) {
                 const formatted = MessageFormatter.format(content);
                 const files = attachments || [];
 
                 if (formatted.length > 8000) {
                     const filePath = this.processor.saveResponse(content, 'md');
-                    const sent = await user.send({
+                    const sent = await target.send({
                         content: `🔔 **Notification** (Response too long, see attached):`,
                         files: [filePath, ...files]
                     });
@@ -88,7 +107,7 @@ export class DiscordChannel implements CommunicationChannel {
                 } else {
                     const chunks = MessageFormatter.split(formatted);
                     for (let i = 0; i < chunks.length; i++) {
-                        const sent = await user.send({
+                        const sent = await target.send({
                             content: chunks[i],
                             files: i === chunks.length - 1 ? files : []
                         });
@@ -277,6 +296,11 @@ export class DiscordChannel implements CommunicationChannel {
 
             // Guard against partial messages with missing author data
             if (!message.author || message.author.bot || !this.messageHandler) return;
+
+            this.lastActiveUser = {
+                userId: message.author.id,
+                channelId: message.channelId
+            };
 
             const userPrompt = this.extractPrompt(message);
             if (userPrompt === null) return;

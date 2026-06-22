@@ -343,6 +343,8 @@ export class TarsEngine extends EventEmitter {
             promptContent = parts;
         }
 
+        const startIndex = history.length;
+
         try {
             if (typeof promptContent === 'string') {
                 await agent.prompt(promptContent);
@@ -353,17 +355,50 @@ export class TarsEngine extends EventEmitter {
             // Save history
             await this.saveHistory(sid, agent.state.messages);
 
-            // Report done with usage stats
-            const finalMessage = agent.state.messages[agent.state.messages.length - 1];
-            let usageStats: any = undefined;
-            if (finalMessage && finalMessage.role === 'assistant' && finalMessage.usage) {
-                const u = finalMessage.usage;
-                usageStats = {
-                    inputTokens: u.input || 0,
-                    outputTokens: u.output || 0,
-                    cachedTokens: u.cacheRead || 0
-                };
+            // Sum usage stats from all newly added assistant messages in this turn
+            let totalInput = 0;
+            let totalOutput = 0;
+            let totalCacheRead = 0;
+            let lastInputTokens = 0;
+            let lastOutputTokens = 0;
+
+            const newMessages = agent.state.messages.slice(startIndex);
+            for (const msg of newMessages) {
+                if (msg.role === 'assistant' && msg.usage) {
+                    const u = msg.usage;
+                    totalInput += u.input || 0;
+                    totalOutput += u.output || 0;
+                    totalCacheRead += u.cacheRead || 0;
+
+                    // The last assistant message represents the final active context size sent to the model
+                    lastInputTokens = u.input || 0;
+                    lastOutputTokens = u.output || 0;
+                }
             }
+
+            // Fallback if no usage was recorded or no new assistant messages
+            const finalMessage = agent.state.messages[agent.state.messages.length - 1];
+            if (
+                totalInput === 0 &&
+                finalMessage &&
+                finalMessage.role === 'assistant' &&
+                finalMessage.usage
+            ) {
+                const u = finalMessage.usage;
+                totalInput = u.input || 0;
+                totalOutput = u.output || 0;
+                totalCacheRead = u.cacheRead || 0;
+                lastInputTokens = u.input || 0;
+                lastOutputTokens = u.output || 0;
+            }
+
+            const usageStats = {
+                inputTokens: totalInput,
+                outputTokens: totalOutput,
+                cachedTokens: totalCacheRead,
+                lastInputTokens,
+                lastOutputTokens
+            };
 
             onEvent({
                 type: 'done',
@@ -532,6 +567,33 @@ export class TarsEngine extends EventEmitter {
                     logger.info(
                         `🗜️ Context compacted: retained tail of ${tail.length} turns + snapshot.`
                     );
+
+                    // Load system prompt for estimation
+                    const systemPromptPath = this.tarsConfig.systemPromptPath;
+                    let systemPrompt = '';
+                    if (fs.existsSync(systemPromptPath)) {
+                        systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
+                    }
+
+                    // Estimate new history token count
+                    let totalChars = systemPrompt.length;
+                    for (const msg of newHistory) {
+                        const m = msg as any;
+                        if (typeof m.content === 'string') {
+                            totalChars += m.content.length;
+                        } else if (Array.isArray(m.content)) {
+                            for (const part of m.content) {
+                                if (part.type === 'text' && typeof part.text === 'string') {
+                                    totalChars += part.text.length;
+                                }
+                            }
+                        }
+                    }
+                    const estimatedTokens = Math.ceil(totalChars / 3.8);
+                    if (this.sessionManager) {
+                        await this.sessionManager.updateTokensAfterCompression(estimatedTokens);
+                    }
+
                     return true;
                 }
             }

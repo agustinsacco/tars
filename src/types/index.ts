@@ -56,6 +56,8 @@ export interface UsageStats {
     inputTokens: number;
     outputTokens: number;
     cachedTokens?: number;
+    lastInputTokens?: number;
+    lastOutputTokens?: number;
 }
 
 export type TarsOutputHandler = (event: TarsEvent) => void;

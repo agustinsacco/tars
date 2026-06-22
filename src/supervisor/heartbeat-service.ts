@@ -61,14 +61,6 @@ export class HeartbeatService {
             // 1. Maintenance & Sync (rate-limited)
             this.processor.cleanup();
             await this.syncMemoryIfNeeded();
-
-            // 2. Autonomous check only if user was recently active
-            if (this.isUserIdle()) {
-                logger.debug('💤 Skipping autonomous check — user idle');
-                return;
-            }
-
-            await this.autonomousCheck();
         } catch (error: any) {
             logger.error(`❌ Heartbeat tick error: ${error.message}`);
         } finally {
@@ -102,25 +94,6 @@ export class HeartbeatService {
             } catch (e: any) {
                 logger.warn(`⚠️ Session GC failed: ${e.message}`);
             }
-        }
-    }
-
-    private async autonomousCheck(): Promise<void> {
-        const prompt = `Self-Correction and Autonomous Heartbeat:
-Review your current objectives using the 'tars-memory' tools (specifically 'memory_list_facts') and check for any pending tasks.
-If everything is on track and no immediate action is required, reply exactly with 'SILENT_ACK'.
-If you detect an issue, a missed deadline, or a high-priority task that needs starting: provide a short internal reasoning, execute the necessary tools, and then use the 'send_notification' tool to proactively alert the user of what you are doing.`;
-
-        try {
-            const response = await this.supervisor.executeTask(prompt);
-
-            if (response.includes('SILENT_ACK')) {
-                return;
-            }
-
-            logger.info(`🤖 Tars Heartbeat initiated action: ${response.substring(0, 100)}...`);
-        } catch (error: any) {
-            logger.error(`❌ Autonomous check failed: ${error.message}`);
         }
     }
 }
