@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.2](https://github.com/agustinsacco/tars/compare/v1.37.1...v1.37.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* remove heartbeat start and end notifications ([498402d](https://github.com/agustinsacco/tars/commit/498402d9e729e5a2df90c53ad7d9e45193cd39fd))
+
 ## [1.37.1](https://github.com/agustinsacco/tars/compare/v1.37.0...v1.37.1) (2026-06-23)
 
 
