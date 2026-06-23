@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.0](https://github.com/agustinsacco/tars/compare/v1.36.0...v1.37.0) (2026-06-23)
+
+
+### Features
+
+* implement stateful terminal chat TUI with token streaming ([#145](https://github.com/agustinsacco/tars/issues/145)) ([c3899cc](https://github.com/agustinsacco/tars/commit/c3899cc87446456e2c13874b93b236d143c1f92b))
+
 ## [1.36.0](https://github.com/agustinsacco/tars/compare/v1.35.1...v1.36.0) (2026-06-23)
 
 
