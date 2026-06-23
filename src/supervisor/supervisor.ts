@@ -179,12 +179,6 @@ export class Supervisor {
         const isCron = prompt.includes('Task Directive:');
         const taskType = isCron ? 'scheduled cron task' : 'background heartbeat check';
 
-        if (this.channelManager && isCron) {
-            await this.channelManager.notify(
-                `⏳ *Starting a background task (${taskType}). Please hold on while I finish...*`
-            );
-        }
-
         logger.info(`⚙️ Executing background task...`);
 
         try {
@@ -194,11 +188,6 @@ export class Supervisor {
             const activeSessionId = await this.sessionManager.load();
             const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined);
 
-            if (this.channelManager && isCron) {
-                await this.channelManager.notify(
-                    `✅ *Finished background task (${taskType}). I am free now.*`
-                );
-            }
             return result;
         } catch (error: any) {
             logger.error(`❌ Background task failed: ${error.message}`);
