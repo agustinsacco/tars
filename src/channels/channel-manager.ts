@@ -29,6 +29,14 @@ export class ChannelManager {
     }
 
     /**
+     * Register an additional communication channel at runtime.
+     * Used to add channels like the TUI that aren't config-driven.
+     */
+    public registerChannel(channel: CommunicationChannel): void {
+        this.channels.set(channel.id, channel);
+    }
+
+    /**
      * Start all enabled channels
      */
     public async start(): Promise<void> {

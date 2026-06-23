@@ -95,7 +95,17 @@ export class McpBridge {
                     const transport = new StdioClientTransport({
                         command: serverConfig.command,
                         args: resolvedArgs,
-                        env: resolvedEnv
+                        env: resolvedEnv,
+                        stderr: 'pipe'
+                    });
+
+                    transport.stderr?.on('data', (chunk) => {
+                        const str = chunk.toString().trim();
+                        if (str) {
+                            for (const line of str.split('\n')) {
+                                logger.info(`[MCP:${serverName}] ${line.trim()}`);
+                            }
+                        }
                     });
 
                     const client = new Client(
