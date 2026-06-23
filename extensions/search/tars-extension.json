@@ -1,0 +1,11 @@
+{
+    "name": "tars-search",
+    "version": "1.0.0",
+    "description": "Web search and page fetching for Tars",
+    "mcpServers": {
+        "search": {
+            "command": "node",
+            "args": ["${extensionPath}/dist/server.js"]
+        }
+    }
+}

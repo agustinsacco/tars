@@ -250,7 +250,7 @@ export class TuiChannel implements CommunicationChannel {
 
             // Add user message to history
             this.chatContainer.addChild(
-                new Markdown(`**❯** ${trimmed}`, 1, 0, TuiRenderer.markdownTheme)
+                new Markdown(`› ${trimmed}\n`, 1, 0, TuiRenderer.markdownTheme)
             );
             this.tui.requestRender();
 

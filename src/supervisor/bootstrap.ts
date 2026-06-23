@@ -166,7 +166,13 @@ function installExtensions(config: Config): void {
         if (!fs.statSync(srcPath).isDirectory()) continue;
 
         const finalExtName =
-            extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
+            extName === 'tasks'
+                ? 'tars-tasks'
+                : extName === 'memory'
+                  ? 'tars-memory'
+                  : extName === 'search'
+                    ? 'tars-search'
+                    : extName;
         const finalDestPath = path.join(targetExtensionsDir, finalExtName);
 
         let needsLink = true;
