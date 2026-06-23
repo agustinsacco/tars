@@ -498,16 +498,28 @@ async function main() {
             ): string => {
                 const lines: string[] = [];
 
-                if (isMilestone) {
-                    lines.push(`⚡ **Milestone ${turnCount}** — still going strong...`);
+                // Get current context window stats
+                const stats = sessionManager.getStats();
+                let contextStr = '';
+                if (stats && stats.lastInputTokens > 0) {
+                    const limit = config.contextWindowTokens;
+                    const active = stats.lastInputTokens;
+                    const pct = ((active / limit) * 100).toFixed(1);
+                    contextStr = ` | ${active.toLocaleString()}/${limit.toLocaleString()} (${pct}%)`;
                 }
 
                 const executedCount = recentTools.filter((t) => t.status === 'completed').length;
+                const timeStr = new Date().toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
                 lines.push(
-                    `⏳ **Working...** (Turn ${turnCount}, ${executedCount} tools executed)`
+                    `⏳ **Working...** | Turn ${turnCount} (${executedCount} tools)${contextStr} | ${timeStr}`
                 );
 
-                // Show last ~5 tool calls (moving window)
+                // Show last 5 tool calls (moving window)
                 const toolsToShow = recentTools.slice(-5);
                 if (toolsToShow.length > 0) {
                     lines.push('');
@@ -528,9 +540,6 @@ async function main() {
                         }
                     }
                 }
-
-                lines.push('');
-                lines.push(`_Last update: ${new Date().toLocaleTimeString()}_`);
 
                 return lines.join('\n');
             };
@@ -574,10 +583,9 @@ async function main() {
                     if (stats && stats.lastInputTokens > 0) {
                         const limit = config.contextWindowTokens;
                         const active = stats.lastInputTokens;
-                        const cumulative = stats.totalInputTokens + stats.totalOutputTokens;
                         const pct = ((active / limit) * 100).toFixed(1);
                         const thresholdPct = (config.compressionThreshold * 100).toFixed(1);
-                        finalContent += `\n\n*Session context: ${active.toLocaleString()} / ${limit.toLocaleString()} tokens (${pct}% used, compaction at ${thresholdPct}%) | Session total: ${cumulative.toLocaleString()} tokens consumed*`;
+                        finalContent += `\n\n*${active.toLocaleString()}/${limit.toLocaleString()} (${pct}%, compaction at ${thresholdPct}%)*`;
                     }
                 }
 

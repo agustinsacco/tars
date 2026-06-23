@@ -400,7 +400,7 @@ export class TarsEngine extends EventEmitter {
             }
 
             const usageStats = {
-                inputTokens: totalInput,
+                inputTokens: totalInput + totalCacheRead,
                 outputTokens: totalOutput,
                 cachedTokens: totalCacheRead,
                 lastInputTokens,
