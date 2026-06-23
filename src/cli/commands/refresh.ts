@@ -52,7 +52,13 @@ export async function refreshExtensions(tarsHome: string, silent = false): Promi
         if (!fs.statSync(extSrc).isDirectory()) continue;
 
         const finalExtName =
-            extName === 'tasks' ? 'tars-tasks' : extName === 'memory' ? 'tars-memory' : extName;
+            extName === 'tasks'
+                ? 'tars-tasks'
+                : extName === 'memory'
+                  ? 'tars-memory'
+                  : extName === 'search'
+                    ? 'tars-search'
+                    : extName;
         const linkTarget = path.join(extensionsDest, finalExtName);
 
         const spinner = silent ? null : ora(`  Refreshing extension: ${finalExtName}...`).start();
