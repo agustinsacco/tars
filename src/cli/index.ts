@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import './suppress-warnings.js';
 import { Command } from 'commander';
 import { setup } from './commands/setup.js';
 import { start } from './commands/start.js';
@@ -31,6 +32,15 @@ program
     .action(start);
 
 program.command('stop').description('Stop the assistant supervisor').action(stop);
+
+program
+    .command('chat')
+    .description('Start an interactive terminal chat session')
+    .option('--no-discord', 'Disable Discord channel in chat mode')
+    .action(async (options) => {
+        const { chat } = await import('./commands/chat.js');
+        return chat(options);
+    });
 
 program
     .command('restart')
