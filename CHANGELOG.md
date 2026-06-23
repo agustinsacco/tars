@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.36.0](https://github.com/agustinsacco/tars/compare/v1.35.1...v1.36.0) (2026-06-23)
+
+
+### Features
+
+* streamline thinking blocks, silence heartbeat notifications, and clean up footer format ([f058ed4](https://github.com/agustinsacco/tars/commit/f058ed452ed5ef5f8ae045a07bb812f86764ee22))
+
 ## [1.35.1](https://github.com/agustinsacco/tars/compare/v1.35.0...v1.35.1) (2026-06-22)
 
 
