@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.37.1](https://github.com/agustinsacco/tars/compare/v1.37.0...v1.37.1) (2026-06-23)
+
+
+### Bug Fixes
+
+* reduce user prompt caret size and add trailing newline for spacing ([#147](https://github.com/agustinsacco/tars/issues/147)) ([d3cd4e3](https://github.com/agustinsacco/tars/commit/d3cd4e3e89221309ce73b9a2ec95141ebd6b5bcc))
+
 ## [1.37.0](https://github.com/agustinsacco/tars/compare/v1.36.0...v1.37.0) (2026-06-23)
 
 
