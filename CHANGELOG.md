@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.38.0](https://github.com/agustinsacco/tars/compare/v1.37.2...v1.38.0) (2026-06-24)
+
+
+### Features
+
+* integrate skills loading and formatting into tars engine ([9d7c9c5](https://github.com/agustinsacco/tars/commit/9d7c9c54386b2ecfbef8ddee022afbac542f4199))
+
 ## [1.37.2](https://github.com/agustinsacco/tars/compare/v1.37.1...v1.37.2) (2026-06-23)
 
 
