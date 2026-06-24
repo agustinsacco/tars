@@ -1,6 +1,10 @@
 import { Agent, AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
 import { getModel, Model, Message, Usage } from '@earendil-works/pi-ai';
-import { createCodingTools } from '@earendil-works/pi-coding-agent';
+import {
+    createCodingTools,
+    loadSkills,
+    formatSkillsForPrompt
+} from '@earendil-works/pi-coding-agent';
 import { EventEmitter } from 'events';
 import { Config as TarsConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
@@ -172,6 +176,35 @@ export class TarsEngine extends EventEmitter {
     }
 
     /**
+     * Resolves the full system prompt by reading the base system prompt file
+     * and appending the formatted available skills prompt block.
+     */
+    private getSystemPrompt(): string {
+        const systemPromptPath = this.tarsConfig.systemPromptPath;
+        let systemPrompt = '';
+        if (fs.existsSync(systemPromptPath)) {
+            systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
+        }
+
+        try {
+            const { skills } = loadSkills({
+                cwd: process.cwd(),
+                agentDir: this.tarsConfig.homeDir,
+                skillPaths: [],
+                includeDefaults: true
+            });
+            if (skills.length > 0) {
+                const skillsPrompt = formatSkillsForPrompt(skills);
+                systemPrompt += skillsPrompt;
+            }
+        } catch (err: any) {
+            logger.warn(`⚠️ Failed to load skills: ${err.message}`);
+        }
+
+        return systemPrompt;
+    }
+
+    /**
      * Executes the conversational agent loop using the Pi Agent SDK.
      */
     public async run(
@@ -191,12 +224,8 @@ export class TarsEngine extends EventEmitter {
         // Load history messages
         const history = await this.loadHistory(sid);
 
-        // Get system prompt
-        const systemPromptPath = this.tarsConfig.systemPromptPath;
-        let systemPrompt = '';
-        if (fs.existsSync(systemPromptPath)) {
-            systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
-        }
+        // Get system prompt (with skills protocol appended if available)
+        const systemPrompt = this.getSystemPrompt();
 
         // Construct model config
         let model: Model<any>;
@@ -575,12 +604,8 @@ export class TarsEngine extends EventEmitter {
                         `🗜️ Context compacted: retained tail of ${tail.length} turns + snapshot.`
                     );
 
-                    // Load system prompt for estimation
-                    const systemPromptPath = this.tarsConfig.systemPromptPath;
-                    let systemPrompt = '';
-                    if (fs.existsSync(systemPromptPath)) {
-                        systemPrompt = fs.readFileSync(systemPromptPath, 'utf-8');
-                    }
+                    // Load system prompt for estimation (with skills protocol appended if available)
+                    const systemPrompt = this.getSystemPrompt();
 
                     // Estimate new history token count
                     let totalChars = systemPrompt.length;
