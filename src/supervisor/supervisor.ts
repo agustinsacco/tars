@@ -69,87 +69,115 @@ export class Supervisor {
             let toolCallCount = 0;
             const callIdToNameMap = new Map<string, string>();
 
-            // Run Tars CLI
-            await this.tarsEngine.run(
-                content,
-                async (event) => {
-                    // Learn session ID from Tars CLI if it was newly generated
-                    if (event.sessionId && !sessionIdToUse) {
-                        sessionIdToUse = event.sessionId;
-                        this.sessionManager
-                            .save(sessionIdToUse)
-                            .catch((e) => logger.error(`Failed to save session: ${e}`));
-                    }
+            // Run Tars CLI with context overflow retry logic
+            let retryCount = 0;
+            const maxRetries = 2;
+            let lastError: Error | null = null;
 
-                    // Log all tool calls for observability
-                    if (event.type === 'tool_call' && event.toolName) {
-                        toolCallCount++;
-                        if (event.callId) {
-                            callIdToNameMap.set(event.callId, event.toolName);
-                        }
+            while (retryCount <= maxRetries) {
+                try {
+                    await this.tarsEngine.run(
+                        content,
+                        async (event) => {
+                            // Learn session ID from Tars CLI if it was newly generated
+                            if (event.sessionId && !sessionIdToUse) {
+                                sessionIdToUse = event.sessionId;
+                                this.sessionManager
+                                    .save(sessionIdToUse)
+                                    .catch((e) => logger.error(`Failed to save session: ${e}`));
+                            }
 
-                        const argsPreview = JSON.stringify(event.toolArgs || {});
-                        const truncatedArgs =
-                            argsPreview.length > 150
-                                ? argsPreview.substring(0, 150) + '...'
-                                : argsPreview;
-
-                        logger.info(`🛠️  [Tool #${toolCallCount}] ${event.toolName}`);
-                        logger.info(`   📥 Input: ${truncatedArgs}`);
-
-                        // Detect memory-mutating MCP tool calls
-                        const toolName = event.toolName;
-                        if (
-                            toolName.includes('memory_store_fact') ||
-                            toolName.includes('memory_delete_fact') ||
-                            (toolName.includes('manage_facts') &&
-                                (event.toolArgs?.action === 'store' ||
-                                    event.toolArgs?.action === 'delete'))
-                        ) {
-                            logger.info(`   ✨ Memory Mutation: ${toolName}`);
-                            memoryMutated = true;
-                        }
-                    }
-
-                    // Log tool responses
-                    if (event.type === 'tool_response' && event.toolName) {
-                        const toolName = callIdToNameMap.get(event.toolName) || 'unknown_tool';
-                        const content = event.content || '';
-
-                        let summary = '';
-                        if (content.startsWith('[') || content.startsWith('{')) {
-                            try {
-                                const parsed = JSON.parse(content);
-                                if (Array.isArray(parsed)) {
-                                    summary = ` -> ${parsed.length} results found`;
+                            // Log all tool calls for observability
+                            if (event.type === 'tool_call' && event.toolName) {
+                                toolCallCount++;
+                                if (event.callId) {
+                                    callIdToNameMap.set(event.callId, event.toolName);
                                 }
-                            } catch (e) {}
-                        }
 
-                        const preview = content.substring(0, 100).replace(/\n/g, ' ').trim();
-                        logger.info(`✅ [Tool] ${toolName}${summary}`);
-                        logger.info(
-                            `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
-                        );
-                    }
+                                const argsPreview = JSON.stringify(event.toolArgs || {});
+                                const truncatedArgs =
+                                    argsPreview.length > 150
+                                        ? argsPreview.substring(0, 150) + '...'
+                                        : argsPreview;
 
-                    // Extract data for session tracking
-                    if (event.type === 'done') {
-                        if (event.usageStats) {
-                            await this.sessionManager.updateUsage(event.usageStats);
-                            await this.performCompressionIfNeeded(
-                                sessionIdToUse!,
-                                onEvent,
-                                onStatus
-                            );
-                        }
+                                logger.info(`🛠️  [Tool #${toolCallCount}] ${event.toolName}`);
+                                logger.info(`   📥 Input: ${truncatedArgs}`);
+
+                                // Detect memory-mutating MCP tool calls
+                                const toolName = event.toolName;
+                                if (
+                                    toolName.includes('memory_store_fact') ||
+                                    toolName.includes('memory_delete_fact') ||
+                                    (toolName.includes('manage_facts') &&
+                                        (event.toolArgs?.action === 'store' ||
+                                            event.toolArgs?.action === 'delete'))
+                                ) {
+                                    logger.info(`   ✨ Memory Mutation: ${toolName}`);
+                                    memoryMutated = true;
+                                }
+                            }
+
+                            // Log tool responses
+                            if (event.type === 'tool_response' && event.toolName) {
+                                const toolName = callIdToNameMap.get(event.toolName) || 'unknown_tool';
+                                const content = event.content || '';
+
+                                let summary = '';
+                                if (content.startsWith('[') || content.startsWith('{')) {
+                                    try {
+                                        const parsed = JSON.parse(content);
+                                        if (Array.isArray(parsed)) {
+                                            summary = ` -> ${parsed.length} results found`;
+                                        }
+                                    } catch (e) {}
+                                }
+
+                                const preview = content.substring(0, 100).replace(/\n/g, ' ').trim();
+                                logger.info(`✅ [Tool] ${toolName}${summary}`);
+                                logger.info(
+                                    `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
+                                );
+                            }
+
+                            // Extract data for session tracking
+                            if (event.type === 'done') {
+                                if (event.usageStats) {
+                                    await this.sessionManager.updateUsage(event.usageStats);
+                                    await this.performCompressionIfNeeded(
+                                        sessionIdToUse!,
+                                        onEvent,
+                                        onStatus
+                                    );
+                                }
+                            }
+                            await onEvent(event as any);
+                        },
+                        sessionIdToUse || undefined,
+                        attachments,
+                        onStatus
+                    );
+                    // Success - break out of retry loop
+                    break;
+                } catch (error: any) {
+                    lastError = error;
+                    const isContextOverflow = error.message.includes('exceeds the available context size');
+                    
+                    if (isContextOverflow && retryCount < maxRetries) {
+                        retryCount++;
+                        logger.info(`🔄 Context overflow detected (attempt ${retryCount}/${maxRetries}). Triggering compression and retry...`);
+                        
+                        // Force compression
+                        await this.performCompressionIfNeeded(sessionIdToUse!, onEvent, onStatus);
+                        
+                        // Small delay before retry
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        continue;
                     }
-                    await onEvent(event as any);
-                },
-                sessionIdToUse || undefined,
-                attachments,
-                onStatus
-            );
+                    
+                    // Not a context overflow or max retries reached
+                    throw error;
+                }
+            }
 
             // If a memory-mutating tool was used, refresh system instruction in-place
             // instead of destroying the session
@@ -160,6 +188,13 @@ export class Supervisor {
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
+            
+            // Final compression check after error to prevent stale state
+            if (sessionIdToUse) {
+                await this.performCompressionIfNeeded(sessionIdToUse, onEvent, onStatus).catch(
+                    (e) => logger.warn(`Post-error compression check failed: ${e.message}`)
+                );
+            }
         } finally {
             this.processingSince = null;
         }

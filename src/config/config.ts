@@ -135,7 +135,7 @@ export class Config {
             10
         );
         this.compressionThreshold = parseFloat(
-            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.625')
+            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.60')
         );
 
         this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);

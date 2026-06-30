@@ -382,6 +382,27 @@ export class TarsEngine extends EventEmitter {
         const startIndex = history.length;
 
         try {
+            // Pre-flight context size estimation to prevent context overflow errors
+            const estimatedContextSize = this.estimateContextSize(history, systemPrompt);
+            const maxContext = this.tarsConfig.contextWindowTokens || 128000;
+            
+            if (estimatedContextSize > maxContext * 0.9) {
+                logger.warn(
+                    `⚠️ Pre-flight check: Estimated context size (${estimatedContextSize.toLocaleString()} tokens) exceeds 90% of window (${maxContext.toLocaleString()}). Triggering compression before execution.`
+                );
+                const compressed = await this.compressSession(false);
+                if (compressed) {
+                    // Reload history after compression
+                    const newHistory = await this.loadHistory(sid);
+                    const newSystemPrompt = this.getSystemPrompt();
+                    const newEstimatedSize = this.estimateContextSize(newHistory, newSystemPrompt);
+                    logger.info(`🗜️ Post-compression context size: ${newEstimatedSize.toLocaleString()} tokens`);
+                    
+                    // Update agent with compressed history
+                    agent.state.messages = newHistory;
+                }
+            }
+
             if (typeof promptContent === 'string') {
                 await agent.prompt(promptContent);
             } else {
@@ -443,6 +464,37 @@ export class TarsEngine extends EventEmitter {
             });
         } catch (err: any) {
             logger.error(`❌ Pi Agent execution error: ${err.message}`);
+            
+            // Extract context size from error message if available
+            const contextSizeMatch = err.message.match(/request \((\d{1,}) tokens\)/);
+            const reportedTokens = contextSizeMatch ? parseInt(contextSizeMatch[1], 10) : 0;
+            
+            // Estimate current context size for session tracking even on error
+            const estimatedContextSize = this.estimateContextSize(agent.state.messages, this.getSystemPrompt());
+            const contextSize = reportedTokens || estimatedContextSize;
+            
+            // Update usage stats even on error to prevent stale lastInputTokens
+            if (this.sessionManager && contextSize > 0) {
+                try {
+                    await this.sessionManager.updateUsage({
+                        inputTokens: contextSize,
+                        outputTokens: 0,
+                        cachedTokens: 0,
+                        lastInputTokens: contextSize,
+                        lastOutputTokens: 0
+                    });
+                    logger.info(`📊 Updated session usage after error: ${contextSize.toLocaleString()} tokens`);
+                    
+                    // Trigger compression if context was too large
+                    if (contextSize > (this.tarsConfig.contextWindowTokens || 128000) * 0.75) {
+                        logger.info('🗜️ Triggering compression after context overflow error...');
+                        await this.compressSession(false);
+                    }
+                } catch (updateErr) {
+                    logger.warn(`⚠️ Failed to update session usage after error: ${updateErr}`);
+                }
+            }
+            
             onEvent({
                 type: 'error',
                 error: err.message,
@@ -890,6 +942,30 @@ export class TarsEngine extends EventEmitter {
             logger.warn(`⚠️ Failed to load resumed session data: ${e}`);
             return null;
         }
+    }
+
+    /**
+     * Estimates the token count of the current context (system prompt + history).
+     * Uses a character-based approximation (1 token ≈ 3.8 chars for Qwen/Gemini).
+     */
+    private estimateContextSize(messages: AgentMessage[], systemPrompt: string): number {
+        let totalChars = systemPrompt.length;
+        
+        for (const msg of messages) {
+            const m = msg as any;
+            if (typeof m.content === 'string') {
+                totalChars += m.content.length;
+            } else if (Array.isArray(m.content)) {
+                for (const part of m.content) {
+                    if (part.type === 'text' && typeof part.text === 'string') {
+                        totalChars += part.text.length;
+                    }
+                }
+            }
+        }
+        
+        // Qwen/Gemini tokenization: ~3.8 chars per token
+        return Math.ceil(totalChars / 3.8);
     }
 
     /**
