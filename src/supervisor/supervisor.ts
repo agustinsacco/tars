@@ -51,12 +51,15 @@ export class Supervisor {
         // Track whether memory-mutating tools were used this turn
         let memoryMutated = false;
 
+        // Declare outside try for catch/finally block access
+        let sessionIdToUse: string | null = null;
+
         try {
-            // Lock the supervisor
+            // Lock the supervisor synchronously
             this.processingSince = Date.now();
 
-            // Get or create session
-            let sessionIdToUse = sessionId || (await this.sessionManager.load());
+            // Get or create session asynchronously
+            sessionIdToUse = sessionId || (await this.sessionManager.load());
 
             // Track user activity for idle suppression
             await this.sessionManager.touchActivity();
@@ -69,87 +72,121 @@ export class Supervisor {
             let toolCallCount = 0;
             const callIdToNameMap = new Map<string, string>();
 
-            // Run Tars CLI
-            await this.tarsEngine.run(
-                content,
-                async (event) => {
-                    // Learn session ID from Tars CLI if it was newly generated
-                    if (event.sessionId && !sessionIdToUse) {
-                        sessionIdToUse = event.sessionId;
-                        this.sessionManager
-                            .save(sessionIdToUse)
-                            .catch((e) => logger.error(`Failed to save session: ${e}`));
-                    }
+            // Run Tars CLI with context overflow retry logic
+            let retryCount = 0;
+            const maxRetries = 2;
+            let lastError: Error | null = null;
 
-                    // Log all tool calls for observability
-                    if (event.type === 'tool_call' && event.toolName) {
-                        toolCallCount++;
-                        if (event.callId) {
-                            callIdToNameMap.set(event.callId, event.toolName);
-                        }
+            while (retryCount <= maxRetries) {
+                try {
+                    await this.tarsEngine.run(
+                        content,
+                        async (event) => {
+                            // Learn session ID from Tars CLI if it was newly generated
+                            if (event.sessionId && !sessionIdToUse) {
+                                sessionIdToUse = event.sessionId;
+                                this.sessionManager
+                                    .save(sessionIdToUse)
+                                    .catch((e) => logger.error(`Failed to save session: ${e}`));
+                            }
 
-                        const argsPreview = JSON.stringify(event.toolArgs || {});
-                        const truncatedArgs =
-                            argsPreview.length > 150
-                                ? argsPreview.substring(0, 150) + '...'
-                                : argsPreview;
-
-                        logger.info(`🛠️  [Tool #${toolCallCount}] ${event.toolName}`);
-                        logger.info(`   📥 Input: ${truncatedArgs}`);
-
-                        // Detect memory-mutating MCP tool calls
-                        const toolName = event.toolName;
-                        if (
-                            toolName.includes('memory_store_fact') ||
-                            toolName.includes('memory_delete_fact') ||
-                            (toolName.includes('manage_facts') &&
-                                (event.toolArgs?.action === 'store' ||
-                                    event.toolArgs?.action === 'delete'))
-                        ) {
-                            logger.info(`   ✨ Memory Mutation: ${toolName}`);
-                            memoryMutated = true;
-                        }
-                    }
-
-                    // Log tool responses
-                    if (event.type === 'tool_response' && event.toolName) {
-                        const toolName = callIdToNameMap.get(event.toolName) || 'unknown_tool';
-                        const content = event.content || '';
-
-                        let summary = '';
-                        if (content.startsWith('[') || content.startsWith('{')) {
-                            try {
-                                const parsed = JSON.parse(content);
-                                if (Array.isArray(parsed)) {
-                                    summary = ` -> ${parsed.length} results found`;
+                            // Log all tool calls for observability
+                            if (event.type === 'tool_call' && event.toolName) {
+                                toolCallCount++;
+                                if (event.callId) {
+                                    callIdToNameMap.set(event.callId, event.toolName);
                                 }
-                            } catch (e) {}
-                        }
 
-                        const preview = content.substring(0, 100).replace(/\n/g, ' ').trim();
-                        logger.info(`✅ [Tool] ${toolName}${summary}`);
+                                const argsPreview = JSON.stringify(event.toolArgs || {});
+                                const truncatedArgs =
+                                    argsPreview.length > 150
+                                        ? argsPreview.substring(0, 150) + '...'
+                                        : argsPreview;
+
+                                logger.info(`🛠️  [Tool #${toolCallCount}] ${event.toolName}`);
+                                logger.info(`   📥 Input: ${truncatedArgs}`);
+
+                                // Detect memory-mutating MCP tool calls
+                                const toolName = event.toolName;
+                                if (
+                                    toolName.includes('memory_store_fact') ||
+                                    toolName.includes('memory_delete_fact') ||
+                                    (toolName.includes('manage_facts') &&
+                                        (event.toolArgs?.action === 'store' ||
+                                            event.toolArgs?.action === 'delete'))
+                                ) {
+                                    logger.info(`   ✨ Memory Mutation: ${toolName}`);
+                                    memoryMutated = true;
+                                }
+                            }
+
+                            // Log tool responses
+                            if (event.type === 'tool_response' && event.toolName) {
+                                const toolName =
+                                    callIdToNameMap.get(event.toolName) || 'unknown_tool';
+                                const content = event.content || '';
+
+                                let summary = '';
+                                if (content.startsWith('[') || content.startsWith('{')) {
+                                    try {
+                                        const parsed = JSON.parse(content);
+                                        if (Array.isArray(parsed)) {
+                                            summary = ` -> ${parsed.length} results found`;
+                                        }
+                                    } catch (e) {}
+                                }
+
+                                const preview = content
+                                    .substring(0, 100)
+                                    .replace(/\n/g, ' ')
+                                    .trim();
+                                logger.info(`✅ [Tool] ${toolName}${summary}`);
+                                logger.info(
+                                    `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
+                                );
+                            }
+
+                            // Extract data for session tracking
+                            if (event.type === 'done') {
+                                if (event.usageStats) {
+                                    await this.sessionManager.updateUsage(event.usageStats);
+                                    // Compression check is done at the START of each user request,
+                                    // not after every turn within a request, to avoid interrupting
+                                    // multi-turn tasks.
+                                }
+                            }
+                            await onEvent(event as any);
+                        },
+                        sessionIdToUse || undefined,
+                        attachments,
+                        onStatus
+                    );
+                    // Success - break out of retry loop
+                    break;
+                } catch (error: any) {
+                    lastError = error;
+                    const isContextOverflow = error.message.includes(
+                        'exceeds the available context size'
+                    );
+
+                    if (isContextOverflow && retryCount < maxRetries) {
+                        retryCount++;
                         logger.info(
-                            `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
+                            `🔄 Context overflow detected (attempt ${retryCount}/${maxRetries}). Triggering compression and retry...`
                         );
+
+                        // Force compression
+                        await this.performCompressionIfNeeded(sessionIdToUse!, onEvent, onStatus);
+
+                        // Small delay before retry
+                        await new Promise((resolve) => setTimeout(resolve, 500));
+                        continue;
                     }
 
-                    // Extract data for session tracking
-                    if (event.type === 'done') {
-                        if (event.usageStats) {
-                            await this.sessionManager.updateUsage(event.usageStats);
-                            await this.performCompressionIfNeeded(
-                                sessionIdToUse!,
-                                onEvent,
-                                onStatus
-                            );
-                        }
-                    }
-                    await onEvent(event as any);
-                },
-                sessionIdToUse || undefined,
-                attachments,
-                onStatus
-            );
+                    // Not a context overflow or max retries reached
+                    throw error;
+                }
+            }
 
             // If a memory-mutating tool was used, refresh system instruction in-place
             // instead of destroying the session
@@ -203,7 +240,8 @@ export class Supervisor {
     }
 
     /**
-     * Checks if the session needs compression and performs it, updating status if requested.
+     * Checks if the session needs compression and performs it silently.
+     * Compression happens transparently without interrupting the user experience.
      */
     private async performCompressionIfNeeded(
         sessionIdToUse: string,
@@ -216,86 +254,20 @@ export class Supervisor {
                 this.config.compressionThreshold
             )
         ) {
-            logger.info('[Supervisor] Context threshold exceeded — triggering compression');
+            logger.info('[Supervisor] Context threshold exceeded — triggering silent compression');
 
-            // Emit a transparent start notification to the user
-            await onEvent({
-                type: 'text',
-                role: 'assistant',
-                content:
-                    '⚙️ *Context threshold exceeded. Compacting session memory to reclaim space...*\n',
-                sessionId: sessionIdToUse
-            } as any);
-
-            if (onStatus) {
-                await onStatus(
-                    0,
-                    [
-                        ...this.tarsEngine.activeTools,
-                        {
-                            id: 'compression',
-                            name: 'Memory Compactor',
-                            status: 'running'
-                        }
-                    ],
-                    false
-                );
-            }
+            // Silent compression - no user-facing messages
+            // This keeps the user experience smooth during multi-turn tasks
 
             try {
                 const didCompress = await this.tarsEngine.compressSession();
                 await this.sessionManager.recordCompression();
 
                 if (didCompress) {
-                    if (onStatus) {
-                        await onStatus(
-                            0,
-                            [
-                                ...this.tarsEngine.activeTools,
-                                {
-                                    id: 'compression',
-                                    name: 'Memory Compactor',
-                                    status: 'completed',
-                                    responsePreview:
-                                        'Successfully compacted session memory to optimally save context space while retaining historical facts.',
-                                    responseSize: 114
-                                }
-                            ],
-                            false
-                        );
-                    }
-                    await onEvent({
-                        type: 'text',
-                        role: 'assistant',
-                        content:
-                            '✨ *Session memory compacted to optimally save context space while retaining historical facts.*',
-                        sessionId: sessionIdToUse
-                    } as any);
+                    logger.info('[Supervisor] Session memory compacted silently');
                 }
             } catch (e: any) {
                 logger.warn(`[Supervisor] Compression failed: ${e.message}`);
-                await onEvent({
-                    type: 'text',
-                    role: 'assistant',
-                    content: `⚠️ *Memory compaction failed: ${e.message}*`,
-                    sessionId: sessionIdToUse
-                } as any);
-                if (onStatus) {
-                    await onStatus(
-                        0,
-                        [
-                            ...this.tarsEngine.activeTools,
-                            {
-                                id: 'compression',
-                                name: 'Memory Compactor',
-                                status: 'completed',
-                                responsePreview: `Compression failed: ${e.message}`,
-                                responseSize: e.message.length
-                            }
-                        ],
-                        false
-                    );
-                }
             }
         }
     }

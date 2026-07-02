@@ -157,21 +157,13 @@ describe('Supervisor', () => {
         expect(mockGemini.compressSession).toHaveBeenCalled();
         expect(mockSessionManager.recordCompression).toHaveBeenCalled();
 
-        // Verify compaction notifications were sent
-        expect(events).toContainEqual(
-            expect.objectContaining({
-                type: 'text',
-                role: 'assistant',
-                content: expect.stringContaining('Compacting session memory')
-            })
+        // Verify compression is silent (no user-facing messages)
+        const compressionEvents = events.filter(
+            (e) =>
+                e.type === 'text' &&
+                (e.content?.includes('Compacting') || e.content?.includes('compacted'))
         );
-        expect(events).toContainEqual(
-            expect.objectContaining({
-                type: 'text',
-                role: 'assistant',
-                content: expect.stringContaining('Session memory compacted')
-            })
-        );
+        expect(compressionEvents).toHaveLength(0);
     });
 
     it('should NOT trigger compression when under threshold', async () => {
@@ -194,16 +186,14 @@ describe('Supervisor', () => {
         });
 
         const events: any[] = [];
+        // Compression failures are now silent - should not throw
         await expect(supervisor.run('hello', (e) => events.push(e))).resolves.not.toThrow();
 
-        // Verify compaction failure notification was sent
-        expect(events).toContainEqual(
-            expect.objectContaining({
-                type: 'text',
-                role: 'assistant',
-                content: expect.stringContaining('Memory compaction failed: Compression timeout')
-            })
+        // Verify no user-facing error message was sent (silent compression)
+        const errorEvents = events.filter(
+            (e) => e.type === 'text' && e.content?.includes('Memory compaction failed')
         );
+        expect(errorEvents).toHaveLength(0);
     });
 
     it('should show user-friendly busy message', async () => {

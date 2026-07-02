@@ -219,14 +219,6 @@ export async function setup() {
             default: existingConfig.contextWindowTokens || defaultContextWindow,
             validate: (input: any) =>
                 (Number.isInteger(input) && input > 0) || 'Must be a positive integer'
-        },
-        {
-            type: 'number',
-            name: 'compressionThreshold',
-            message: 'Compaction Threshold (trigger summary when context is X% full, 0.1 to 0.9):',
-            default: existingConfig.compressionThreshold || 0.625,
-            validate: (input: any) =>
-                (input >= 0.1 && input <= 0.9) || 'Threshold must be between 0.1 and 0.9'
         }
     ]);
 
@@ -422,8 +414,7 @@ export async function setup() {
         piBaseUrl,
         heartbeatIntervalSec: intervalSec,
         inferenceBackend: 'tars',
-        contextWindowTokens: limitAnswers.contextWindowTokens,
-        compressionThreshold: limitAnswers.compressionThreshold
+        contextWindowTokens: limitAnswers.contextWindowTokens
     };
 
     await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));

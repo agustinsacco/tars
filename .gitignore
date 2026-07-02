@@ -30,3 +30,6 @@ tars-brain*
 # External reference repos (for investigation)
 external/
 .antigravitycli/
+
+# Local task orchestrator directory
+.fusion/

@@ -46,14 +46,19 @@ describe('Config', () => {
         expect(config.contextWindowTokens).toBe(8192);
     });
 
-    it('should default compressionThreshold to 0.625', () => {
+    it('should default compressionThreshold to 0.6', () => {
         const config = Config.getInstance();
-        expect(config.compressionThreshold).toBe(0.625);
+        expect(config.compressionThreshold).toBe(0.6);
     });
 
-    it('should override compressionThreshold from env var', () => {
-        vi.stubEnv('COMPRESSION_THRESHOLD', '0.7');
+    it('should default preflightCompressionThreshold to 0.75', () => {
         const config = Config.getInstance();
-        expect(config.compressionThreshold).toBe(0.7);
+        expect(config.preflightCompressionThreshold).toBe(0.75);
+    });
+
+    it('should ignore compressionThreshold overrides from env var', () => {
+        vi.stubEnv('COMPRESSION_THRESHOLD', '0.9');
+        const config = Config.getInstance();
+        expect(config.compressionThreshold).toBe(0.6); // Should remain code-defined 0.6
     });
 });
