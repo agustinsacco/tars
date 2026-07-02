@@ -51,12 +51,15 @@ export class Supervisor {
         // Track whether memory-mutating tools were used this turn
         let memoryMutated = false;
 
+        // Declare outside try for catch/finally block access
+        let sessionIdToUse: string | null = null;
+
         try {
-            // Lock the supervisor
+            // Lock the supervisor synchronously
             this.processingSince = Date.now();
 
-            // Get or create session
-            let sessionIdToUse = sessionId || (await this.sessionManager.load());
+            // Get or create session asynchronously
+            sessionIdToUse = sessionId || (await this.sessionManager.load());
 
             // Track user activity for idle suppression
             await this.sessionManager.touchActivity();
@@ -119,7 +122,8 @@ export class Supervisor {
 
                             // Log tool responses
                             if (event.type === 'tool_response' && event.toolName) {
-                                const toolName = callIdToNameMap.get(event.toolName) || 'unknown_tool';
+                                const toolName =
+                                    callIdToNameMap.get(event.toolName) || 'unknown_tool';
                                 const content = event.content || '';
 
                                 let summary = '';
@@ -132,7 +136,10 @@ export class Supervisor {
                                     } catch (e) {}
                                 }
 
-                                const preview = content.substring(0, 100).replace(/\n/g, ' ').trim();
+                                const preview = content
+                                    .substring(0, 100)
+                                    .replace(/\n/g, ' ')
+                                    .trim();
                                 logger.info(`✅ [Tool] ${toolName}${summary}`);
                                 logger.info(
                                     `   📤 Output: ${preview}${content.length > 100 ? '...' : ''} (${content.length} chars)`
@@ -143,11 +150,9 @@ export class Supervisor {
                             if (event.type === 'done') {
                                 if (event.usageStats) {
                                     await this.sessionManager.updateUsage(event.usageStats);
-                                    await this.performCompressionIfNeeded(
-                                        sessionIdToUse!,
-                                        onEvent,
-                                        onStatus
-                                    );
+                                    // Compression check is done at the START of each user request,
+                                    // not after every turn within a request, to avoid interrupting
+                                    // multi-turn tasks.
                                 }
                             }
                             await onEvent(event as any);
@@ -160,20 +165,24 @@ export class Supervisor {
                     break;
                 } catch (error: any) {
                     lastError = error;
-                    const isContextOverflow = error.message.includes('exceeds the available context size');
-                    
+                    const isContextOverflow = error.message.includes(
+                        'exceeds the available context size'
+                    );
+
                     if (isContextOverflow && retryCount < maxRetries) {
                         retryCount++;
-                        logger.info(`🔄 Context overflow detected (attempt ${retryCount}/${maxRetries}). Triggering compression and retry...`);
-                        
+                        logger.info(
+                            `🔄 Context overflow detected (attempt ${retryCount}/${maxRetries}). Triggering compression and retry...`
+                        );
+
                         // Force compression
                         await this.performCompressionIfNeeded(sessionIdToUse!, onEvent, onStatus);
-                        
+
                         // Small delay before retry
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        await new Promise((resolve) => setTimeout(resolve, 500));
                         continue;
                     }
-                    
+
                     // Not a context overflow or max retries reached
                     throw error;
                 }
@@ -188,13 +197,6 @@ export class Supervisor {
         } catch (error: any) {
             logger.error(`❌ Supervisor execution error: ${error.message}`);
             onEvent({ type: 'error', error: error.message });
-            
-            // Final compression check after error to prevent stale state
-            if (sessionIdToUse) {
-                await this.performCompressionIfNeeded(sessionIdToUse, onEvent, onStatus).catch(
-                    (e) => logger.warn(`Post-error compression check failed: ${e.message}`)
-                );
-            }
         } finally {
             this.processingSince = null;
         }
@@ -238,7 +240,8 @@ export class Supervisor {
     }
 
     /**
-     * Checks if the session needs compression and performs it, updating status if requested.
+     * Checks if the session needs compression and performs it silently.
+     * Compression happens transparently without interrupting the user experience.
      */
     private async performCompressionIfNeeded(
         sessionIdToUse: string,
@@ -251,86 +254,20 @@ export class Supervisor {
                 this.config.compressionThreshold
             )
         ) {
-            logger.info('[Supervisor] Context threshold exceeded — triggering compression');
+            logger.info('[Supervisor] Context threshold exceeded — triggering silent compression');
 
-            // Emit a transparent start notification to the user
-            await onEvent({
-                type: 'text',
-                role: 'assistant',
-                content:
-                    '⚙️ *Context threshold exceeded. Compacting session memory to reclaim space...*\n',
-                sessionId: sessionIdToUse
-            } as any);
-
-            if (onStatus) {
-                await onStatus(
-                    0,
-                    [
-                        ...this.tarsEngine.activeTools,
-                        {
-                            id: 'compression',
-                            name: 'Memory Compactor',
-                            status: 'running'
-                        }
-                    ],
-                    false
-                );
-            }
+            // Silent compression - no user-facing messages
+            // This keeps the user experience smooth during multi-turn tasks
 
             try {
                 const didCompress = await this.tarsEngine.compressSession();
                 await this.sessionManager.recordCompression();
 
                 if (didCompress) {
-                    if (onStatus) {
-                        await onStatus(
-                            0,
-                            [
-                                ...this.tarsEngine.activeTools,
-                                {
-                                    id: 'compression',
-                                    name: 'Memory Compactor',
-                                    status: 'completed',
-                                    responsePreview:
-                                        'Successfully compacted session memory to optimally save context space while retaining historical facts.',
-                                    responseSize: 114
-                                }
-                            ],
-                            false
-                        );
-                    }
-                    await onEvent({
-                        type: 'text',
-                        role: 'assistant',
-                        content:
-                            '✨ *Session memory compacted to optimally save context space while retaining historical facts.*',
-                        sessionId: sessionIdToUse
-                    } as any);
+                    logger.info('[Supervisor] Session memory compacted silently');
                 }
             } catch (e: any) {
                 logger.warn(`[Supervisor] Compression failed: ${e.message}`);
-                await onEvent({
-                    type: 'text',
-                    role: 'assistant',
-                    content: `⚠️ *Memory compaction failed: ${e.message}*`,
-                    sessionId: sessionIdToUse
-                } as any);
-                if (onStatus) {
-                    await onStatus(
-                        0,
-                        [
-                            ...this.tarsEngine.activeTools,
-                            {
-                                id: 'compression',
-                                name: 'Memory Compactor',
-                                status: 'completed',
-                                responsePreview: `Compression failed: ${e.message}`,
-                                responseSize: e.message.length
-                            }
-                        ],
-                        false
-                    );
-                }
             }
         }
     }

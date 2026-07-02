@@ -385,10 +385,11 @@ export class TarsEngine extends EventEmitter {
             // Pre-flight context size estimation to prevent context overflow errors
             const estimatedContextSize = this.estimateContextSize(history, systemPrompt);
             const maxContext = this.tarsConfig.contextWindowTokens || 128000;
-            
-            if (estimatedContextSize > maxContext * 0.9) {
-                logger.warn(
-                    `⚠️ Pre-flight check: Estimated context size (${estimatedContextSize.toLocaleString()} tokens) exceeds 90% of window (${maxContext.toLocaleString()}). Triggering compression before execution.`
+
+            // Use 75% threshold to leave adequate buffer for model responses
+            if (estimatedContextSize > maxContext * 0.75) {
+                logger.info(
+                    `🗜️ Pre-flight check: Context size (${estimatedContextSize.toLocaleString()} tokens) at ${((estimatedContextSize / maxContext) * 100).toFixed(1)}% of window. Triggering compression before execution.`
                 );
                 const compressed = await this.compressSession(false);
                 if (compressed) {
@@ -396,8 +397,10 @@ export class TarsEngine extends EventEmitter {
                     const newHistory = await this.loadHistory(sid);
                     const newSystemPrompt = this.getSystemPrompt();
                     const newEstimatedSize = this.estimateContextSize(newHistory, newSystemPrompt);
-                    logger.info(`🗜️ Post-compression context size: ${newEstimatedSize.toLocaleString()} tokens`);
-                    
+                    logger.info(
+                        `🗜️ Post-compression context size: ${newEstimatedSize.toLocaleString()} tokens`
+                    );
+
                     // Update agent with compressed history
                     agent.state.messages = newHistory;
                 }
@@ -464,15 +467,18 @@ export class TarsEngine extends EventEmitter {
             });
         } catch (err: any) {
             logger.error(`❌ Pi Agent execution error: ${err.message}`);
-            
+
             // Extract context size from error message if available
             const contextSizeMatch = err.message.match(/request \((\d{1,}) tokens\)/);
             const reportedTokens = contextSizeMatch ? parseInt(contextSizeMatch[1], 10) : 0;
-            
+
             // Estimate current context size for session tracking even on error
-            const estimatedContextSize = this.estimateContextSize(agent.state.messages, this.getSystemPrompt());
+            const estimatedContextSize = this.estimateContextSize(
+                agent.state.messages,
+                this.getSystemPrompt()
+            );
             const contextSize = reportedTokens || estimatedContextSize;
-            
+
             // Update usage stats even on error to prevent stale lastInputTokens
             if (this.sessionManager && contextSize > 0) {
                 try {
@@ -483,8 +489,10 @@ export class TarsEngine extends EventEmitter {
                         lastInputTokens: contextSize,
                         lastOutputTokens: 0
                     });
-                    logger.info(`📊 Updated session usage after error: ${contextSize.toLocaleString()} tokens`);
-                    
+                    logger.info(
+                        `📊 Updated session usage after error: ${contextSize.toLocaleString()} tokens`
+                    );
+
                     // Trigger compression if context was too large
                     if (contextSize > (this.tarsConfig.contextWindowTokens || 128000) * 0.75) {
                         logger.info('🗜️ Triggering compression after context overflow error...');
@@ -494,7 +502,7 @@ export class TarsEngine extends EventEmitter {
                     logger.warn(`⚠️ Failed to update session usage after error: ${updateErr}`);
                 }
             }
-            
+
             onEvent({
                 type: 'error',
                 error: err.message,
@@ -950,7 +958,7 @@ export class TarsEngine extends EventEmitter {
      */
     private estimateContextSize(messages: AgentMessage[], systemPrompt: string): number {
         let totalChars = systemPrompt.length;
-        
+
         for (const msg of messages) {
             const m = msg as any;
             if (typeof m.content === 'string') {
@@ -963,7 +971,7 @@ export class TarsEngine extends EventEmitter {
                 }
             }
         }
-        
+
         // Qwen/Gemini tokenization: ~3.8 chars per token
         return Math.ceil(totalChars / 3.8);
     }
