@@ -386,8 +386,8 @@ export class TarsEngine extends EventEmitter {
             const estimatedContextSize = this.estimateContextSize(history, systemPrompt);
             const maxContext = this.tarsConfig.contextWindowTokens || 128000;
 
-            // Use 75% threshold to leave adequate buffer for model responses
-            if (estimatedContextSize > maxContext * 0.75) {
+            // Use centralized pre-flight threshold to leave adequate buffer for model responses
+            if (estimatedContextSize > maxContext * this.tarsConfig.preflightCompressionThreshold) {
                 logger.info(
                     `🗜️ Pre-flight check: Context size (${estimatedContextSize.toLocaleString()} tokens) at ${((estimatedContextSize / maxContext) * 100).toFixed(1)}% of window. Triggering compression before execution.`
                 );
@@ -494,7 +494,11 @@ export class TarsEngine extends EventEmitter {
                     );
 
                     // Trigger compression if context was too large
-                    if (contextSize > (this.tarsConfig.contextWindowTokens || 128000) * 0.75) {
+                    if (
+                        contextSize >
+                        (this.tarsConfig.contextWindowTokens || 128000) *
+                            this.tarsConfig.preflightCompressionThreshold
+                    ) {
                         logger.info('🗜️ Triggering compression after context overflow error...');
                         await this.compressSession(false);
                     }
