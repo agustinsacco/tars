@@ -318,11 +318,33 @@ export async function setup() {
     ]);
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 5: Integrations ──────────────────────────────────
+    // ── Step 5: Web Search Configuration ──────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 5: Integrations'));
-    console.log(chalk.dim('────────────────────'));
-    console.log(chalk.dim('  Workspace integration has been deprecated. Skipping.'));
+    console.log(chalk.bold('\nStep 5: Web Search Configuration'));
+    console.log(chalk.dim('────────────────────────────────'));
+    console.log(chalk.dim('  Configure Brave Search for reliable and fast web search.'));
+
+    const searchSecrets = secretsManager.load();
+    const { braveKey } = await inquirer.prompt([
+        {
+            type: 'password',
+            name: 'braveKey',
+            message: 'Enter BRAVE_SEARCH_API_KEY (optional, press Enter to skip):',
+            default: searchSecrets.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_API_KEY || ''
+        }
+    ]);
+
+    if (braveKey) {
+        secretsManager.set('BRAVE_SEARCH_API_KEY', braveKey);
+        process.env.BRAVE_SEARCH_API_KEY = braveKey;
+        console.log(chalk.green('  ✓ Brave Search API key saved.'));
+    } else {
+        console.log(
+            chalk.dim(
+                '  No Brave Search API key provided. Web search will fall back or prompt when needed.'
+            )
+        );
+    }
 
     // ══════════════════════════════════════════════════════════
     // ── Step 6: Tars Dashboard ────────────────────────────────
