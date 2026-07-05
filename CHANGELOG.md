@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.39.0](https://github.com/agustinsacco/tars/compare/v1.38.1...v1.39.0) (2026-07-05)
+
+
+### Features
+
+* migrate web search provider to brave search ([#153](https://github.com/agustinsacco/tars/issues/153)) ([517c7b9](https://github.com/agustinsacco/tars/commit/517c7b933f7c8f20b65c4948b6646e6698661f1d))
+
 ## [1.38.1](https://github.com/agustinsacco/tars/compare/v1.38.0...v1.38.1) (2026-07-02)
 
 
