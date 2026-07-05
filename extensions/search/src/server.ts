@@ -23,7 +23,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         tools: [
             {
                 name: 'web_search',
-                description: 'Search the web using Brave Search and return a list of matches.',
+                description: 'Search the web using Tavily Search and return a list of matches.',
                 inputSchema: {
                     type: 'object',
                     properties: {

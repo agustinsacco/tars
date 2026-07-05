@@ -322,26 +322,26 @@ export async function setup() {
     // ══════════════════════════════════════════════════════════
     console.log(chalk.bold('\nStep 5: Web Search Configuration'));
     console.log(chalk.dim('────────────────────────────────'));
-    console.log(chalk.dim('  Configure Brave Search for reliable and fast web search.'));
+    console.log(chalk.dim('  Configure Tavily Search for reliable and fast web search.'));
 
     const searchSecrets = secretsManager.load();
-    const { braveKey } = await inquirer.prompt([
+    const { tavilyKey } = await inquirer.prompt([
         {
             type: 'password',
-            name: 'braveKey',
-            message: 'Enter BRAVE_SEARCH_API_KEY (optional, press Enter to skip):',
-            default: searchSecrets.BRAVE_SEARCH_API_KEY || process.env.BRAVE_SEARCH_API_KEY || ''
+            name: 'tavilyKey',
+            message: 'Enter TAVILY_API_KEY (optional, press Enter to skip):',
+            default: searchSecrets.TAVILY_API_KEY || process.env.TAVILY_API_KEY || ''
         }
     ]);
 
-    if (braveKey) {
-        secretsManager.set('BRAVE_SEARCH_API_KEY', braveKey);
-        process.env.BRAVE_SEARCH_API_KEY = braveKey;
-        console.log(chalk.green('  ✓ Brave Search API key saved.'));
+    if (tavilyKey) {
+        secretsManager.set('TAVILY_API_KEY', tavilyKey);
+        process.env.TAVILY_API_KEY = tavilyKey;
+        console.log(chalk.green('  ✓ Tavily API key saved.'));
     } else {
         console.log(
             chalk.dim(
-                '  No Brave Search API key provided. Web search will fall back or prompt when needed.'
+                '  No Tavily API key provided. Web search will fall back or prompt when needed.'
             )
         );
     }
