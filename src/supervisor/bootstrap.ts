@@ -538,15 +538,15 @@ export function wireMessageRouting(
     channelManager.onMessage(async (message: ChannelMessage) => {
         const rawPrompt = message.content.trim();
 
-        // Intercept Brave Search API key if pasted or provided by the user
-        const braveKeyMatch = rawPrompt.match(/\b(BS[a-zA-Z0-9]{30})\b/i);
-        if (braveKeyMatch) {
-            const key = braveKeyMatch[1];
+        // Intercept Tavily Search API key if pasted or provided by the user
+        const tavilyKeyMatch = rawPrompt.match(/\b(tvly-[a-zA-Z0-9]{20,})\b/i);
+        if (tavilyKeyMatch) {
+            const key = tavilyKeyMatch[1];
             try {
                 const { SecretsManager } = await import('../utils/secrets-manager.js');
                 const secretsManager = new SecretsManager(config.homeDir);
-                secretsManager.set('BRAVE_SEARCH_API_KEY', key);
-                process.env.BRAVE_SEARCH_API_KEY = key;
+                secretsManager.set('TAVILY_API_KEY', key);
+                process.env.TAVILY_API_KEY = key;
 
                 // Reset the active session and start a new clean conversation.
                 try {
@@ -568,15 +568,13 @@ export function wireMessageRouting(
                 }
 
                 await message.reply(
-                    '🔑 **Brave Search API Key Configured!**\n' +
-                        'I have successfully saved your Brave Search API key and restarted the session. ' +
+                    '🔑 **Tavily API Key Configured!**\n' +
+                        'I have successfully saved your Tavily API key and restarted the session. ' +
                         'You can now try your web search again!'
                 );
             } catch (err: any) {
-                logger.error(`Failed to configure Brave Search API Key: ${err.message}`);
-                await message.reply(
-                    `❌ **Failed to configure Brave Search API Key:** ${err.message}`
-                );
+                logger.error(`Failed to configure Tavily API Key: ${err.message}`);
+                await message.reply(`❌ **Failed to configure Tavily API Key:** ${err.message}`);
             }
             message.stopTyping();
             return;
