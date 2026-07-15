@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.40.0](https://github.com/agustinsacco/tars/compare/v1.39.0...v1.40.0) (2026-07-15)
+
+
+### Features
+
+* migrate web search implementation from Brave to Tavily ([#155](https://github.com/agustinsacco/tars/issues/155)) ([8bc19f4](https://github.com/agustinsacco/tars/commit/8bc19f4c9015b8f79c2ec6e520c63247e400031f))
+
+
+### Bug Fixes
+
+* add default preflightCompressionThreshold value ([27262d0](https://github.com/agustinsacco/tars/commit/27262d0e318d910669e37621bffafd42b24568d2))
+* add default preflightCompressionThreshold value ([618db55](https://github.com/agustinsacco/tars/commit/618db5555a4455818646138de1f5e0de5d7cfeb7))
+
 ## [1.38.0](https://github.com/agustinsacco/tars/compare/v1.37.2...v1.38.0) (2026-06-24)
 
 
