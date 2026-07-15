@@ -50,17 +50,34 @@ export class HeartbeatService {
     }
 
     private async tick(): Promise<void> {
-        if (this.isExecuting) return;
+        if (this.isExecuting) {
+            logger.debug('💓 Heartbeat tick skipped: already executing');
+            return;
+        }
         this.isExecuting = true;
+        logger.debug('💓 Heartbeat tick started');
 
         try {
-            // 0. Safety Net: Check for stale lock
-            const STALE_LOCK_MS = 10 * 60 * 1000; // 10 minutes
-            this.supervisor.checkAndReleaseStaleLock(STALE_LOCK_MS);
+            // 0. Check if user is idle - skip heavy work if so
+            if (this.isUserIdle()) {
+                logger.debug(
+                    '💓 Heartbeat tick skipped: User is idle (>2h since last interaction)'
+                );
+                return;
+            }
 
-            // 1. Maintenance & Sync (rate-limited)
+            // 1. Safety Net: Check for stale lock
+            const STALE_LOCK_MS = 10 * 60 * 1000; // 10 minutes
+            const staleLockReleased = this.supervisor.checkAndReleaseStaleLock(STALE_LOCK_MS);
+            if (staleLockReleased) {
+                logger.warn('⚠️ Stale supervisor lock released during heartbeat tick');
+            }
+
+            // 2. Maintenance & Sync (rate-limited)
             this.processor.cleanup();
             await this.syncMemoryIfNeeded();
+
+            logger.debug('💓 Heartbeat tick completed successfully');
         } catch (error: any) {
             logger.error(`❌ Heartbeat tick error: ${error.message}`);
         } finally {
