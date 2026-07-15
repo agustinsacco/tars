@@ -59,8 +59,8 @@ export class Config {
 
     // Context & Compression
     public readonly contextWindowTokens: number;
-    public readonly compressionThreshold = COMPRESSION_THRESHOLD;
-    public readonly preflightCompressionThreshold = PREFLIGHT_COMPRESSION_THRESHOLD;
+    public readonly compressionThreshold: number;
+    public readonly preflightCompressionThreshold: number;
 
     // Rate Limiting
     public readonly maxRPM: number;
@@ -138,6 +138,18 @@ export class Config {
         this.contextWindowTokens = parseInt(
             String(process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '128000'),
             10
+        );
+
+        this.compressionThreshold = parseFloat(
+            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.60')
+        );
+
+        this.preflightCompressionThreshold = parseFloat(
+            String(
+                process.env.PREFLIGHT_COMPRESSION_THRESHOLD ||
+                    jsonConfig.preflightCompressionThreshold ||
+                    '0.75'
+            )
         );
 
         this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);
