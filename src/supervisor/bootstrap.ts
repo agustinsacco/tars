@@ -15,6 +15,7 @@ import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { BrainAuditor } from '../utils/brain-audit.js';
+import { initializeMemoryFiles } from '../utils/memory-initializer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -476,6 +477,9 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
         // Daemon mode: write logs to supervisor.log for traceability
         configureDaemonLogging(config.homeDir);
     }
+
+    // Initialize memory/directive files if they don't exist
+    await initializeMemoryFiles(config.homeDir);
 
     logger.info('🚀 Tars Starting...');
 
