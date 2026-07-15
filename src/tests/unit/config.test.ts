@@ -56,9 +56,9 @@ describe('Config', () => {
         expect(config.preflightCompressionThreshold).toBe(0.75);
     });
 
-    it('should ignore compressionThreshold overrides from env var', () => {
+    it('should respect compressionThreshold overrides from env var', () => {
         vi.stubEnv('COMPRESSION_THRESHOLD', '0.9');
         const config = Config.getInstance();
-        expect(config.compressionThreshold).toBe(0.6); // Should remain code-defined 0.6
+        expect(config.compressionThreshold).toBe(0.9); // Env var should override default
     });
 });
