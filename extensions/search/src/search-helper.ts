@@ -1,3 +1,4 @@
+import { search } from 'duck-duck-scrape';
 import { parseHTML } from 'linkedom';
 import TurndownService from 'turndown';
 
@@ -8,46 +9,15 @@ export interface SearchResult {
 }
 
 /**
- * Executes a Tavily Search query and returns mapped search results.
+ * Executes a DuckDuckGo search query and returns mapped search results.
  */
 export async function performWebSearch(query: string, limit: number = 5): Promise<SearchResult[]> {
-    const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey) {
-        throw new Error(
-            "Tavily API key is missing. Please reply directly with your Tavily API key (starts with 'tvly-' followed by alphanumeric characters) so I can save it and reset our session."
-        );
-    }
-
-    const res = await fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-            query,
-            max_results: limit
-        })
-    });
-
-    if (res.status === 401 || res.status === 403) {
-        throw new Error(
-            "Tavily API key is invalid (Unauthorized). Please reply directly with a valid Tavily API key (starts with 'tvly-' followed by alphanumeric characters) so I can save it and reset our session."
-        );
-    }
-    if (res.status === 429) {
-        throw new Error('Tavily API rate limit exceeded.');
-    }
-    if (!res.ok) {
-        throw new Error(`Tavily API failed: HTTP ${res.status} ${res.statusText}`);
-    }
-
-    const data = (await res.json()) as any;
-    const results = data.results || [];
-    return results.map((r: any) => ({
+    const response = await search(query);
+    const rawResults = response.results || [];
+    return rawResults.slice(0, limit).map((r: any) => ({
         title: r.title || '',
         url: r.url || '',
-        snippet: r.content || ''
+        snippet: r.description || r.snippet || ''
     }));
 }
 

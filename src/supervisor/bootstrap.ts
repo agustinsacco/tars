@@ -538,48 +538,6 @@ export function wireMessageRouting(
     channelManager.onMessage(async (message: ChannelMessage) => {
         const rawPrompt = message.content.trim();
 
-        // Intercept Tavily Search API key if pasted or provided by the user
-        const tavilyKeyMatch = rawPrompt.match(/\b(tvly-[a-zA-Z0-9]{20,})\b/i);
-        if (tavilyKeyMatch) {
-            const key = tavilyKeyMatch[1];
-            try {
-                const { SecretsManager } = await import('../utils/secrets-manager.js');
-                const secretsManager = new SecretsManager(config.homeDir);
-                secretsManager.set('TAVILY_API_KEY', key);
-                process.env.TAVILY_API_KEY = key;
-
-                // Reset the active session and start a new clean conversation.
-                try {
-                    const stats = sessionManager.getStats();
-                    if (stats) {
-                        const chatFile = path.join(
-                            config.homeDir,
-                            'chats',
-                            `${stats.sessionId}.json`
-                        );
-                        if (fs.existsSync(chatFile)) {
-                            await fs.promises.unlink(chatFile).catch(() => {});
-                        }
-                    }
-                    await sessionManager.clear();
-                    tarsEngine.resetSession();
-                } catch (e: any) {
-                    logger.error(`Error resetting session: ${e.message}`);
-                }
-
-                await message.reply(
-                    '🔑 **Tavily API Key Configured!**\n' +
-                        'I have successfully saved your Tavily API key and restarted the session. ' +
-                        'You can now try your web search again!'
-                );
-            } catch (err: any) {
-                logger.error(`Failed to configure Tavily API Key: ${err.message}`);
-                await message.reply(`❌ **Failed to configure Tavily API Key:** ${err.message}`);
-            }
-            message.stopTyping();
-            return;
-        }
-
         if (rawPrompt.startsWith('/')) {
             const parts = rawPrompt.split(' ');
             const command = parts[0].toLowerCase();

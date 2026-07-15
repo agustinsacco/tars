@@ -318,33 +318,11 @@ export async function setup() {
     ]);
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 5: Web Search Configuration ──────────────────────
+    // ── Step 5: Integrations ──────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 5: Web Search Configuration'));
-    console.log(chalk.dim('────────────────────────────────'));
-    console.log(chalk.dim('  Configure Tavily Search for reliable and fast web search.'));
-
-    const searchSecrets = secretsManager.load();
-    const { tavilyKey } = await inquirer.prompt([
-        {
-            type: 'password',
-            name: 'tavilyKey',
-            message: 'Enter TAVILY_API_KEY (optional, press Enter to skip):',
-            default: searchSecrets.TAVILY_API_KEY || process.env.TAVILY_API_KEY || ''
-        }
-    ]);
-
-    if (tavilyKey) {
-        secretsManager.set('TAVILY_API_KEY', tavilyKey);
-        process.env.TAVILY_API_KEY = tavilyKey;
-        console.log(chalk.green('  ✓ Tavily API key saved.'));
-    } else {
-        console.log(
-            chalk.dim(
-                '  No Tavily API key provided. Web search will fall back or prompt when needed.'
-            )
-        );
-    }
+    console.log(chalk.bold('\nStep 5: Integrations'));
+    console.log(chalk.dim('────────────────────'));
+    console.log(chalk.dim('  Workspace integration has been deprecated. Skipping.'));
 
     // ══════════════════════════════════════════════════════════
     // ── Step 6: Tars Dashboard ────────────────────────────────

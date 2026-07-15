@@ -1,19 +1,5 @@
 # Changelog
 
-## [1.39.0](https://github.com/agustinsacco/tars/compare/v1.38.1...v1.39.0) (2026-07-05)
-
-
-### Features
-
-* migrate web search provider to brave search ([#153](https://github.com/agustinsacco/tars/issues/153)) ([517c7b9](https://github.com/agustinsacco/tars/commit/517c7b933f7c8f20b65c4948b6646e6698661f1d))
-
-## [1.38.1](https://github.com/agustinsacco/tars/compare/v1.38.0...v1.38.1) (2026-07-02)
-
-
-### Bug Fixes
-
-* prevent context overflow infinite loop with pre-flight check and retry ([#151](https://github.com/agustinsacco/tars/issues/151)) ([fa7f38c](https://github.com/agustinsacco/tars/commit/fa7f38ccf9728c8f30c138b78680621d1e3ad241))
-
 ## [1.38.0](https://github.com/agustinsacco/tars/compare/v1.37.2...v1.38.0) (2026-06-24)
 
 
