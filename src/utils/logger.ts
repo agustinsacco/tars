@@ -46,4 +46,32 @@ export function configureChatLogging(homeDir: string): void {
     );
 }
 
+/**
+ * Configures the logger for Daemon/Background mode, writing logs to
+ * the application's log directory for traceability and debugging.
+ */
+export function configureDaemonLogging(homeDir: string): void {
+    const logDir = path.join(homeDir, 'logs');
+    if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+    }
+    // Add file transport WITHOUT clearing console transport (keep both)
+    logger.add(
+        new winston.transports.File({
+            filename: path.join(logDir, 'supervisor.log'),
+            level: process.env.LOG_LEVEL || 'debug', // Default to debug for full traceability
+            format: winston.format.combine(
+                winston.format.timestamp({
+                    format: 'YYYY-MM-DD HH:mm:ss'
+                }),
+                winston.format.uncolorize(),
+                winston.format.printf(({ timestamp, level, message }) => {
+                    return `${timestamp} [${level}]: ${message}`;
+                })
+            )
+        })
+    );
+    logger.info(`📝 Daemon logging enabled: ${path.join(logDir, 'supervisor.log')}`);
+}
+
 export default logger;

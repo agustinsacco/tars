@@ -9,7 +9,7 @@ import { DashboardService } from './dashboard-service.js';
 import { ChannelManager } from '../channels/channel-manager.js';
 import { ChannelMessage } from '../channels/types.js';
 import { TuiChannel } from '../channels/tui/tui-channel.js';
-import logger from '../utils/logger.js';
+import logger, { configureDaemonLogging } from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -468,9 +468,13 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     // 1. Load Configuration & Audit Brain
     const config = Config.getInstance();
 
+    // Configure logging based on mode
     if (process.env.TARS_CHAT_MODE === 'true') {
         const { configureChatLogging } = await import('../utils/logger.js');
         configureChatLogging(config.homeDir);
+    } else if (process.env.TARS_SUPERVISOR_MODE === 'true') {
+        // Daemon mode: write logs to supervisor.log for traceability
+        configureDaemonLogging(config.homeDir);
     }
 
     logger.info('🚀 Tars Starting...');
