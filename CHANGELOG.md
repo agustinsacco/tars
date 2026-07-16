@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.0](https://github.com/agustinsacco/tars/compare/v1.40.0...v1.41.0) (2026-07-15)
+
+
+### Features
+
+* add heartbeat traceability and idle suppression ([#157](https://github.com/agustinsacco/tars/issues/157)) ([749afa7](https://github.com/agustinsacco/tars/commit/749afa7c167e5d53a7e7ac97c987c95448769067))
+
 ## [1.40.0](https://github.com/agustinsacco/tars/compare/v1.39.0...v1.40.0) (2026-07-15)
 
 
