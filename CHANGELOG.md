@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.1](https://github.com/agustinsacco/tars/compare/v1.41.0...v1.41.1) (2026-07-16)
+
+
+### Bug Fixes
+
+* add heartbeat.md reference to system prompt ([#159](https://github.com/agustinsacco/tars/issues/159)) ([4a845de](https://github.com/agustinsacco/tars/commit/4a845de221ad9846366b9455d8be6cb0a85eff63))
+
 ## [1.41.0](https://github.com/agustinsacco/tars/compare/v1.40.0...v1.41.0) (2026-07-15)
 
 
