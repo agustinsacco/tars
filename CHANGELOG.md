@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.42.0](https://github.com/agustinsacco/tars/compare/v1.41.1...v1.42.0) (2026-07-18)
+
+
+### Features
+
+* harden Tars runtime and release pipeline ([#161](https://github.com/agustinsacco/tars/issues/161)) ([64523b2](https://github.com/agustinsacco/tars/commit/64523b218f5d19efc5a4c8a61d872eb848a7ee2d))
+
 ## [1.41.1](https://github.com/agustinsacco/tars/compare/v1.41.0...v1.41.1) (2026-07-16)
 
 
