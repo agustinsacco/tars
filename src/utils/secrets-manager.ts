@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import dotenv from 'dotenv';
 import logger from './logger.js';
 
@@ -24,9 +25,10 @@ export class SecretsManager {
         try {
             const content = fs.readFileSync(this.secretsPath, 'utf-8');
             return dotenv.parse(content);
-        } catch (error: any) {
-            logger.error(`[SecretsManager] Failed to load secrets: ${error.message}`);
-            return {};
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`[SecretsManager] Failed to load secrets: ${message}`);
+            throw error;
         }
     }
 
@@ -35,13 +37,18 @@ export class SecretsManager {
      */
     set(key: string, value: string): void {
         try {
+            if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+                throw new Error('Secret names may only contain letters, numbers, and underscores');
+            }
             const secrets = this.load();
             secrets[key] = value;
 
             this.saveFilesystem(secrets);
             logger.info(`[SecretsManager] Secret set: ${key}`);
-        } catch (error: any) {
-            logger.error(`[SecretsManager] Failed to set secret ${key}: ${error.message}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`[SecretsManager] Failed to set secret ${key}: ${message}`);
+            throw error;
         }
     }
 
@@ -56,8 +63,10 @@ export class SecretsManager {
                 this.saveFilesystem(secrets);
                 logger.info(`[SecretsManager] Secret removed: ${key}`);
             }
-        } catch (error: any) {
-            logger.error(`[SecretsManager] Failed to remove secret ${key}: ${error.message}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`[SecretsManager] Failed to remove secret ${key}: ${message}`);
+            throw error;
         }
     }
 
@@ -73,7 +82,7 @@ export class SecretsManager {
      */
     private saveFilesystem(secrets: Record<string, string>): void {
         const content = Object.entries(secrets)
-            .map(([k, v]) => `${k}="${v.replace(/"/g, '\\"')}"`)
+            .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
             .join('\n');
 
         const dir = path.dirname(this.secretsPath);
@@ -81,6 +90,18 @@ export class SecretsManager {
             fs.mkdirSync(dir, { recursive: true });
         }
 
-        fs.writeFileSync(this.secretsPath, content, { mode: 0o600 });
+        const tempPath = `${this.secretsPath}.${process.pid}.${randomUUID()}.tmp`;
+        try {
+            fs.writeFileSync(tempPath, content, { mode: 0o600 });
+            fs.renameSync(tempPath, this.secretsPath);
+            fs.chmodSync(this.secretsPath, 0o600);
+        } catch (error: unknown) {
+            try {
+                fs.unlinkSync(tempPath);
+            } catch {
+                // Best-effort cleanup.
+            }
+            throw error;
+        }
     }
 }

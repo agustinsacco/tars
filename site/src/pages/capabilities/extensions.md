@@ -1,71 +1,58 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Tools & Extensions
-description: How extensions provide tool-level capabilities to Tars through the Model Context Protocol.
+title: MCP Extensions
+description: Add explicitly authorized local tools through MCP subprocesses.
 section: Capabilities
 ---
 
-## Overview
+An extension is a local Model Context Protocol server described by
+`~/.tars/extensions/<name>/tars-extension.json`. Tars starts authorized servers over stdio and maps
+their schemas to agent tools.
 
-Extensions are **MCP (Model Context Protocol) servers** that expose tools to Tars. They run as separate processes and communicate via stdio, allowing Tars to interact with external systems, manage files, and extend its own intelligence.
+## Strict enablement
 
-## How Extensions Work
+`~/.tars/extensions/extension-enablement.json` is required. If it is absent, invalid, or does not
+contain an extension directory, that extension does not load. Bootstrap creates and preserves the
+file for bundled extensions.
 
-1.  **Engine Initialization**: During startup, `TarsEngine` scans `~/.tars/extensions/` for `tars-extension.json` files.
-2.  **Manifest Parsing**: The engine converts the manifest into an internal `MCPServerConfig`, resolving `${extensionPath}` tokens to absolute paths.
-3.  **Discovery**: High-level tools from all enabled extensions are merged into the TarsEngine's tool definition list.
-4.  **Execution**: When the AI invokes a tool, the Core library manages the stdio connection to the extension's binary (e.g., `node server.js`).
-
-## Extension Structure
-
-Each extension is an npm package with a manifest:
-
-```json
-// tars-extension.json
-{
-    "name": "tars-tasks",
-    "version": "1.0.0",
-    "mcpServers": {
-        "main": {
-            "command": "node",
-            "args": ["${extensionPath}/dist/server.js"],
-            "env": { "TARS_HOME": "~/.tars" }
-        }
-    }
-}
-```
-
-## Deployment & Sync
-
-Tars manages extensions through its internal bootstrap process:
-
-- **Built-in Extensions**: Source code from the repository's `extensions/` directory is **copied** to `~/.tars/extensions/` on startup.
-- **Runtime Extensions**: Created via the `extension-builder` skill directly in the target directory.
-
-### Extension Enablement
-
-Extensions must be authorized in `~/.tars/extensions/extension-enablement.json`. Tars uses this file to manage security overrides:
+Entries can be booleans or objects:
 
 ```json
 {
-    "tars-tasks": { "overrides": ["*"] },
-    "tars-memory": { "overrides": ["*"] }
+    "tars-memory": true,
+    "example": {
+        "enabled": true,
+        "envAllowlist": ["EXAMPLE_API_KEY"],
+        "startupTimeoutMs": 30000,
+        "toolTimeoutMs": 60000
+    },
+    "disabled-example": false
 }
 ```
 
-## Creating Custom Extensions
+For legacy object entries, a missing `enabled` property means enabled.
 
-Tars is capable of self-modifying its own toolset via the `extension-builder` skill. The process involves:
+Custom extensions must explicitly declare an environment policy for every server. Use
+`"envAllowlist": []` when no host variables are needed, or list only the required names. Tars blocks
+updates while an enabled legacy extension lacks this acknowledgment, so tools cannot disappear only
+after the production restart. External working directories are no longer accepted; keep `cwd`
+inside the extension directory.
 
-1.  Generating a plain JavaScript MCP server using `@modelcontextprotocol/sdk`.
-2.  Creating the `tars-extension.json` manifest with relative path tokens.
-3.  Registering the new extension in the enablement configuration.
+Bundled extensions are installed as managed copies. Bootstrap converts legacy bundled-extension
+symlinks to managed copies; `TARS_DEV_EXTENSION_LINKS=true` is an explicit source-development mode,
+not a production setting.
 
-## Core Extensions
+## Process boundaries
 
-| Extension     | Tools | Description                                    |
-| ------------- | ----- | ---------------------------------------------- |
-| `tars-tasks`  | 5     | Goal-oriented task scheduling and management   |
-| `tars-memory` | 5     | Fact storage, daily logs, and knowledge search |
+Servers receive a minimal runtime environment, explicitly allowlisted host variables, manifest
+values, and `TARS_HOME`. A manifest can also set a working directory inside its own extension path
+and bounded startup/tool timeouts.
 
-Detailed documentation for each can be found in the [Extensions section](/extensions/tars-tasks).
+Unique tool names stay unchanged. When servers declare the same tool name, Tars applies a stable
+extension namespace to the collision.
+
+## Trust model
+
+Process separation is not a sandbox. Extension code runs with the Tars OS user's filesystem and
+network permissions. Review its source and dependencies, allowlist only required credentials, and
+disable unused extensions.

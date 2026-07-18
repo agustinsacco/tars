@@ -1,85 +1,45 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Brain Portability
-description: Exporting and importing Tars' complete state for backup or machine migration.
-section: CLI Reference
+title: Backup and Restore
+description: Create a credential-filtered workspace archive and restore it transactionally.
+section: CLI
 ---
 
-## Overview
+Tars state lives under `TARS_HOME`, normally `~/.tars/`.
 
-Tars' entire state — configuration, memory, tasks, session data, and extensions — lives in `~/.tars/`. The export/import commands create and restore compressed archives for backup or migration.
-
-## tars export
-
-Creates a compressed archive of `~/.tars/`:
+## Export
 
 ```bash
 tars export
+tars export --output ./tars-backup.tar.gz
 ```
 
-### Output
+The default export includes configuration structure, memory, tasks, sessions, skills, and
+extensions. It excludes known credential files and redacts recognized secret-bearing JSON keys on a
+best-effort basis. This is not comprehensive DLP: notes, malformed or large JSON, and custom
+extension build artifacts may contain sensitive values. Treat every archive as sensitive.
 
-```
-📦 Exporting Tars brain to ./tars-brain-2025-01-15T10-30-00.tar.gz...
+If an installed CLI exposes `--include-secrets`, it is an explicit high-risk opt-in. Use it only for
+an encrypted, access-controlled transfer and remove the archive after restoration.
 
-✅ Brain exported successfully!
-Keep this file safe: /home/user/tars-brain-2025-01-15T10-30-00.tar.gz
-```
+## Import
 
-### Custom Output Path
+Stop the supervisor, then import a trusted archive:
 
 ```bash
-tars export --output /backup/tars-backup.tar.gz
+tars stop
+tars import ./tars-backup.tar.gz
+tars status
 ```
 
-### Excluded Directories
+Import preflights archive paths and links, extracts to a staging directory, validates the Tars
+marker and layout, backs up the current home, and swaps atomically. A failed validation or swap
+leaves the current installation intact or rolls it back.
 
-The archive automatically excludes heavy directories:
+Do not manually extract an untrusted archive into `~/.tars/`.
 
-| Directory         | Reason                      |
-| ----------------- | --------------------------- |
-| `node_modules`    | Reinstalled via npm         |
-| `dist`, `build`   | Regenerated from source     |
-| `.next`, `.cache` | Build cache                 |
-| `venv`, `.venv`   | Python virtual environments |
-| `target`          | Rust build output           |
-| `vendor`          | PHP/Go dependencies         |
+## Machine migration
 
-## tars import
-
-Restores a brain archive:
-
-```bash
-tars import /path/to/tars-brain-2025-01-15T10-30-00.tar.gz
-```
-
-The import process:
-
-1.  Extracts the archive to `~/.tars/`.
-2.  Performs **Autonomous Healing** via the Brain Auditor — updates any absolute paths in configuration files and removes legacy anomalies.
-3.  Restores all data: config, tasks, session, memory database, skills, and extensions.
-
-### Extension Re-hydration
-
-If you migrate between different operating systems (e.g., Mac to Linux), the imported extension binaries (`node_modules`) may be incompatible.
-
-To fix this, simply run `tars setup` on the new machine. Tars will detect existing extensions, wipe old binaries, and perform a fresh `npm install` and **automatic rebuild** matching your current architecture.
-
-### Migration Workflow
-
-Moving Tars to a new machine:
-
-```bash
-# On the old machine
-tars export --output ~/tars-brain.tar.gz
-
-# Transfer the file to the new machine
-scp ~/tars-brain.tar.gz newmachine:~
-
-# On the new machine
-npm install -g @saccolabs/tars
-tars import ~/tars-brain.tar.gz
-tars start
-```
-
-The re-homing ensures paths like `/home/olduser/.tars/` are updated to `/home/newuser/.tars/`.
+Install the same or newer Tars version on the destination, copy the archive over a protected
+channel, import it, then re-enter excluded secrets with `tars secret set`. Review extension paths and
+enablement before starting the supervisor.

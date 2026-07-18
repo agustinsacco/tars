@@ -1,63 +1,40 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Skills System
-description: How Tars manages built-in and user-created skills for specialized capabilities.
-section: Extensibility
+title: Skills
+description: Reusable local instructions for specific workflows.
+section: Capabilities
 ---
 
-## Overview
+A skill is a directory under `~/.tars/skills/` whose `SKILL.md` explains when and how to perform a
+repeatable task.
 
-Skills are structured instruction sets stored as markdown files in `~/.tars/skills/`. They extend Tars' capabilities by providing step-by-step guides for specific tasks.
-
-## Skill Structure
-
-Each skill lives in its own directory:
-
-```
-~/.tars/skills/
-├── tars-ops/
-│   └── SKILL.md
-├── create-extension/
-│   └── SKILL.md
-└── create-skill/
-    └── SKILL.md
+```text
+~/.tars/skills/example-skill/
+└── SKILL.md
 ```
 
-### SKILL.md Format
-
-```yaml
+```markdown
 ---
-name: tars-ops
-description: Standardized command list for Tars configuration and maintenance
+name: example-skill
+description: Performs one clearly defined workflow when requested.
 ---
-## Instructions
 
-Step-by-step operational guide...
+# Example skill
+
+## Preconditions
+
+- Required access or input.
+
+## Steps
+
+1. Inspect current state.
+2. Apply the smallest safe change.
+3. Validate the result.
 ```
 
-The YAML frontmatter provides metadata, and the markdown body contains the actual instructions.
+Use a lowercase hyphenated name, keep the description specific enough to trigger correctly, and put
+safety preconditions before commands. Never embed credentials or silently broaden the user's
+authority.
 
-## Built-in Skills
-
-| Skill               | Description                                                           |
-| ------------------- | --------------------------------------------------------------------- |
-| `tars-ops`          | Standardized command list for configuration, secrets, and maintenance |
-| `extension-builder` | Guide for creating new MCP extension servers                          |
-| `extension-manager` | Guide for enabling, disabling, and listing extensions                 |
-| `skill-creator`     | Guide for creating new skills                                         |
-
-## Skill Synchronization
-
-The `installSkills()` function runs on every `tars start`:
-
-1. Scans the repository's `skills/` directory for built-in skills
-2. Copies them to `~/.tars/skills/`, **overwriting** existing built-in skills
-3. **Preserves** any user-created skills that don't conflict with built-in names
-
-This ensures built-in skills are always up-to-date after a package update, while user skills remain untouched.
-
-## Creating Custom Skills
-
-Tars can create new skills through the `create-skill` built-in skill. When asked, it generates a new `SKILL.md` file with appropriate frontmatter and instructions.
-
-Users can also manually create skill directories in `~/.tars/skills/`.
+After adding or updating a skill, run `tars memory sync`. Skills are trusted prompt instructions,
+not executable isolation or deterministic access control.

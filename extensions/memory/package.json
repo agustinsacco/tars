@@ -2,16 +2,25 @@
     "name": "tars-memory",
     "version": "1.0.0",
     "description": "Memory management MCP server for Tars",
+    "private": true,
+    "license": "MIT",
     "type": "module",
+    "engines": {
+        "node": ">=22.19.0"
+    },
     "scripts": {
-        "build": "tsc",
-        "start": "node dist/server.js"
+        "clean": "tsc --build --clean",
+        "build": "npm run clean && tsc",
+        "start": "node dist/server.js",
+        "test": "npm run build && node --test dist/store.test.js",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.0.1"
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "zod": "^3.25.76"
     },
     "devDependencies": {
-        "@types/node": "^22.10.2",
-        "typescript": "^5.7.2"
+        "@types/node": "^22.19.15",
+        "typescript": "^5.9.3"
     }
 }

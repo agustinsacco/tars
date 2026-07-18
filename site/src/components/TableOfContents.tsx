@@ -1,19 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 
 interface Heading {
-    depth: number;
-    slug: string;
-    text: string;
+    readonly depth: number;
+    readonly slug: string;
+    readonly text: string;
 }
 
 interface TableOfContentsProps {
-    headings: Heading[];
+    readonly headings: readonly Heading[];
 }
 
-export function TableOfContents({ headings }: TableOfContentsProps) {
+export function TableOfContents({ headings }: TableOfContentsProps): ReactElement | null {
     const [activeId, setActiveId] = useState('');
 
-    const filteredHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+    const filteredHeadings = useMemo(
+        (): readonly Heading[] =>
+            headings.filter((heading) => heading.depth >= 2 && heading.depth <= 3),
+        [headings]
+    );
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -32,14 +36,17 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
             if (el) observer.observe(el);
         });
 
-        return () => observer.disconnect();
+        return (): void => observer.disconnect();
     }, [filteredHeadings]);
 
     if (filteredHeadings.length === 0) return null;
 
     return (
-        <aside className="w-56 shrink-0 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto py-6 px-4 hidden xl:block">
-            <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-3">
+        <aside
+            aria-label="On this page"
+            className="w-56 shrink-0 sticky top-14 h-[calc(100vh-3.5rem)] overflow-y-auto py-6 px-4 hidden xl:block"
+        >
+            <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-widest mb-3">
                 On this page
             </h3>
             <ul className="space-y-1 border-l border-zinc-800">
@@ -55,7 +62,7 @@ export function TableOfContents({ headings }: TableOfContentsProps) {
                   ${
                       isActive
                           ? 'text-blue-400 border-blue-400'
-                          : 'text-zinc-500 border-transparent hover:text-zinc-300 hover:border-zinc-600'
+                          : 'text-text-secondary border-transparent hover:text-zinc-300 hover:border-zinc-600'
                   }
                 `}
                             >

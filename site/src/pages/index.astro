@@ -3,131 +3,135 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
 import { TarsLogo } from '../components/TarsLogo';
-import { Terminal, Cpu, Brain, Puzzle, Zap, Clock } from 'lucide-react';
+import { Brain, Clock, MessageSquare, Puzzle, Shield, Terminal } from 'lucide-react';
 ---
 
-<BaseLayout title="TARS — Autonomous AI Assistant">
+<BaseLayout
+  title="Local-first AI assistant"
+  description="Tars is a compact, self-hosted AI assistant for Discord and terminal workflows, with provider choice, MCP tools, durable memory, and scheduled tasks."
+>
   <Header client:load />
 
-  <div class="flex pt-14 max-w-[1440px] mx-auto">
+  <div class="mx-auto flex max-w-[1440px] pt-14">
     <Sidebar currentPath="/" client:load />
 
-    <main class="flex-1 min-w-0 px-4 md:px-8 lg:px-12 py-8 md:py-12">
-      <!-- Hero -->
-      <div class="max-w-4xl mx-auto">
-        <div class="flex items-center gap-4 mb-6">
+    <main id="main-content" tabindex="-1" class="min-w-0 flex-1 px-4 py-8 md:px-8 md:py-12 lg:px-12">
+      <div class="mx-auto max-w-4xl">
+        <div class="mb-6 flex items-center gap-4">
           <TarsLogo size={48} />
           <div>
-            <h1 class="text-3xl font-bold text-zinc-100 tracking-tight font-['Space_Grotesk']">TARS</h1>
-            <p class="text-xs text-zinc-500 tracking-widest uppercase">Autonomous AI Assistant</p>
+            <h1 class="font-display text-3xl font-bold tracking-tight text-zinc-100">TARS</h1>
+            <p class="text-xs uppercase tracking-widest text-text-secondary">Local-first AI assistant</p>
           </div>
         </div>
 
-        <p class="text-zinc-400 text-sm leading-relaxed mb-4 max-w-2xl">
-          The Autonomous Intelligence Layer for your local infrastructure. Tars is a locally-hosted AI agent powered by the Pi Agent SDK, supporting cloud models (Gemini, Claude, GPT-4o) and local inference out of the box. Deploy it as a Personal Assistant, a Security Auditor, or a DevOps Engineer—or orchestrate your entire environment with multiple instances.
+        <p class="mb-4 max-w-2xl text-sm leading-relaxed text-zinc-400">
+          Tars is a compact Node.js assistant that runs on your machine under PM2. It connects a
+          single active agent to Discord or a terminal, supports multiple model providers, and adds
+          durable memory, explicit scheduled tasks, local skills, and MCP extensions.
         </p>
 
+        <p class="mb-8 max-w-2xl text-xs leading-relaxed text-text-secondary">
+          It is aimed at operators who prefer a smaller bare-metal deployment and a clear local
+          workspace. Projects such as <a class="text-blue-400 hover:underline" href="https://docs.openclaw.ai/">OpenClaw</a>
+          cover a broader gateway and channel ecosystem; Tars does not claim feature parity with
+          multi-agent, mobile, voice, or broad multi-channel platforms.
+        </p>
 
-        <div class="flex items-center gap-3 mb-10">
-          <a href="/getting-started/what-is-tars" class="text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 px-4 py-2 rounded hover:bg-blue-500/20 transition-colors">
-            Get Started →
+        <div class="mb-10 flex flex-wrap items-center gap-3">
+          <a href="/getting-started/installation" class="rounded border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs text-blue-400 transition-colors hover:bg-blue-500/20">
+            Install Tars →
           </a>
-          <a href="/use-cases/personal-assistant" class="text-xs text-zinc-500 border border-zinc-800 px-4 py-2 rounded hover:text-zinc-300 hover:border-zinc-700 transition-colors">
-            Explore Use Cases
+          <a href="/getting-started/what-is-tars" class="rounded border border-zinc-800 px-4 py-2 text-xs text-text-secondary transition-colors hover:border-zinc-700 hover:text-zinc-300">
+            Read the overview
+          </a>
+          <a href="/capabilities/security" class="rounded border border-zinc-800 px-4 py-2 text-xs text-text-secondary transition-colors hover:border-zinc-700 hover:text-zinc-300">
+            Review the security model
           </a>
         </div>
 
-        <!-- Feature Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Zap className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Personal Assistant</h3>
+        <div class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Discord and terminal</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Tars manages your schedule, remembers preferences via persistent memory, and executes workflows directly from Discord.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Use one assistant from Discord or run a foreground terminal chat without starting
+              duplicate daemon services.
             </p>
-          </div>
+          </section>
 
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Terminal className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Host Manager</h3>
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <Brain className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Provider choice</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Deploy Tars as a dedicated system administrator. It monitors health, manages logs, and executes maintenance tasks autonomously.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Configure supported cloud providers or an OpenAI-compatible local endpoint through a
+              validated configuration model.
             </p>
-          </div>
+          </section>
 
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Brain className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Security Auditor</h3>
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <Puzzle className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Skills and MCP</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Analyze firewall and auth logs in real-time. Tars detects anomalies, summarizes incidents, and alerts you instantly.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Add trusted local instruction packages and explicitly enabled MCP servers. Extension
+              subprocesses receive a restricted environment.
             </p>
-          </div>
+          </section>
 
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Cpu className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Multi-Instance</h3>
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Durable memory and tasks</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Scale your automation by running multiple Tars instances, each bound to a unique Discord bot with specialized permissions.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Keep selected facts and notes across restarts. Scheduled work runs only when a task is
+              explicitly created; the heartbeat itself performs maintenance.
             </p>
-          </div>
+          </section>
 
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Puzzle className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">MCP Protocol</h3>
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <Shield className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Defensive defaults</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Full compatibility with the Model Context Protocol. Connect Tars to your internal APIs, databases, and custom tools.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Discord owner checks, dashboard loopback binding, safer backup handling, outbound-fetch
+              restrictions, and sensitive log redaction reduce common risks.
             </p>
-          </div>
+          </section>
 
-          <div class="border border-zinc-800 rounded-md p-4 hover:border-zinc-700 transition-colors">
-            <div class="flex items-center gap-2 mb-2">
-              <Clock className="w-4 h-4 text-blue-400" />
-              <h3 class="text-sm font-bold text-zinc-200">Always On</h3>
+          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
+            <div class="mb-2 flex items-center gap-2">
+              <Terminal className="h-4 w-4 text-blue-400" />
+              <h2 class="text-sm font-bold text-zinc-200">Operator-controlled</h2>
             </div>
-            <p class="text-xs text-zinc-500 leading-relaxed">
-              Tars doesn't wait for you to prompt it. It runs on a continuous background loop, scheduling its own tasks and checking in when work is complete.
+            <p class="text-xs leading-relaxed text-text-secondary">
+              Tars runs with the permissions of its operating-system user. It is not a sandbox, so
+              least-privilege accounts and review of tools and extensions remain essential.
             </p>
-          </div>
+          </section>
         </div>
 
-        <!-- Quick Install -->
-        <div class="mt-10 border border-zinc-800 rounded-md overflow-hidden">
-          <div class="bg-[#0e0e10] px-4 py-2 border-b border-zinc-800 flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
-            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
-            <div class="w-2 h-2 rounded-full bg-zinc-700"></div>
-            <span class="text-[10px] text-zinc-600 ml-2 font-mono tracking-tighter">terminal</span>
+        <div class="mt-10 overflow-hidden rounded-md border border-zinc-800">
+          <div class="flex items-center gap-2 border-b border-zinc-800 bg-[#0e0e10] px-4 py-2">
+            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
+            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
+            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
+            <span class="ml-2 font-mono text-[10px] tracking-tighter text-text-muted">terminal</span>
           </div>
           <div class="bg-[#0e0e10] p-4">
-            <code class="text-sm text-zinc-300 font-mono">
-              <span class="text-zinc-500">$</span> npm install -g @saccolabs/tars<br/>
-              <span class="text-zinc-500">$</span> tars setup<br/>
-              <span class="text-zinc-500">$</span> tars start
+            <code class="font-mono text-sm text-zinc-300">
+              <span class="text-text-secondary">$</span> npm install -g @saccolabs/tars<br />
+              <span class="text-text-secondary">$</span> tars setup<br />
+              <span class="text-text-secondary">$</span> tars start
             </code>
           </div>
-        </div>
-
-        <!-- Next Up CTA -->
-        <div class="mt-16 flex justify-end">
-          <a 
-            href="/getting-started/what-is-tars"
-            class="group flex flex-col items-end gap-2 p-6 border border-zinc-800 rounded-lg hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer no-underline min-w-[240px]"
-          >
-            <span class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Start Here</span>
-            <span class="text-zinc-100 font-bold group-hover:text-blue-400 transition-colors">
-              Introduction to Tars →
-            </span>
-          </a>
         </div>
       </div>
     </main>

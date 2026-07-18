@@ -1,37 +1,231 @@
 'use client';
-import { useEffect, useState, memo } from 'react';
-import { useSocket } from '@/context/SocketContext';
+
+import { motion } from 'framer-motion';
 import {
     Brain,
     Calendar,
-    History,
-    Fingerprint,
-    Database,
-    Sparkles,
-    Hash,
-    Clock,
     CheckCircle2,
-    AlertCircle
+    Clock,
+    Database,
+    Fingerprint,
+    Hash,
+    History,
+    Sparkles,
+    type LucideIcon
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { memo, useEffect, useState, type ReactElement, type ReactNode } from 'react';
 
-const SectionHeader = ({ icon: Icon, title, color }: any) => (
-    <div className="flex items-center gap-3 mb-3">
-        <div
-            className={`p-1.5 rounded-lg bg-opacity-10 ${color.replace('text-', 'bg-')} border border-white/5`}
-        >
-            <Icon size={12} className={color} />
+import { useSocket } from '@/context/SocketContext';
+
+interface SectionHeaderProps {
+    readonly icon: LucideIcon;
+    readonly title: string;
+    readonly color: string;
+}
+
+interface MemoryItemProps {
+    readonly fact: string;
+    readonly value: unknown;
+}
+
+interface TaskData {
+    readonly id: string;
+    readonly title: string;
+    readonly schedule: string;
+    readonly enabled: boolean;
+    readonly lastRun?: string;
+}
+
+interface SessionData {
+    readonly sessionId?: string;
+    readonly createdAt?: string;
+    readonly interactionCount?: number;
+    readonly lastInputTokens?: number;
+    readonly totalInputTokens?: number;
+    readonly totalOutputTokens?: number;
+    readonly totalNetTokens?: number;
+    readonly compressionCount?: number;
+}
+
+interface SessionHistoryEntry {
+    readonly id: string;
+    readonly time: string;
+}
+
+interface SessionStats {
+    readonly total?: number;
+    readonly lastSwitch?: string | null;
+    readonly history?: readonly SessionHistoryEntry[];
+}
+
+interface IntelligenceData {
+    readonly facts?: Readonly<Record<string, unknown>> | null;
+    readonly tasks?: readonly TaskData[] | null;
+    readonly session?: SessionData | null;
+    readonly sessionStats?: SessionStats | null;
+}
+
+type IntelligenceUpdate =
+    | { readonly type: 'facts'; readonly data: IntelligenceData['facts'] }
+    | { readonly type: 'tasks'; readonly data: IntelligenceData['tasks'] }
+    | { readonly type: 'session'; readonly data: IntelligenceData['session'] }
+    | { readonly type: 'sessionStats'; readonly data: IntelligenceData['sessionStats'] };
+
+interface IntelligenceDataProps {
+    readonly data: IntelligenceData;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isOptionalNumber(value: unknown): boolean {
+    return value === undefined || typeof value === 'number';
+}
+
+function isTaskData(value: unknown): value is TaskData {
+    return (
+        isRecord(value) &&
+        typeof value.id === 'string' &&
+        typeof value.title === 'string' &&
+        typeof value.schedule === 'string' &&
+        typeof value.enabled === 'boolean' &&
+        (value.lastRun === undefined || typeof value.lastRun === 'string')
+    );
+}
+
+function isSessionData(value: unknown): value is SessionData {
+    return (
+        isRecord(value) &&
+        (value.sessionId === undefined || typeof value.sessionId === 'string') &&
+        (value.createdAt === undefined || typeof value.createdAt === 'string') &&
+        isOptionalNumber(value.interactionCount) &&
+        isOptionalNumber(value.lastInputTokens) &&
+        isOptionalNumber(value.totalInputTokens) &&
+        isOptionalNumber(value.totalOutputTokens) &&
+        isOptionalNumber(value.totalNetTokens) &&
+        isOptionalNumber(value.compressionCount)
+    );
+}
+
+function isSessionHistoryEntry(value: unknown): value is SessionHistoryEntry {
+    return isRecord(value) && typeof value.id === 'string' && typeof value.time === 'string';
+}
+
+function isSessionStats(value: unknown): value is SessionStats {
+    return (
+        isRecord(value) &&
+        isOptionalNumber(value.total) &&
+        (value.lastSwitch === undefined ||
+            value.lastSwitch === null ||
+            typeof value.lastSwitch === 'string') &&
+        (value.history === undefined ||
+            (Array.isArray(value.history) && value.history.every(isSessionHistoryEntry)))
+    );
+}
+
+function isFactsData(value: unknown): value is IntelligenceData['facts'] {
+    return value === undefined || value === null || isRecord(value);
+}
+
+function isTasksData(value: unknown): value is IntelligenceData['tasks'] {
+    return (
+        value === undefined || value === null || (Array.isArray(value) && value.every(isTaskData))
+    );
+}
+
+function isNullableSessionData(value: unknown): value is IntelligenceData['session'] {
+    return value === undefined || value === null || isSessionData(value);
+}
+
+function isNullableSessionStats(value: unknown): value is IntelligenceData['sessionStats'] {
+    return value === undefined || value === null || isSessionStats(value);
+}
+
+function isIntelligenceData(value: unknown): value is IntelligenceData {
+    return (
+        isRecord(value) &&
+        isFactsData(value.facts) &&
+        isTasksData(value.tasks) &&
+        isNullableSessionData(value.session) &&
+        isNullableSessionStats(value.sessionStats)
+    );
+}
+
+function isIntelligenceUpdate(value: unknown): value is IntelligenceUpdate {
+    if (!isRecord(value) || typeof value.type !== 'string') return false;
+
+    switch (value.type) {
+        case 'facts':
+            return isFactsData(value.data);
+        case 'tasks':
+            return isTasksData(value.data);
+        case 'session':
+            return isNullableSessionData(value.data);
+        case 'sessionStats':
+            return isNullableSessionStats(value.data);
+        default:
+            return false;
+    }
+}
+
+function applyIntelligenceUpdate(
+    previousData: IntelligenceData | null,
+    update: IntelligenceUpdate
+): IntelligenceData {
+    const currentData = previousData ?? {};
+
+    switch (update.type) {
+        case 'facts':
+            return { ...currentData, facts: update.data };
+        case 'tasks':
+            return { ...currentData, tasks: update.data };
+        case 'session':
+            return { ...currentData, session: update.data };
+        case 'sessionStats':
+            return { ...currentData, sessionStats: update.data };
+    }
+}
+
+function getFactsList(facts: IntelligenceData['facts']): Readonly<Record<string, unknown>> {
+    if (!facts) return {};
+    return isRecord(facts.facts) ? facts.facts : facts;
+}
+
+function getMemoryDisplayValue(value: unknown): ReactNode {
+    if (!isRecord(value)) return String(value);
+
+    const factValue = value.value;
+    if (
+        typeof factValue === 'string' ||
+        typeof factValue === 'number' ||
+        typeof factValue === 'bigint' ||
+        typeof factValue === 'boolean'
+    ) {
+        return factValue || JSON.stringify(value);
+    }
+
+    return JSON.stringify(value);
+}
+
+function SectionHeader({ icon: Icon, title, color }: SectionHeaderProps): ReactElement {
+    return (
+        <div className="flex items-center gap-3 mb-3">
+            <div
+                className={`p-1.5 rounded-lg bg-opacity-10 ${color.replace('text-', 'bg-')} border border-white/5`}
+            >
+                <Icon size={12} className={color} />
+            </div>
+            <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">
+                {title}
+            </h3>
+            <div className="h-[1px] bg-white/5 flex-1 ml-4"></div>
         </div>
-        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em]">{title}</h3>
-        <div className="h-[1px] bg-white/5 flex-1 ml-4"></div>
-    </div>
-);
+    );
+}
 
-const MemoryItem = memo(({ fact, value }: { fact: string; value: any }) => {
-    const displayValue =
-        typeof value === 'object' && value !== null
-            ? value.value || JSON.stringify(value)
-            : String(value);
+const MemoryItem = memo(function MemoryItem({ fact, value }: MemoryItemProps): ReactElement {
+    const displayValue = getMemoryDisplayValue(value);
 
     return (
         <div className="flex flex-col gap-1 p-1.5 rounded-lg hover:bg-white/[0.03] transition-colors border border-transparent hover:border-white/5 group">
@@ -51,7 +245,7 @@ const MemoryItem = memo(({ fact, value }: { fact: string; value: any }) => {
     );
 });
 
-const TaskItem = memo(({ task }: { task: any }) => {
+const TaskItem = memo(function TaskItem({ task }: { readonly task: TaskData }): ReactElement {
     const isEnabled = task.enabled;
     return (
         <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.02] border border-white/5 hover:border-accent-warning/30 transition-all group">
@@ -87,15 +281,17 @@ const TaskItem = memo(({ task }: { task: any }) => {
     );
 });
 
-export const CognitiveBuffer = memo(({ data }: { data: any }) => {
-    const factsList = data.facts?.facts || data.facts || {};
+export const CognitiveBuffer = memo(function CognitiveBuffer({
+    data
+}: IntelligenceDataProps): ReactElement {
+    const factsList = getFactsList(data.facts);
     return (
         <div className="card bg-[#0c0c0c] border-white/10 flex flex-col h-[400px] p-4">
             <div className="card-header-btop">Cognitive Buffer (Memory)</div>
             <div className="mt-2 flex-1 overflow-y-auto custom-scrollbar pr-2">
                 <SectionHeader icon={Brain} title="Long-Term Facts" color="text-accent-primary" />
                 <div className="flex flex-col gap-1.5">
-                    {Object.entries(factsList).map(([key, value]: any) => (
+                    {Object.entries(factsList).map(([key, value]) => (
                         <MemoryItem key={key} fact={key} value={value} />
                     ))}
                 </div>
@@ -104,7 +300,7 @@ export const CognitiveBuffer = memo(({ data }: { data: any }) => {
     );
 });
 
-export const JobQueue = memo(({ data }: { data: any }) => {
+export const JobQueue = memo(function JobQueue({ data }: IntelligenceDataProps): ReactElement {
     return (
         <div className="card bg-[#0c0c0c] border-white/10 flex flex-col h-[400px] p-4">
             <div className="card-header-btop">Autonomous Job Queue</div>
@@ -116,7 +312,7 @@ export const JobQueue = memo(({ data }: { data: any }) => {
                 />
                 <div className="flex flex-col gap-2">
                     {data.tasks && data.tasks.length > 0 ? (
-                        data.tasks.map((task: any) => <TaskItem key={task.id} task={task} />)
+                        data.tasks.map((task) => <TaskItem key={task.id} task={task} />)
                     ) : (
                         <div className="p-12 text-center opacity-20 italic text-[10px] uppercase font-black tracking-widest text-white">
                             No Active Tasks
@@ -128,8 +324,10 @@ export const JobQueue = memo(({ data }: { data: any }) => {
     );
 });
 
-export const SessionIntelligence = memo(({ data }: { data: any }) => {
-    const formatUptime = (ms: number) => {
+export const SessionIntelligence = memo(function SessionIntelligence({
+    data
+}: IntelligenceDataProps): ReactElement {
+    const formatUptime = (ms: number): string => {
         const h = Math.floor(ms / 3600000);
         const m = Math.floor((ms % 3600000) / 60000);
         if (h > 0) return `${h}h ${m}m`;
@@ -304,7 +502,7 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
                 ) : null}
 
                 <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar pr-1">
-                    {data.sessionStats?.history?.map((s: any, i: number) => (
+                    {data.sessionStats?.history?.map((s, i) => (
                         <div
                             key={i}
                             className="flex justify-between items-center p-2 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors group"
@@ -344,17 +542,20 @@ export const SessionIntelligence = memo(({ data }: { data: any }) => {
     );
 });
 
-export function IntelligencePanel() {
+export function IntelligencePanel(): ReactElement | null {
     const { socket, subscribe, unsubscribe } = useSocket();
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<IntelligenceData | null>(null);
 
     useEffect(() => {
         if (!socket) return;
         subscribe('intelligence');
 
-        const handleInit = (initData: any) => setData(initData);
-        const handleUpdate = ({ type, data: updateData }: any) => {
-            setData((prev: any) => ({ ...prev, [type]: updateData }));
+        const handleInit = (initData: unknown): void => {
+            if (isIntelligenceData(initData)) setData(initData);
+        };
+        const handleUpdate = (update: unknown): void => {
+            if (!isIntelligenceUpdate(update)) return;
+            setData((previousData) => applyIntelligenceUpdate(previousData, update));
         };
 
         socket.on('intelligence_init', handleInit);

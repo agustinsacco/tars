@@ -1,33 +1,52 @@
 'use client';
-import { useState } from 'react';
-import { RefreshCw, Lock, Send, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AlertTriangle, CheckCircle2, Lock, RefreshCw, Send, XCircle } from 'lucide-react';
+import { useState, type FormEvent, type ReactElement } from 'react';
 
-export function SystemActions() {
+type CommandRequest =
+    | { readonly action: 'restart' }
+    | { readonly action: 'secret'; readonly key: string; readonly value: string };
+
+interface ActionStatus {
+    readonly type: 'success' | 'error';
+    readonly message: string;
+}
+
+function getCommandError(data: unknown): string {
+    if (
+        typeof data === 'object' &&
+        data !== null &&
+        'error' in data &&
+        typeof data.error === 'string'
+    ) {
+        return data.error;
+    }
+    return 'Command failed';
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+export function SystemActions(): ReactElement {
     const [isRestarting, setIsRestarting] = useState(false);
     const [secretKey, setSecretKey] = useState('');
     const [secretValue, setSecretValue] = useState('');
     const [isSettingSecret, setIsSettingSecret] = useState(false);
-    const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(
-        null
-    );
+    const [status, setStatus] = useState<ActionStatus | null>(null);
 
-    const runCommand = async (body: any) => {
-        try {
-            const res = await fetch('/api/tars/command', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Command failed');
-            return data;
-        } catch (err: any) {
-            throw err;
-        }
+    const runCommand = async (body: CommandRequest): Promise<unknown> => {
+        const res = await fetch('/api/tars/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data: unknown = await res.json();
+        if (!res.ok) throw new Error(getCommandError(data));
+        return data;
     };
 
-    const handleRestart = async () => {
+    const handleRestart = async (): Promise<void> => {
         if (
             !confirm(
                 'Are you sure? This will restart the Tars supervisor and terminate the current session.'
@@ -43,15 +62,15 @@ export function SystemActions() {
                 type: 'success',
                 message: 'Restart command issued successfully. Check logs.'
             });
-        } catch (err: any) {
-            setStatus({ type: 'error', message: err.message });
+        } catch (error: unknown) {
+            setStatus({ type: 'error', message: getErrorMessage(error) });
         } finally {
             setIsRestarting(false);
         }
     };
 
-    const handleSetSecret = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSetSecret = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+        event.preventDefault();
         if (!secretKey || !secretValue) return;
 
         setIsSettingSecret(true);
@@ -61,8 +80,8 @@ export function SystemActions() {
             setStatus({ type: 'success', message: `Secret '${secretKey}' updated successfully.` });
             setSecretKey('');
             setSecretValue('');
-        } catch (err: any) {
-            setStatus({ type: 'error', message: err.message });
+        } catch (error: unknown) {
+            setStatus({ type: 'error', message: getErrorMessage(error) });
         } finally {
             setIsSettingSecret(false);
         }
@@ -83,6 +102,7 @@ export function SystemActions() {
                     </span>
                 </div>
                 <button
+                    type="button"
                     onClick={handleRestart}
                     disabled={isRestarting}
                     className="w-full flex items-center justify-center gap-3 bg-accent-danger/10 hover:bg-accent-danger/20 border border-accent-danger/30 p-3 rounded-xl transition-all group disabled:opacity-50"
@@ -108,6 +128,8 @@ export function SystemActions() {
                 <form onSubmit={handleSetSecret} className="flex flex-col gap-2">
                     <input
                         type="text"
+                        aria-label="Secret key"
+                        autoComplete="off"
                         placeholder="KEY (e.g. OPENAI_API_KEY)"
                         value={secretKey}
                         onChange={(e) => setSecretKey(e.target.value)}
@@ -116,6 +138,8 @@ export function SystemActions() {
                     <div className="relative">
                         <input
                             type="password"
+                            aria-label="Secret value"
+                            autoComplete="off"
                             placeholder="VALUE"
                             value={secretValue}
                             onChange={(e) => setSecretValue(e.target.value)}
@@ -123,6 +147,7 @@ export function SystemActions() {
                         />
                         <button
                             type="submit"
+                            aria-label="Save secret"
                             disabled={isSettingSecret || !secretKey || !secretValue}
                             className="absolute right-1 top-1 bottom-1 px-2 bg-accent-primary/20 hover:bg-accent-primary/30 text-accent-primary rounded flex items-center justify-center transition-all disabled:opacity-0"
                         >
@@ -140,6 +165,8 @@ export function SystemActions() {
             <AnimatePresence>
                 {status && (
                     <motion.div
+                        role="status"
+                        aria-live="polite"
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}

@@ -1,55 +1,28 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Memory CLI
-description: Searching and synchronizing the knowledge store from the command line.
-section: CLI Reference
+description: Search and rebuild the local knowledge index.
+section: CLI
 ---
 
-## tars memory search
-
-Search the indexed knowledge store using BM25 keyword matching.
+## Search
 
 ```bash
-tars memory search "deployment process"
+tars memory search deployment decision
 ```
 
-### Output
+The command searches the local knowledge index and prints matching paths, relevance scores, and
+snippets. It can find indexed durable facts, skills, and eligible conversation history.
 
-```
-🧠 Search Results for: "deployment process"
-
-[1] active_memory/facts.txt (Score: 0.85)
-The deployment process uses GitHub Actions with a staging → production pipeline...
-
-[2] history/session-2025-01-15.json (Score: 0.72)
-USER: How do I deploy to production?
-ASSISTANT: The deployment follows these steps...
-
-[3] skills/tars-ops/SKILL.md (Score: 0.45)
-## Deployment Commands
-- `tars deploy staging` — Deploy to staging environment...
-```
-
-Each result shows the source file path, relevance score (0-1), and matching content chunk.
-
-## tars memory sync
-
-Triggers a full re-index of the knowledge base.
+## Synchronize
 
 ```bash
 tars memory sync
 ```
 
-This manually runs the same `fullSync()` pipeline that the Heartbeat executes on every tick:
+Synchronization rebuilds searchable knowledge from the current local sources. It does not send data
+to a model provider and does not create new durable facts.
 
-1. Indexes active memory: `~/.tars/data/memory/facts.json` (indexed as `active_memory/facts.txt`)
-2. Indexes all `.md` files in `~/.tars/skills/` (recursive)
-3. Indexes session transcripts from `~/.tars/chats/*.json`
-
-### When to Use
-
-You typically don't need to manually sync — the Heartbeat handles this automatically. Manual sync is useful when:
-
-- You've manually edited configuration or custom skill files
-- You want to verify the knowledge store is up-to-date
-- Debugging search results that seem stale
+Within an agent session, the built-in memory extension exposes `manage_facts` for explicit durable
+key/value facts and `manage_notes` for daily notes and search. Tars does not automatically preserve
+every statement as permanent memory.

@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Supervisor } from '../../supervisor/supervisor.js';
+import type { TarsEvent } from '../../types/index.js';
 
 vi.mock('../../memory/memory-manager.js', () => {
     return {
-        MemoryManager: vi.fn().mockImplementation(() => ({
-            fullSync: vi.fn().mockResolvedValue(undefined),
-            search: vi.fn().mockResolvedValue([])
-        }))
+        MemoryManager: vi.fn().mockImplementation(function MemoryManagerMock() {
+            return {
+                fullSync: vi.fn().mockResolvedValue(undefined),
+                search: vi.fn().mockResolvedValue([])
+            };
+        })
     };
 });
 
@@ -18,7 +21,7 @@ describe('Supervisor', () => {
     beforeEach(() => {
         mockGemini = {
             run: vi.fn().mockImplementation(async (content: string, onEvent: any) => {
-                onEvent({ type: 'done' });
+                await onEvent({ type: 'done' });
             }),
             runSync: vi.fn().mockResolvedValue('task output'),
             compressSession: vi.fn().mockResolvedValue(true),
@@ -73,7 +76,9 @@ describe('Supervisor', () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
         // Should pass active session ID to runSync
-        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session');
+        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session', {
+            allowNotifications: false
+        });
     });
 
     it('should track user activity on run', async () => {
@@ -84,8 +89,8 @@ describe('Supervisor', () => {
     it('should learn session ID from gemini events', async () => {
         mockSessionManager.load.mockReturnValue(null);
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({ type: 'text', content: '', sessionId: 'new-uuid' });
-            onEvent({ type: 'done' });
+            await onEvent({ type: 'text', content: '', sessionId: 'new-uuid' });
+            await onEvent({ type: 'done' });
         });
 
         await supervisor.run('hello', vi.fn());
@@ -104,7 +109,7 @@ describe('Supervisor', () => {
     it('should update usage stats from gemini done event', async () => {
         const usageStats = { inputTokens: 10, outputTokens: 20 };
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({ type: 'done', usageStats });
+            await onEvent({ type: 'done', usageStats });
         });
 
         await supervisor.run('hello', vi.fn());
@@ -114,12 +119,12 @@ describe('Supervisor', () => {
 
     it('should refresh system instruction on memory mutation instead of invalidating session', async () => {
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({
+            await onEvent({
                 type: 'tool_call',
                 toolName: 'tars-memory_memory_store_fact',
                 toolArgs: { key: 'test', value: 'data' }
             });
-            onEvent({ type: 'done' });
+            await onEvent({ type: 'done' });
         });
 
         await supervisor.run('store test fact', vi.fn());
@@ -130,12 +135,12 @@ describe('Supervisor', () => {
 
     it('should refresh system instruction on manage_facts memory mutation', async () => {
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({
+            await onEvent({
                 type: 'tool_call',
                 toolName: 'tars-memory_manage_facts',
                 toolArgs: { action: 'store', key: 'test', value: 'data' }
             });
-            onEvent({ type: 'done' });
+            await onEvent({ type: 'done' });
         });
 
         await supervisor.run('store test fact', vi.fn());
@@ -148,7 +153,7 @@ describe('Supervisor', () => {
         mockSessionManager.needsCompression.mockReturnValue(true);
         const usageStats = { inputTokens: 600000, outputTokens: 5000 };
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({ type: 'done', usageStats });
+            await onEvent({ type: 'done', usageStats });
         });
 
         const events: any[] = [];
@@ -170,7 +175,7 @@ describe('Supervisor', () => {
         mockSessionManager.needsCompression.mockReturnValue(false);
         const usageStats = { inputTokens: 100, outputTokens: 50 };
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({ type: 'done', usageStats });
+            await onEvent({ type: 'done', usageStats });
         });
 
         await supervisor.run('hello', vi.fn());
@@ -182,7 +187,10 @@ describe('Supervisor', () => {
         mockSessionManager.needsCompression.mockReturnValue(true);
         mockGemini.compressSession.mockRejectedValue(new Error('Compression timeout'));
         mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
-            onEvent({ type: 'done', usageStats: { inputTokens: 600000, outputTokens: 5000 } });
+            await onEvent({
+                type: 'done',
+                usageStats: { inputTokens: 600000, outputTokens: 5000 }
+            });
         });
 
         const events: any[] = [];
@@ -194,6 +202,73 @@ describe('Supervisor', () => {
             (e) => e.type === 'text' && e.content?.includes('Memory compaction failed')
         );
         expect(errorEvents).toHaveLength(0);
+    });
+
+    it('records a compression only when history was actually compacted', async () => {
+        // ARRANGE
+        mockSessionManager.needsCompression.mockReturnValue(true);
+        mockGemini.compressSession.mockResolvedValue(false);
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            await onEvent({
+                type: 'done',
+                usageStats: { inputTokens: 600000, outputTokens: 5000 }
+            });
+        });
+
+        // ACT
+        await supervisor.run('hello', vi.fn());
+
+        // ASSERT
+        expect(mockGemini.compressSession).toHaveBeenCalledWith(false, 'existing-session');
+        expect(mockSessionManager.recordCompression).not.toHaveBeenCalled();
+    });
+
+    it('redacts sensitive keys and token values before forwarding events', async () => {
+        // ARRANGE
+        const githubToken = `ghp_${'a'.repeat(82)}`;
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            await onEvent({
+                type: 'tool_call',
+                toolName: 'example',
+                toolArgs: { password: 'short-secret' }
+            });
+            await onEvent({
+                type: 'tool_response',
+                toolName: 'call-1',
+                content: JSON.stringify({ token: 'short-secret', value: 'safe' })
+            });
+            await onEvent({ type: 'text', role: 'assistant', content: githubToken });
+            await onEvent({ type: 'done' });
+        });
+        const events: TarsEvent[] = [];
+
+        // ACT
+        await supervisor.run('hello', (event) => events.push(event));
+
+        // ASSERT
+        expect(events[0].toolArgs).toEqual({ password: '[REDACTED_SECRET]' });
+        expect(events[1].content).toBe(
+            JSON.stringify({ token: '[REDACTED_SECRET]', value: 'safe' })
+        );
+        expect(events[2].content).not.toContain(githubToken);
+    });
+
+    it('waits for asynchronous event delivery before completing a run', async () => {
+        // ARRANGE
+        const sequence: string[] = [];
+        mockGemini.run.mockImplementation(async (content: string, onEvent: any) => {
+            await onEvent({ type: 'text', role: 'assistant', content: 'hello' });
+            sequence.push('engine-finished');
+        });
+
+        // ACT
+        await supervisor.run('hello', async () => {
+            await Promise.resolve();
+            sequence.push('event-delivered');
+        });
+
+        // ASSERT
+        expect(sequence).toEqual(['event-delivered', 'engine-finished']);
     });
 
     it('should show user-friendly busy message', async () => {

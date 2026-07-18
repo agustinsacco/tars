@@ -14,20 +14,17 @@ export class DLPService {
         /\b[A-Za-z0-9+/]{60,}={0,2}\b/g,
 
         // Specific Service Patterns
-        /\bsk-[a-zA-Z0-9]{20,}\b/g, // OpenAI / Generic sk-
-        /\bghp_[a-zA-Z0-9]{36}\b/g, // GitHub PAT
-        /\bgho_[a-zA-Z0-9]{36}\b/g, // GitHub OAuth
-        /\bghs_[a-zA-Z0-9]{36}\b/g, // GitHub Server
-        /\bghr_[a-zA-Z0-9]{36}\b/g, // GitHub Refresh
+        /\bsk-[a-zA-Z0-9_-]{20,}\b/g, // OpenAI / Generic sk-, including sk-proj-
+        /\bgh[pousr]_[a-zA-Z0-9_]{20,}\b/g, // GitHub tokens
         /\bAIza[0-9A-Za-z-_]{35}\b/g, // Google API Key
         /\bAKIA[0-9A-Z]{16}\b/g, // AWS Access Key
-        /\bnpm_[a-zA-Z0-9]{36}\b/g, // NPM token
+        /\bnpm_[a-zA-Z0-9]{20,}\b/g, // NPM token
         /\bxoxb-[a-zA-Z0-9-]+\b/g, // Slack Bot Token
         /\bxoxp-[a-zA-Z0-9-]+\b/g, // Slack User Token
         /\beyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*\b/g, // JWT
 
         // Private Keys
-        /-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]+?-----END [A-Z ]+ PRIVATE KEY-----/g,
+        /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----[\s\S]+?-----END (?:[A-Z]+ )*PRIVATE KEY-----/g,
 
         // Environment Variable values (lookbehind for key name)
         /(?<=(?:API_KEY|SECRET|PASSWORD|TOKEN|AUTH|CREDENTIALS|PRIVATE_KEY|API_SECRET)\s*[:=]\s*["']?)[^\s"']{8,}/gi
@@ -61,7 +58,7 @@ export class DLPService {
     public static scrubEnvContent(content: string): string {
         if (!content || typeof content !== 'string') return content;
 
-        let sanitized = content.replace(
+        const sanitized = content.replace(
             /^(\s*[A-Z_][A-Z0-9_]*\s*=\s*)(["']?)(.+?)\2\s*$/gm,
             (_, prefix, quote) => `${prefix}${quote}[REDACTED]${quote}`
         );
@@ -88,6 +85,22 @@ export class DLPService {
     }
 
     /**
+     * Redacts sensitive object keys when content is JSON, then falls back to
+     * pattern-based text redaction for ordinary output.
+     */
+    public static scrubTextOrJson(content: string): string {
+        try {
+            const parsed: unknown = JSON.parse(content);
+            if (typeof parsed === 'object' && parsed !== null) {
+                return JSON.stringify(this.scrubDeep(parsed));
+            }
+        } catch {
+            // The value is plain text.
+        }
+        return this.scrub(content);
+    }
+
+    /**
      * Checks if a path is blacklisted
      */
     public static isPathBlacklisted(path: string): boolean {
@@ -102,28 +115,49 @@ export class DLPService {
     }
 
     /**
+     * Identifies object keys that conventionally hold credentials. Token usage
+     * metrics such as `totalInputTokens`, `maxTokens`, and `tokenCount` are
+     * deliberately preserved.
+     */
+    public static isSensitiveKey(key: string): boolean {
+        const normalized = key.replace(/[^A-Za-z0-9]/g, '').toLowerCase();
+        return (
+            normalized.includes('apikey') ||
+            normalized.includes('apisecret') ||
+            normalized.includes('authorization') ||
+            normalized.includes('cookie') ||
+            normalized.includes('credential') ||
+            normalized.includes('password') ||
+            normalized.includes('privatekey') ||
+            normalized.includes('secret') ||
+            normalized.endsWith('token')
+        );
+    }
+
+    /**
      * Recursively scrubs secrets from an object or array
      */
-    public static scrubDeep(obj: any): any {
-        if (!obj) return obj;
+    public static scrubDeep(value: unknown): unknown {
+        if (value === null || value === undefined) return value;
 
-        if (typeof obj === 'string') {
-            return this.scrub(obj);
+        if (typeof value === 'string') {
+            return this.scrub(value);
         }
 
-        if (Array.isArray(obj)) {
-            return obj.map((item) => this.scrubDeep(item));
+        if (Array.isArray(value)) {
+            return value.map((item) => this.scrubDeep(item));
         }
 
-        if (typeof obj === 'object') {
-            const sanitized: any = {};
-            for (const key in obj) {
-                // Potential heuristic: skip scrubbing for known non-sensitive keys to improve performance
-                sanitized[key] = this.scrubDeep(obj[key]);
+        if (typeof value === 'object') {
+            const sanitized: Record<string, unknown> = {};
+            for (const [key, nestedValue] of Object.entries(value)) {
+                sanitized[key] = this.isSensitiveKey(key)
+                    ? '[REDACTED_SECRET]'
+                    : this.scrubDeep(nestedValue);
             }
             return sanitized;
         }
 
-        return obj;
+        return value;
     }
 }

@@ -1,110 +1,79 @@
 ---
-name: extension-builder
-description: Guide for creating new MCP extensions at runtime.
+name: create-extension
+description: Creates a trusted local MCP extension with bounded tools and explicit enablement.
 ---
 
-# extension-builder Guide Skill
+# Create an MCP extension
 
-This skill allows Tars to create new MCP extensions to expand its own toolset.
+Use this guide only when the user asks for a new local tool or integration. MCP extensions execute
+as trusted subprocesses with the permissions of the Tars operating-system user.
 
-## Instructions
+## Plan first
 
-When you need to build a new tool or integration:
+1. Define the minimum operations and external systems required.
+2. Prefer one cohesive action-based tool over many granular tools.
+3. Specify input validation, timeouts, output limits, credential handling, and recovery behavior.
+4. Ask before installing dependencies or contacting an external service if that authority was not
+   already part of the request.
 
-1.  **Plan & Consolidate Tools**: Define the name and the MCP tools.
-    - **CRITICAL**: Do NOT expose many small, granular tools. Consolidate related operations into a single tool using an `action` parameter (`z.enum`) to keep the total tool count low. This prevents attention dilution in local/smaller models.
-2.  **Create the Directory**: Move to `~/.tars/.gemini/extensions/<name>`.
-3.  **Initialize npm**: Run `npm init -y`. Set `"type": "module"` in `package.json`.
-4.  **Install Dependencies**: Install `@modelcontextprotocol/sdk` and any required libraries.
-5.  **Write the Server (JavaScript)**: Create a `server.js` file.
-    - **CRITICAL**: Use **plain JavaScript** for runtime-created extensions to avoid a build step.
-    - Use `@modelcontextprotocol/sdk` to define tools and handle stdio.
-6.  **Create Manifest**: Create `tars-extension.json`.
-7.  **Enable Extension**: Edit `~/.tars/.gemini/extensions/extension-enablement.json`.
-    - Authorize the extension by adding its entry with safety overrides:
-    ```json
-    "my-extension": {
-        "overrides": ["/path/to/my/workspace/*"]
-    }
-    ```
-8.  **Finalize**: Restart Tars using `tars stop && tars start`.
+## Layout
 
-## Manifest Template (tars-extension.json)
+Create the extension under `~/.tars/extensions/<name>/`:
+
+```text
+<name>/
+├── package.json
+├── server.js
+└── tars-extension.json
+```
+
+Plain ESM JavaScript avoids a build step for user-created extensions. Validate untrusted inputs with
+Zod or an equivalent schema and return structured MCP errors.
+
+## Manifest
 
 ```json
 {
-    "name": "my-extension",
+    "name": "example-extension",
     "version": "1.0.0",
     "mcpServers": {
         "main": {
             "command": "node",
             "args": ["${extensionPath}/server.js"],
-            "env": {
-                "NODE_ENV": "production"
-            }
+            "cwd": "${extensionPath}",
+            "envAllowlist": ["EXAMPLE_API_KEY"],
+            "startupTimeoutMs": 30000,
+            "toolTimeoutMs": 60000
         }
     }
 }
 ```
 
-## Server Template (server.js)
+Use `process.env.EXAMPLE_API_KEY` in code. Ask the operator to store the value from their own
+interactive shell; do not request it in chat or pass it through a model-visible tool call:
 
-```javascript
-#!/usr/bin/env node
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { z } from 'zod';
-
-const server = new McpServer({
-    name: 'my-extension',
-    version: '1.0.0'
-});
-
-// Consolidated, action-based tool example
-server.registerTool(
-    'manage_data',
-    {
-        description: 'Perform actions (store, delete, or list) on the data store.',
-        inputSchema: z.object({
-            action: z.enum(['store', 'delete', 'list']).description('The action to perform'),
-            key: z.string().optional().description('Required for store/delete actions'),
-            value: z.string().optional().description('Required for store action')
-        })
-    },
-    async (args) => {
-        const { action, key, value } = args;
-
-        if (action === 'store') {
-            if (!key || !value)
-                return {
-                    content: [{ type: 'text', text: 'Error: Key and value required' }],
-                    isError: true
-                };
-            // Store implementation...
-            return { content: [{ type: 'text', text: `Successfully stored key: ${key}` }] };
-        } else if (action === 'delete') {
-            if (!key)
-                return { content: [{ type: 'text', text: 'Error: Key required' }], isError: true };
-            // Delete implementation...
-            return { content: [{ type: 'text', text: `Successfully deleted key: ${key}` }] };
-        } else if (action === 'list') {
-            // List implementation...
-            return { content: [{ type: 'text', text: 'Listing stored keys...' }] };
-        }
-
-        return { content: [{ type: 'text', text: 'Invalid action' }], isError: true };
-    }
-);
-
-const transport = new StdioServerTransport();
-await server.connect(transport);
+```bash
+read -rs TARS_SECRET_VALUE
+printf '%s' "$TARS_SECRET_VALUE" | tars secret set EXAMPLE_API_KEY
+unset TARS_SECRET_VALUE
 ```
 
-## Handling Secrets & Authentication
+Never hardcode, log, or pass a credential as a command argument. Only variables named in
+`envAllowlist`, manifest-defined values, and the minimal runtime environment are passed to the
+subprocess.
 
-Do **NOT** hardcode API keys.
+## Enable and verify
 
-1. **Access**: Use `process.env.MY_SECRET_KEY` in your extension code.
-2. **Missing Key Handling**: If missing, return a clear error:
-   `"API Key missing. Please run 'tars secret set MY_SECRET_KEY <YOUR_KEY>' and restart Tars."`
-3. **Storage**: Tars manages these via `~/.tars/.env`. Use `tars secret set KEY VALUE` to store them.
+Add an explicit entry to `~/.tars/extensions/extension-enablement.json`:
+
+```json
+{
+    "example-extension": {
+        "enabled": true,
+        "envAllowlist": ["EXAMPLE_API_KEY"]
+    }
+}
+```
+
+Then ask the operator to restart Tars. Confirm the expected tool appears, exercise a read-only call,
+and test invalid input and timeout behavior before any state-changing call.

@@ -4,6 +4,8 @@ node_modules/
 
 # Build output
 dist/
+.next/
+.astro/
 
 # Environment variables
 .env
@@ -12,6 +14,7 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
+*.log
 
 # Tars specific local data (if any was made in project dir)
 .tars/
@@ -26,6 +29,7 @@ coverage/
 .gemini/
 
 tars-brain*
+*.tgz
 
 # External reference repos (for investigation)
 external/

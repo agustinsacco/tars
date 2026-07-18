@@ -8,16 +8,7 @@ export async function status() {
     // Load config to find session file
     const config = Config.getInstance();
     const sessionManager = new SessionManager(config.sessionFilePath);
-    const stats = sessionManager.load(); // Just loads ID, but populates internal state if exists
-    // Actually we need to call load() then check internal state or re-read
-    // SessionManager.load() returns ID but populates this.sessionData.
-    // However, status.ts is a separate process from supervisor.
-    // So we just need to read the file directly or use SessionManager.
-
-    // Let's use SessionManager since we have it.
-    // Issue: load() returns string | null. We need getStats().
-    // We must call load() first to populate internal state from disk.
-    sessionManager.load();
+    await sessionManager.load();
     const sessionStats = sessionManager.getStats();
 
     pm2.connect((err) => {

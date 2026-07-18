@@ -1,30 +1,33 @@
 @import 'tailwindcss';
 
-/* ─── Google Fonts: JetBrains Mono & Space Grotesk ─── */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@500;700&display=swap');
-
 /* ─── Design Tokens ─── */
 @theme {
     --color-surface: #050505;
     --color-surface-raised: #0e0e10;
     --color-border-subtle: #27272a;
     --color-text-primary: #e4e4e7;
-    --color-text-secondary: #71717a;
-    --color-text-muted: #52525b;
+    --color-text-secondary: #8b8b95;
+    --color-text-muted: #7f7f89;
     --color-accent: #60a5fa;
     --color-accent-dim: rgba(59, 130, 246, 0.05);
 }
 
 /* ─── Global Reset: Default to Monospace ─── */
 body {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+}
+
+.font-display {
+    font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 /* ─── Base Styles ─── */
 html {
     background-color: #050505;
     color: #e4e4e7;
+    color-scheme: dark;
     scrollbar-color: #3f3f46 transparent;
+    scroll-behavior: smooth;
 }
 
 body {
@@ -32,6 +35,33 @@ body {
     min-height: 100vh;
     line-height: 1.7;
     font-size: 14px;
+}
+
+.skip-link {
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+    z-index: 100;
+    transform: translateY(-200%);
+    border-radius: 0.25rem;
+    background: #fafafa;
+    color: #050505;
+    padding: 0.5rem 0.75rem;
+    font-weight: 700;
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 3px;
+}
+
+h2[id],
+h3[id] {
+    scroll-margin-top: 5rem;
 }
 
 /* ─── Custom Scrollbar ─── */
@@ -54,10 +84,6 @@ body {
 }
 
 /* ─── Markdown Prose Styles ─── */
-.prose {
-    /* max-width removed to allow layout control */
-}
-
 .prose h1 {
     font-size: 1.75rem;
     font-weight: 700;
@@ -225,4 +251,27 @@ body {
 ::selection {
     background: rgba(96, 165, 250, 0.3);
     color: #fafafa;
+}
+
+@media (max-width: 639px) {
+    .prose table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }

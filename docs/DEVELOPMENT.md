@@ -1,102 +1,126 @@
-# Tars Development Guide
+# Development guide
 
-This guide covers how to set up the Tars project for local development.
+## Requirements
 
-## Prerequisites
+- Node.js 22.19 or newer
+- npm 10.9 or newer
+- Git
 
-- **Node.js**: Version 22.0.0 or higher.
-- **Gemini CLI**: Must be installed and available in your PATH (`npm i -g @google/gemini-cli-beta`).
-- **Discord Bot Token**: proper permissions (Send Messages, Read Message History).
+No vendor-specific model CLI is required. Tars integrates providers through the Pi Agent SDK.
 
-## Setup
+## Bootstrap
 
-1.  **Clone the repository**:
+```bash
+git clone https://github.com/agustinsacco/tars.git
+cd tars
+npm ci
+npm run ci:extensions
+npm run build
+npm run typecheck
+npm run test:coverage
+npm run test:extensions
+```
 
-    ```bash
-    git clone https://github.com/agustinsacco/tars.git
-    cd tars
-    ```
+`npm link` is optional if you want the local build available as the global `tars` command.
 
-2.  **Install dependencies**:
+## Run locally
 
-    ```bash
-    npm install
-    ```
-
-    _Note: This also installs dependencies for the built-in `extensions/tasks`._
-
-3.  **Build the project**:
-
-    ```bash
-    npm run build
-    ```
-
-    This compiles the TypeScript source from `src/` to `dist/` and builds the internal extensions.
-
-4.  **Link globally**:
-
-    ```bash
-    npm link
-    ```
-
-    This makes the `tars` command available globally on your system, pointing to your local `dist/cli/index.js`.
-
-5.  **Run Setup**:
-    ```bash
-    tars setup
-    ```
-    Follow the wizard to authenticate with Google and configure your Discord token.
-
-## Development Workflow
-
-### Running in Watch Mode
-
-For rapid development, you can run the Supervisor directly using `tsx` in watch mode:
+Use watch mode for supervisor development:
 
 ```bash
 npm run dev
 ```
 
-This bypasses the `pm2` process management and runs the Supervisor in your current terminal, streaming logs directly.
+The production entry point is guarded by `TARS_SUPERVISOR_MODE`; use `tars start` for a PM2-managed
+installation. Do not use `npm run start` to change a running installation's configuration or
+lifecycle.
 
-### Testing Extensions
+To exercise the engine and tool event stream without Discord:
 
-If you modify `extensions/tasks/`:
+```bash
+TARS_SUPERVISOR_MODE=true npx tsx src/scripts/debug-cli.ts "summarize the current session"
+```
 
-1.  Rebuild the extension:
-    ```bash
-    npm run build:extensions
-    ```
-2.  Restart Tars (if running via `tars start`):
-    ```bash
-    tars stop && tars start
-    ```
+For the user-facing terminal interface, use:
 
-### Running Tests
+```bash
+tars chat --no-discord
+```
 
-Tars uses `vitest` for testing.
+## Repository map
 
-- **Run all tests**:
-    ```bash
-    npm test
-    ```
-- **Run in watch mode**:
-    ```bash
-    npm run test:watch
-    ```
+```text
+src/cli/            command definitions and lifecycle operations
+src/channels/       Discord and terminal adapters
+src/config/         schema-validated runtime configuration
+src/supervisor/     engine, sessions, heartbeat, cron, MCP bridge, and routing
+src/memory/         knowledge indexing
+src/utils/          paths, logging, process discovery, migration, and safety helpers
+src/tests/          unit and integration tests
+extensions/         built-in MCP packages (memory, tasks, search)
+context/            files and built-in skills installed into TARS_HOME
+dash/               optional Next.js dashboard
+site/               Astro documentation site
+```
 
-## Project Structure
+## Validation
 
-- **`src/cli/`**: The `commander`-based CLI tool (`tars`).
-- **`src/supervisor/`**: The core logic (Supervisor, Heartbeat, Gemini wrapper).
-- **`src/discord/`**: Discord bot integration.
-- **`extensions/`**: Built-in MCP servers (e.g., `tasks`).
-- **`context/`**: Static assets copied to `~/.gemini` (GEMINI.md, skills).
+Core:
+
+```bash
+npm run build:src
+npm run typecheck
+npm run test:coverage
+npm run test:extensions
+npm run format:check
+```
+
+Built-in extensions:
+
+```bash
+for extension in memory tasks search; do
+  npm ci --prefix "extensions/$extension"
+  npm run build --prefix "extensions/$extension"
+done
+```
+
+Dashboard and documentation:
+
+```bash
+npm ci --prefix dash
+npm run dashboard:lint
+npm run dashboard:typecheck
+npm run dashboard:build
+
+npm ci --prefix site
+npm run docs:check
+npm run docs:build
+```
+
+## Development conventions
+
+- Use TypeScript and ES modules.
+- Validate data at file, network, process, and message boundaries.
+- Avoid `any` and unchecked type assertions.
+- Prefer atomic writes for state and safe staging for archive/package replacement.
+- Keep secrets out of command arguments, logs, tests, fixtures, and committed files.
+- Add regression tests for access control, path containment, SSRF, archive handling, and recovery
+  behavior when those areas change.
+- Use Conventional Commits. Release Please owns package versions and releases.
 
 ## Debugging
 
-- **Logs**: When running via `tars start` (pm2), logs are managed by pm2:
-    ```bash
-    pm2 logs tars-supervisor
-    ```
-- **Data**: Check `~/.tars/data/` to see the state of `tasks.json` and `session.json`.
+```bash
+tars status
+tars logs
+pm2 logs tars-supervisor --raw
+```
+
+Inspect `~/.tars/data/session.json` for session metadata and `~/.tars/data/tasks.json` for scheduled
+task state. Durable facts are under `~/.tars/data/memory/`. Logs redact common secret material, so
+diagnostics may intentionally omit sensitive tool arguments or output.
+
+When a built-in extension or dashboard asset changes, rebuild the installed copy with `tars refresh`
+and restart as directed. Refresh stages and validates the replacement before swapping it into place.
+Bundled extensions use managed copies by default. Set `TARS_DEV_EXTENSION_LINKS=true` only when a
+source-development installation intentionally needs links back to this checkout.

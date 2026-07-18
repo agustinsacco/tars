@@ -1,43 +1,39 @@
-import { Agent, AgentEvent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
-import { getModel, Model, Message, Usage } from '@earendil-works/pi-ai';
+import {
+    Agent,
+    AgentEvent,
+    AgentMessage,
+    AgentTool,
+    type AgentOptions
+} from '@earendil-works/pi-agent-core';
+import { getModel, Model, Message } from '@earendil-works/pi-ai';
+import type { ImageContent } from '@earendil-works/pi-ai/base';
 import {
     createCodingTools,
     loadSkills,
     formatSkillsForPrompt
 } from '@earendil-works/pi-coding-agent';
 import { EventEmitter } from 'events';
+import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { Config as TarsConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 
-import { AttachmentContext } from '../types/index.js';
+import { AttachmentContext, TarsEvent } from '../types/index.js';
 
 import { ChannelManager } from '../channels/channel-manager.js';
 import { SendNotificationTool } from '../tools/send-notification.js';
 
-import { SessionManager } from './session-manager.js';
+import { SessionIdSchema, SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
 import { McpBridge } from './mcp-bridge.js';
+import { DLPService } from '../utils/dlp-service.js';
 
-export interface TarsEngineEvent {
-    type: string;
-    role?: 'user' | 'assistant' | 'system';
-    content?: string;
-    toolName?: string;
-    toolArgs?: any;
-    callId?: string;
-    usageStats?: {
-        inputTokens: number;
-        outputTokens: number;
-        cachedTokens: number;
-    };
-    sessionId?: string;
-    error?: string;
-}
+export type TarsEngineEvent = TarsEvent;
 
-export type TarsEngineOutputHandler = (event: TarsEngineEvent) => void | Promise<void>;
+export type TarsEngineOutputHandler = (event: TarsEngineEvent) => unknown | Promise<unknown>;
 
 /**
  * Snapshot of a completed tool call for status reporting.
@@ -59,6 +55,164 @@ export type StatusUpdateHandler = (
     isMilestone: boolean
 ) => void | Promise<void>;
 
+type AgentFactory = (options: AgentOptions) => Agent;
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function extractTextContent(content: unknown): string {
+    if (typeof content === 'string') return content;
+    if (!Array.isArray(content)) return '';
+
+    return content
+        .map((part: unknown) => {
+            if (typeof part !== 'object' || part === null) return '';
+            const text = Reflect.get(part, 'text');
+            return typeof text === 'string' ? text : '';
+        })
+        .filter(Boolean)
+        .join('\n');
+}
+
+function estimateSerializedCharacters(value: unknown): number {
+    if (typeof value === 'string') return value.length;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value).length;
+    if (Array.isArray(value)) {
+        return value.reduce((total, item) => total + estimateSerializedCharacters(item), 0);
+    }
+    if (typeof value !== 'object' || value === null) return 0;
+
+    const isImage = Reflect.get(value, 'type') === 'image';
+    return Object.entries(value).reduce((total, [key, nestedValue]) => {
+        if (isImage && key === 'data') return total + 4_000;
+        return total + key.length + estimateSerializedCharacters(nestedValue);
+    }, 0);
+}
+
+const TimestampSchema = z.number().finite().nonnegative();
+const TextContentSchema = z
+    .object({
+        type: z.literal('text'),
+        text: z.string(),
+        textSignature: z.string().optional()
+    })
+    .passthrough();
+const ImageContentSchema = z
+    .object({
+        type: z.literal('image'),
+        data: z.string(),
+        mimeType: z.string()
+    })
+    .passthrough();
+const ThinkingContentSchema = z
+    .object({
+        type: z.literal('thinking'),
+        thinking: z.string(),
+        thinkingSignature: z.string().optional(),
+        redacted: z.boolean().optional()
+    })
+    .passthrough();
+const ToolCallSchema = z
+    .object({
+        type: z.literal('toolCall'),
+        id: z.string(),
+        name: z.string(),
+        arguments: z.record(z.unknown()),
+        thoughtSignature: z.string().optional()
+    })
+    .passthrough();
+const UsageSchema = z
+    .object({
+        input: z.number().finite().nonnegative(),
+        output: z.number().finite().nonnegative(),
+        cacheRead: z.number().finite().nonnegative(),
+        cacheWrite: z.number().finite().nonnegative(),
+        cacheWrite1h: z.number().finite().nonnegative().optional(),
+        totalTokens: z.number().finite().nonnegative(),
+        cost: z
+            .object({
+                input: z.number().finite().nonnegative(),
+                output: z.number().finite().nonnegative(),
+                cacheRead: z.number().finite().nonnegative(),
+                cacheWrite: z.number().finite().nonnegative(),
+                total: z.number().finite().nonnegative()
+            })
+            .passthrough()
+    })
+    .passthrough();
+const AssistantDiagnosticSchema = z
+    .object({
+        type: z.string(),
+        timestamp: TimestampSchema,
+        error: z
+            .object({
+                name: z.string().optional(),
+                message: z.string(),
+                stack: z.string().optional(),
+                code: z.union([z.string(), z.number()]).optional()
+            })
+            .passthrough()
+            .optional(),
+        details: z.record(z.unknown()).optional()
+    })
+    .passthrough();
+const UserMessageSchema = z
+    .object({
+        role: z.literal('user'),
+        content: z.union([z.string(), z.array(z.union([TextContentSchema, ImageContentSchema]))]),
+        timestamp: TimestampSchema
+    })
+    .passthrough();
+const AssistantMessageSchema = z
+    .object({
+        role: z.literal('assistant'),
+        content: z.array(z.union([TextContentSchema, ThinkingContentSchema, ToolCallSchema])),
+        api: z.string(),
+        provider: z.string(),
+        model: z.string(),
+        responseModel: z.string().optional(),
+        responseId: z.string().optional(),
+        diagnostics: z.array(AssistantDiagnosticSchema).optional(),
+        usage: UsageSchema,
+        stopReason: z.enum(['stop', 'length', 'toolUse', 'error', 'aborted']),
+        errorMessage: z.string().optional(),
+        timestamp: TimestampSchema
+    })
+    .passthrough();
+const ToolResultMessageSchema = z
+    .object({
+        role: z.literal('toolResult'),
+        toolCallId: z.string(),
+        toolName: z.string(),
+        content: z.array(z.union([TextContentSchema, ImageContentSchema])),
+        details: z.unknown().optional(),
+        isError: z.boolean(),
+        timestamp: TimestampSchema
+    })
+    .passthrough();
+const AgentHistorySchema: z.ZodType<AgentMessage[]> = z.array(
+    z.discriminatedUnion('role', [
+        UserMessageSchema,
+        AssistantMessageSchema,
+        ToolResultMessageSchema
+    ])
+);
+
+export function parseAgentHistory(value: unknown): AgentMessage[] {
+    return AgentHistorySchema.parse(value);
+}
+
+export function resolveSessionHistoryPath(chatsDir: string, sessionId: string): string {
+    const safeSessionId = SessionIdSchema.parse(sessionId);
+    const resolvedChatsDir = path.resolve(chatsDir);
+    const candidate = path.resolve(resolvedChatsDir, `${safeSessionId}.json`);
+    if (path.dirname(candidate) !== resolvedChatsDir) {
+        throw new Error('Session history path escapes the chats directory');
+    }
+    return candidate;
+}
+
 /**
  * TarsEngine - Wraps the Pi Agent SDK as a drop-in replacement.
  *
@@ -75,7 +229,10 @@ export class TarsEngine extends EventEmitter {
     private allTools: AgentTool<any>[] = [];
     public activeTools: ToolStatus[] = [];
 
-    constructor(private readonly tarsConfig: TarsConfig) {
+    constructor(
+        private readonly tarsConfig: TarsConfig,
+        private readonly agentFactory: AgentFactory = (options) => new Agent(options)
+    ) {
         super();
         this.rateLimiter = new LocalRateLimiter(
             tarsConfig.maxRPM || 14,
@@ -212,13 +369,14 @@ export class TarsEngine extends EventEmitter {
         onEvent: TarsEngineOutputHandler,
         sessionId?: string,
         attachments?: AttachmentContext[],
-        onStatus?: StatusUpdateHandler
+        onStatus?: StatusUpdateHandler,
+        options: { allowNotifications?: boolean } = {}
     ): Promise<void> {
         if (!this.initialized) {
             await this.initialize(sessionId);
         }
 
-        const sid = sessionId || this.currentSessionId || uuidv4();
+        const sid = SessionIdSchema.parse(sessionId || this.currentSessionId || uuidv4());
         this.currentSessionId = sid;
 
         // Load history messages
@@ -255,11 +413,15 @@ export class TarsEngine extends EventEmitter {
         }
 
         // Build target Agent
-        const agent = new Agent({
+        const tools =
+            options.allowNotifications === false
+                ? this.allTools.filter(({ name }) => name !== 'send_notification')
+                : this.allTools;
+        const agent = this.agentFactory({
             initialState: {
                 systemPrompt,
                 model,
-                tools: this.allTools,
+                tools,
                 messages: history
             },
             getApiKey: (providerName) => this.getApiKeyForProvider(providerName)
@@ -270,26 +432,26 @@ export class TarsEngine extends EventEmitter {
         let turnCount = 0;
 
         // Subscribe to agent event stream
-        agent.subscribe((event) => {
+        agent.subscribe(async (event: AgentEvent) => {
             try {
                 if (event.type === 'message_update') {
                     const ame = event.assistantMessageEvent;
                     if (ame.type === 'text_delta') {
-                        onEvent({
+                        await onEvent({
                             type: 'text',
                             role: 'assistant',
                             content: ame.delta,
                             sessionId: sid
                         });
                     } else if (ame.type === 'thinking_delta') {
-                        onEvent({
+                        await onEvent({
                             type: 'thought',
                             content: ame.delta,
                             sessionId: sid
                         });
                     }
                 } else if (event.type === 'tool_execution_start') {
-                    onEvent({
+                    await onEvent({
                         type: 'tool_call',
                         toolName: event.toolName,
                         toolArgs: event.args,
@@ -304,7 +466,11 @@ export class TarsEngine extends EventEmitter {
                     });
 
                     if (onStatus) {
-                        onStatus(turnCount, this.activeTools.slice(-10), turnCount % 20 === 0);
+                        await onStatus(
+                            turnCount,
+                            this.activeTools.slice(-10),
+                            turnCount % 20 === 0
+                        );
                     }
                 } else if (event.type === 'tool_execution_end') {
                     const responseStr =
@@ -314,7 +480,7 @@ export class TarsEngine extends EventEmitter {
                               ? JSON.stringify(event.result)
                               : String(event.result || '');
 
-                    onEvent({
+                    await onEvent({
                         type: 'tool_response',
                         toolName: event.toolCallId,
                         content: responseStr,
@@ -323,17 +489,35 @@ export class TarsEngine extends EventEmitter {
 
                     let cleanPreview = responseStr;
                     try {
-                        const parsed = JSON.parse(responseStr);
-                        if (parsed && Array.isArray(parsed.content)) {
+                        const parsed: unknown = JSON.parse(responseStr);
+                        if (
+                            typeof parsed === 'object' &&
+                            parsed !== null &&
+                            'content' in parsed &&
+                            Array.isArray(parsed.content)
+                        ) {
                             cleanPreview = parsed.content
-                                .filter((c: any) => c.type === 'text' && typeof c.text === 'string')
-                                .map((c: any) => c.text)
+                                .filter(
+                                    (contentPart: unknown): contentPart is { text: string } =>
+                                        typeof contentPart === 'object' &&
+                                        contentPart !== null &&
+                                        Reflect.get(contentPart, 'type') === 'text' &&
+                                        typeof Reflect.get(contentPart, 'text') === 'string'
+                                )
+                                .map((contentPart) => contentPart.text)
                                 .join(' ');
-                        } else if (parsed && typeof parsed.text === 'string') {
-                            cleanPreview = parsed.text;
+                        } else if (
+                            typeof parsed === 'object' &&
+                            parsed !== null &&
+                            typeof Reflect.get(parsed, 'text') === 'string'
+                        ) {
+                            cleanPreview = String(Reflect.get(parsed, 'text'));
                         }
-                    } catch (e) {}
+                    } catch {
+                        // Plain-text tool results are already suitable for status previews.
+                    }
 
+                    cleanPreview = DLPService.scrubTextOrJson(cleanPreview);
                     const runningTool = this.activeTools.find((t) => t.id === event.toolCallId);
                     if (runningTool) {
                         runningTool.status = 'completed';
@@ -351,39 +535,48 @@ export class TarsEngine extends EventEmitter {
                     turnCount++;
 
                     if (onStatus) {
-                        onStatus(turnCount, this.activeTools.slice(-10), turnCount % 20 === 0);
+                        await onStatus(
+                            turnCount,
+                            this.activeTools.slice(-10),
+                            turnCount % 20 === 0
+                        );
                     }
                 }
-            } catch (err: any) {
-                logger.error(`Error in event stream mapping: ${err.message}`);
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logger.error(`Error in event stream mapping: ${message}`);
+                throw error;
             }
         });
 
-        // Prepare prompt with attachments if any
-        let promptContent: string | any[] = prompt;
+        // Prepare prompt with attachments. Image data is passed through the Pi
+        // image channel; other files remain available to the coding tools by path.
+        let promptText = prompt;
+        const promptImages: ImageContent[] = [];
         if (attachments && attachments.length > 0) {
-            const parts: any[] = [{ type: 'text', text: prompt }];
             for (const attachment of attachments) {
                 try {
-                    const data = fs.readFileSync(attachment.path).toString('base64');
-                    parts.push({
-                        type: 'image',
-                        data,
-                        mimeType: attachment.mimeType
-                    });
-                    logger.debug(`📎 Attached image to prompt: ${attachment.path}`);
-                } catch (err: any) {
-                    logger.error(`Failed to read attachment ${attachment.path}: ${err.message}`);
+                    if (attachment.mimeType.startsWith('image/')) {
+                        const data = await fs.promises.readFile(attachment.path, {
+                            encoding: 'base64'
+                        });
+                        promptImages.push({ type: 'image', data, mimeType: attachment.mimeType });
+                        logger.debug(`📎 Attached image to prompt: ${attachment.path}`);
+                    } else {
+                        promptText += `\n\n[Attached file: ${attachment.path} (${attachment.mimeType})]`;
+                    }
+                } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    logger.error(`Failed to read attachment ${attachment.path}: ${message}`);
                 }
             }
-            promptContent = parts;
         }
 
-        const startIndex = history.length;
+        let startIndex = history.length;
 
         try {
             // Pre-flight context size estimation to prevent context overflow errors
-            const estimatedContextSize = this.estimateContextSize(history, systemPrompt);
+            let estimatedContextSize = this.estimateContextSize(history, systemPrompt);
             const maxContext = this.tarsConfig.contextWindowTokens || 128000;
 
             // Use centralized pre-flight threshold to leave adequate buffer for model responses
@@ -391,7 +584,7 @@ export class TarsEngine extends EventEmitter {
                 logger.info(
                     `🗜️ Pre-flight check: Context size (${estimatedContextSize.toLocaleString()} tokens) at ${((estimatedContextSize / maxContext) * 100).toFixed(1)}% of window. Triggering compression before execution.`
                 );
-                const compressed = await this.compressSession(false);
+                const compressed = await this.compressSession(true, sid);
                 if (compressed) {
                     // Reload history after compression
                     const newHistory = await this.loadHistory(sid);
@@ -403,13 +596,25 @@ export class TarsEngine extends EventEmitter {
 
                     // Update agent with compressed history
                     agent.state.messages = newHistory;
+                    startIndex = newHistory.length;
+                    estimatedContextSize = newEstimatedSize;
                 }
             }
 
-            if (typeof promptContent === 'string') {
-                await agent.prompt(promptContent);
-            } else {
-                await agent.prompt(promptContent as any);
+            const estimatedRequestTokens = Math.min(
+                this.tarsConfig.maxTPM,
+                estimatedContextSize + Math.ceil(promptText.length / 3.8)
+            );
+            await this.rateLimiter.acquire(estimatedRequestTokens, (waitMs) => {
+                logger.info(
+                    `⏳ Local provider limit reached; waiting ${Math.ceil(waitMs / 1000)}s`
+                );
+            });
+            await agent.prompt(promptText, promptImages);
+
+            const agentError = agent.state.errorMessage?.trim();
+            if (agentError) {
+                throw new Error(DLPService.scrub(agentError));
             }
 
             // Save history
@@ -460,16 +665,17 @@ export class TarsEngine extends EventEmitter {
                 lastOutputTokens
             };
 
-            onEvent({
+            await onEvent({
                 type: 'done',
                 usageStats,
                 sessionId: sid
             });
-        } catch (err: any) {
-            logger.error(`❌ Pi Agent execution error: ${err.message}`);
+        } catch (error: unknown) {
+            const errorMessage = DLPService.scrub(getErrorMessage(error));
+            logger.error(`❌ Pi Agent execution error: ${errorMessage}`);
 
             // Extract context size from error message if available
-            const contextSizeMatch = err.message.match(/request \((\d{1,}) tokens\)/);
+            const contextSizeMatch = errorMessage.match(/request \((\d{1,}) tokens\)/);
             const reportedTokens = contextSizeMatch ? parseInt(contextSizeMatch[1], 10) : 0;
 
             // Estimate current context size for session tracking even on error
@@ -479,47 +685,30 @@ export class TarsEngine extends EventEmitter {
             );
             const contextSize = reportedTokens || estimatedContextSize;
 
-            // Update usage stats even on error to prevent stale lastInputTokens
+            // Keep the context estimate current without recording rejected work as usage.
             if (this.sessionManager && contextSize > 0) {
                 try {
-                    await this.sessionManager.updateUsage({
-                        inputTokens: contextSize,
-                        outputTokens: 0,
-                        cachedTokens: 0,
-                        lastInputTokens: contextSize,
-                        lastOutputTokens: 0
-                    });
+                    await this.sessionManager.updateContextEstimate(contextSize);
                     logger.info(
-                        `📊 Updated session usage after error: ${contextSize.toLocaleString()} tokens`
+                        `📊 Updated context estimate after error: ${contextSize.toLocaleString()} tokens`
                     );
-
-                    // Trigger compression if context was too large
-                    if (
-                        contextSize >
-                        (this.tarsConfig.contextWindowTokens || 128000) *
-                            this.tarsConfig.preflightCompressionThreshold
-                    ) {
-                        logger.info('🗜️ Triggering compression after context overflow error...');
-                        await this.compressSession(false);
-                    }
                 } catch (updateErr) {
-                    logger.warn(`⚠️ Failed to update session usage after error: ${updateErr}`);
+                    logger.warn(`⚠️ Failed to update context estimate after error: ${updateErr}`);
                 }
             }
 
-            onEvent({
-                type: 'error',
-                error: err.message,
-                sessionId: sid
-            });
-            throw err;
+            throw error;
         }
     }
 
     /**
      * Executes a prompt synchronously and returns the model response.
      */
-    public async runSync(prompt: string, sessionId?: string): Promise<string> {
+    public async runSync(
+        prompt: string,
+        sessionId?: string,
+        options: { allowNotifications?: boolean } = {}
+    ): Promise<string> {
         let fullContent = '';
         await this.run(
             prompt,
@@ -528,7 +717,10 @@ export class TarsEngine extends EventEmitter {
                     fullContent += event.content;
                 }
             },
-            sessionId
+            sessionId,
+            undefined,
+            undefined,
+            options
         );
         return fullContent;
     }
@@ -537,13 +729,20 @@ export class TarsEngine extends EventEmitter {
      * Proactively compress the session history to reclaim context window space.
      * Summarizes older messages into a <state_snapshot> block.
      */
-    public async compressSession(force: boolean = false): Promise<boolean> {
-        const sid = this.currentSessionId || 'unknown';
+    public async compressSession(force: boolean = false, sessionId?: string): Promise<boolean> {
+        const sid = sessionId || this.currentSessionId;
+        if (!sid) return false;
         logger.info(`🗜️ Triggering session compression (force=${force})...`);
         try {
             const history = await this.loadHistory(sid);
-            if (history && history.length > 20) {
-                const keepCount = Math.ceil(history.length * 0.6);
+            const estimatedTokens = this.estimateContextSize(history, this.getSystemPrompt());
+            const shouldCompress =
+                force ||
+                estimatedTokens >=
+                    this.tarsConfig.contextWindowTokens * this.tarsConfig.compressionThreshold;
+
+            if (shouldCompress && history.length >= 4) {
+                const keepCount = Math.max(2, Math.ceil(history.length * 0.6));
                 let cutIndex = history.length - keepCount;
 
                 // Walk forward to find a 'user' role entry for clean boundary
@@ -551,22 +750,21 @@ export class TarsEngine extends EventEmitter {
                     cutIndex++;
                 }
 
-                if (cutIndex < history.length) {
+                if (cutIndex >= history.length) {
+                    cutIndex = history.length - keepCount;
+                }
+
+                if (cutIndex > 0 && cutIndex < history.length) {
                     const historyToCompress = history.slice(0, cutIndex);
                     const tail = history.slice(cutIndex);
 
                     logger.info(`🗜️ Summarizing oldest ${historyToCompress.length} turns...`);
 
-                    const hasPreviousSnapshot = historyToCompress.some((c: any) => {
-                        if (typeof c.content === 'string') {
-                            return c.content.includes('<state_snapshot>');
-                        } else if (Array.isArray(c.content)) {
-                            return c.content.some((part: any) =>
-                                part.text?.includes('<state_snapshot>')
-                            );
-                        }
-                        return false;
-                    });
+                    const hasPreviousSnapshot = historyToCompress.some((message) =>
+                        extractTextContent(Reflect.get(message, 'content')).includes(
+                            '<state_snapshot>'
+                        )
+                    );
 
                     const anchorInstruction = hasPreviousSnapshot
                         ? 'A previous <state_snapshot> exists in the history. You MUST integrate all still-relevant information from that snapshot into the new one, updating it with the more recent events.'
@@ -627,9 +825,11 @@ export class TarsEngine extends EventEmitter {
                         }
                     }
 
-                    if (!summaryContent) {
-                        summaryContent =
-                            '*(Summary generation failed, falling back to raw truncation)*';
+                    if (!summaryContent.trim()) {
+                        logger.warn(
+                            '⚠️ Compression produced no summary; preserving original history'
+                        );
+                        return false;
                     }
 
                     const newHistory: AgentMessage[] = [
@@ -668,24 +868,10 @@ export class TarsEngine extends EventEmitter {
                         `🗜️ Context compacted: retained tail of ${tail.length} turns + snapshot.`
                     );
 
-                    // Load system prompt for estimation (with skills protocol appended if available)
-                    const systemPrompt = this.getSystemPrompt();
-
-                    // Estimate new history token count
-                    let totalChars = systemPrompt.length;
-                    for (const msg of newHistory) {
-                        const m = msg as any;
-                        if (typeof m.content === 'string') {
-                            totalChars += m.content.length;
-                        } else if (Array.isArray(m.content)) {
-                            for (const part of m.content) {
-                                if (part.type === 'text' && typeof part.text === 'string') {
-                                    totalChars += part.text.length;
-                                }
-                            }
-                        }
-                    }
-                    const estimatedTokens = Math.ceil(totalChars / 3.8);
+                    const estimatedTokens = this.estimateContextSize(
+                        newHistory,
+                        this.getSystemPrompt()
+                    );
                     if (this.sessionManager) {
                         await this.sessionManager.updateTokensAfterCompression(estimatedTokens);
                     }
@@ -694,8 +880,8 @@ export class TarsEngine extends EventEmitter {
                 }
             }
             return false;
-        } catch (e: any) {
-            logger.warn(`⚠️ Compression failed: ${e.message}`);
+        } catch (error: unknown) {
+            logger.warn(`⚠️ Compression failed: ${getErrorMessage(error)}`);
             return false;
         }
     }
@@ -715,15 +901,19 @@ export class TarsEngine extends EventEmitter {
      */
     private async loadHistory(sessionId: string): Promise<AgentMessage[]> {
         const chatsDir = path.join(this.tarsConfig.homeDir, 'chats');
-        const newChatPath = path.join(chatsDir, `${sessionId}.json`);
+        const newChatPath = resolveSessionHistoryPath(chatsDir, sessionId);
 
         if (fs.existsSync(newChatPath)) {
             try {
                 logger.info(`📂 Loading session history from Pi format: ${newChatPath}`);
                 const data = await fs.promises.readFile(newChatPath, 'utf-8');
-                return JSON.parse(data);
-            } catch (err) {
-                logger.error(`Failed to load Pi session chat: ${err}`);
+                const parsed: unknown = JSON.parse(data);
+                return parseAgentHistory(parsed);
+            } catch (error: unknown) {
+                const message = DLPService.scrub(getErrorMessage(error));
+                throw new Error(
+                    `Session history is invalid and was preserved unchanged (${newChatPath}): ${message}`
+                );
             }
         }
 
@@ -747,11 +937,18 @@ export class TarsEngine extends EventEmitter {
         if (!fs.existsSync(chatsDir)) {
             await fs.promises.mkdir(chatsDir, { recursive: true });
         }
-        const filePath = path.join(chatsDir, `${sessionId}.json`);
+        const filePath = resolveSessionHistoryPath(chatsDir, sessionId);
+        const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
         try {
-            await fs.promises.writeFile(filePath, JSON.stringify(messages, null, 2), 'utf-8');
+            await fs.promises.writeFile(tempPath, JSON.stringify(messages, null, 2), {
+                encoding: 'utf-8',
+                mode: 0o600
+            });
+            await fs.promises.rename(tempPath, filePath);
         } catch (err) {
+            await fs.promises.unlink(tempPath).catch(() => undefined);
             logger.error(`Failed to save session history: ${err}`);
+            throw err;
         }
     }
 
@@ -900,20 +1097,10 @@ export class TarsEngine extends EventEmitter {
                     .digest('hex');
             }
 
-            const searchDirs = [projectIdentifier];
-            try {
-                const allDirs = fs.readdirSync(tmpDir);
-                for (const d of allDirs) {
-                    if (d !== projectIdentifier) searchDirs.push(d);
-                }
-            } catch (e) {}
-
             const shortId = sessionId.slice(0, 8);
-            for (const dir of searchDirs) {
-                if (!dir) continue;
-                const chatsDir = path.join(tmpDir, dir, 'chats');
-                if (!fs.existsSync(chatsDir)) continue;
-
+            if (projectIdentifier) {
+                const chatsDir = path.join(tmpDir, projectIdentifier, 'chats');
+                if (!fs.existsSync(chatsDir)) return null;
                 const files = fs.readdirSync(chatsDir);
                 const sessionFile = files.find((f) => f.includes(`-${shortId}.json`));
 
@@ -921,27 +1108,6 @@ export class TarsEngine extends EventEmitter {
                     const filePath = path.join(chatsDir, sessionFile);
                     const content = await this.loadConversationRecord(filePath);
                     logger.info(`📂 Resumed session from exact match: ${sessionFile}`);
-                    return {
-                        conversation: content,
-                        filePath
-                    };
-                }
-
-                const jsonFiles = files.filter((f) => f.endsWith('.json') || f.endsWith('.jsonl'));
-                if (jsonFiles.length > 0) {
-                    const sorted = jsonFiles
-                        .map((f) => ({
-                            name: f,
-                            mtime: fs.statSync(path.join(chatsDir, f)).mtimeMs
-                        }))
-                        .sort((a, b) => b.mtime - a.mtime);
-
-                    const latestFile = sorted[0].name;
-                    logger.warn(
-                        `⚠️ No exact session match for ${shortId}. Falling back to latest: ${latestFile}`
-                    );
-                    const filePath = path.join(chatsDir, latestFile);
-                    const content = await this.loadConversationRecord(filePath);
                     return {
                         conversation: content,
                         filePath
@@ -964,16 +1130,7 @@ export class TarsEngine extends EventEmitter {
         let totalChars = systemPrompt.length;
 
         for (const msg of messages) {
-            const m = msg as any;
-            if (typeof m.content === 'string') {
-                totalChars += m.content.length;
-            } else if (Array.isArray(m.content)) {
-                for (const part of m.content) {
-                    if (part.type === 'text' && typeof part.text === 'string') {
-                        totalChars += part.text.length;
-                    }
-                }
-            }
+            totalChars += estimateSerializedCharacters(msg);
         }
 
         // Qwen/Gemini tokenization: ~3.8 chars per token

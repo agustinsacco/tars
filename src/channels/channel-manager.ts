@@ -1,7 +1,12 @@
-import { CommunicationChannel, ChannelMessage } from './types.js';
+import type { CommunicationChannel, ChannelMessage } from './types.js';
 import { DiscordChannel } from './discord/discord-channel.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
+import { DLPService } from '../utils/dlp-service.js';
+
+export interface ChannelManagerOptions {
+    readonly skipDiscord?: boolean;
+}
 
 /**
  * Orchestrates all communication channels (Discord, etc.)
@@ -12,9 +17,11 @@ export class ChannelManager {
     private messageHandler?: (message: ChannelMessage) => Promise<void>;
     private lastActiveChannelId?: string;
 
-    constructor() {
+    constructor(options: ChannelManagerOptions = {}) {
         this.config = Config.getInstance();
-        this.initializeChannels();
+        if (!options.skipDiscord) {
+            this.initializeChannels();
+        }
     }
 
     /**
@@ -47,6 +54,8 @@ export class ChannelManager {
 
         logger.info(`🚀 Starting ${this.channels.size} communication channel(s)...`);
 
+        const failures: string[] = [];
+        let startedChannels = 0;
         for (const channel of this.channels.values()) {
             try {
                 channel.onMessage(async (message) => {
@@ -57,9 +66,18 @@ export class ChannelManager {
                 });
 
                 await channel.start();
-            } catch (error: any) {
-                logger.error(`Failed to start channel ${channel.id}: ${error.message}`);
+                startedChannels++;
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                const safeMessage = DLPService.scrub(message);
+                failures.push(`${channel.id}: ${safeMessage}`);
+                logger.error(`Failed to start channel ${channel.id}: ${safeMessage}`);
             }
+        }
+        if (startedChannels === 0 && failures.length > 0) {
+            throw new Error(
+                `No configured communication channel could start (${failures.join('; ')})`
+            );
         }
     }
 
@@ -86,21 +104,45 @@ export class ChannelManager {
      * Send a proactive notification
      */
     public async notify(content: string, attachments?: string[]): Promise<void> {
+        const safeContent = DLPService.scrubTextOrJson(content);
         const primaryChannelId =
             this.lastActiveChannelId || this.config.primaryChannel || 'discord';
         const channel = this.channels.get(primaryChannelId);
 
         if (channel) {
-            await channel.notify(content, attachments);
+            await channel.notify(safeContent, attachments);
         } else {
             // Fallback to the first available channel if primary is not found
             const fallback = Array.from(this.channels.values())[0];
             if (fallback) {
-                await fallback.notify(content, attachments);
+                await fallback.notify(safeContent, attachments);
             } else {
-                logger.warn(`No active channels available for notification.`);
+                throw new Error('No active channels are available for notification delivery.');
             }
         }
+    }
+
+    /**
+     * Send a transient status notification that may be edited in place.
+     */
+    public async sendStatus(content: string): Promise<void> {
+        const safeContent = DLPService.scrubTextOrJson(content);
+        const primaryChannelId =
+            this.lastActiveChannelId || this.config.primaryChannel || 'discord';
+        const channel = this.channels.get(primaryChannelId);
+
+        if (channel) {
+            await channel.sendStatus(safeContent);
+            return;
+        }
+
+        const fallback = Array.from(this.channels.values())[0];
+        if (fallback) {
+            await fallback.sendStatus(safeContent);
+            return;
+        }
+
+        throw new Error('No active channels are available for status delivery.');
     }
 
     /**
@@ -108,17 +150,18 @@ export class ChannelManager {
      * Returns true if the edit succeeded, false otherwise.
      */
     public async editStatus(content: string): Promise<boolean> {
+        const safeContent = DLPService.scrubTextOrJson(content);
         const primaryChannelId =
             this.lastActiveChannelId || this.config.primaryChannel || 'discord';
         const channel = this.channels.get(primaryChannelId);
 
         if (channel) {
-            return channel.editStatus(content);
+            return channel.editStatus(safeContent);
         }
         // Fallback to the first available channel
         const fallback = Array.from(this.channels.values())[0];
         if (fallback) {
-            return fallback.editStatus(content);
+            return fallback.editStatus(safeContent);
         }
         logger.warn(`No active channels available for status edit.`);
         return false;

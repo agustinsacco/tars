@@ -1,46 +1,37 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Customization
-description: Rename your assistant and customize its identity.
+description: Customize identity and add reviewed local instructions or tools.
 section: Get Started
 ---
 
-You can customize the identity of your assistant by renaming it. This affects the persona in the system prompt, the Discord command prefix, and internal logs.
+## Identity
 
-## Renaming the Assistant
+Set `assistantName` in `~/.tars/config.json` or `ASSISTANT_NAME` in the environment. Exported
+environment values take precedence over `.env`, `config.json`, and defaults.
 
-To rename your assistant, you can set the `ASSISTANT_NAME` environment variable before starting or add it to your `config.json`.
+## System instructions
 
-### Using Environment Variables
+Edit `~/.tars/system.md` to change behavior and tone. Bootstrap preserves a custom prompt. Migration
+replaces only a missing prompt or a recognizable legacy bundled prompt, so operator-written content
+is not silently overwritten.
+
+System instructions do not create permissions or a sandbox. Keep authorization and safety controls
+in deterministic code and operating-system policy.
+
+## Skills
+
+Place a reviewed instruction package at `~/.tars/skills/<name>/SKILL.md`, then run:
 
 ```bash
-export ASSISTANT_NAME="Case"
-tars start
+tars memory sync
 ```
 
-Now, the assistant will refer to itself as **Case**, and you can interact with it using the `!case` prefix in Discord.
+Skills should cover one repeatable workflow, state preconditions, and avoid embedded credentials.
 
-### Using config.json
+## Extensions
 
-Alternatively, you can edit your `config.json` (located in your Tars home directory, usually `~/.tars/config.json`):
-
-```json
-{
-    "assistantName": "Case",
-    "discordToken": "...",
-    "piProvider": "google",
-    "piModel": "gemini-2.5-flash"
-}
-```
-
-## How it Works
-
-1. **System Prompt**: The `system.md` file is automatically templated. On every startup, the supervisor replaces all occurrences of the assistant name in the prompt with your configured value.
-2. **Discord Prefix**: The bot dynamically listens for `!${name}`. For example, if you name it "Interstellar", it will respond to `!interstellar`.
-3. **Legacy Fallback**: The bot will always respond to `!tars` as a fallback to ensure you never lose control of the agent.
-
----
-
-## Changing the CLI Binary Name
-
-While you can rename the assistant's _identity_, the command-line tool itself remains `tars` to maintain backward compatibility and ensure standard installation paths work as expected.
+MCP extensions live under `~/.tars/extensions/` and must be listed in
+`extension-enablement.json`. Review the executable code, restrict its environment allowlist, and set
+bounded startup and tool timeouts before enabling it. Restart Tars after manifest or enablement
+changes.

@@ -1,10 +1,33 @@
 import { TarsEngine, StatusUpdateHandler } from './tars-engine.js';
 import { SessionManager } from './session-manager.js';
-import { TarsOutputHandler, AttachmentContext } from '../types/index.js';
+import { TarsOutputHandler, AttachmentContext, type TarsEvent } from '../types/index.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';
-import { ChannelManager } from '../channels/channel-manager.js';
+import { DLPService } from '../utils/dlp-service.js';
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function getStringProperty(value: unknown, property: string): string | undefined {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const candidate = Reflect.get(value, property);
+    return typeof candidate === 'string' ? candidate : undefined;
+}
+
+function scrubEvent(event: TarsEvent): TarsEvent {
+    const scrubbedEvent: TarsEvent = { ...event };
+    if (event.content !== undefined) {
+        scrubbedEvent.content =
+            event.type === 'tool_response'
+                ? DLPService.scrubTextOrJson(event.content)
+                : DLPService.scrub(event.content);
+    }
+    if (event.error !== undefined) scrubbedEvent.error = DLPService.scrub(event.error);
+    if (event.toolArgs !== undefined) scrubbedEvent.toolArgs = DLPService.scrubDeep(event.toolArgs);
+    return scrubbedEvent;
+}
 
 /**
  * Tars Supervisor - Core Orchestrator
@@ -14,7 +37,6 @@ export class Supervisor {
     private readonly config: Config;
     public readonly memory: MemoryManager;
     private processingSince: number | null = null;
-    private channelManager?: ChannelManager;
 
     constructor(
         private readonly tarsEngine: TarsEngine,
@@ -22,10 +44,6 @@ export class Supervisor {
     ) {
         this.config = Config.getInstance();
         this.memory = new MemoryManager(this.config);
-    }
-
-    public setChannelManager(channelManager: ChannelManager): void {
-        this.channelManager = channelManager;
     }
 
     /**
@@ -44,9 +62,7 @@ export class Supervisor {
             );
         }
 
-        logger.info(
-            `🤖 Supervisor processing request: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`
-        );
+        logger.info(`🤖 Supervisor processing request (${content.length} characters)`);
 
         // Track whether memory-mutating tools were used this turn
         let memoryMutated = false;
@@ -66,7 +82,7 @@ export class Supervisor {
 
             // Proactive compression check before run starts
             if (sessionIdToUse) {
-                await this.performCompressionIfNeeded(sessionIdToUse, onEvent, onStatus);
+                await this.performCompressionIfNeeded(sessionIdToUse);
             }
 
             let toolCallCount = 0;
@@ -75,7 +91,6 @@ export class Supervisor {
             // Run Tars CLI with context overflow retry logic
             let retryCount = 0;
             const maxRetries = 2;
-            let lastError: Error | null = null;
 
             while (retryCount <= maxRetries) {
                 try {
@@ -85,9 +100,7 @@ export class Supervisor {
                             // Learn session ID from Tars CLI if it was newly generated
                             if (event.sessionId && !sessionIdToUse) {
                                 sessionIdToUse = event.sessionId;
-                                this.sessionManager
-                                    .save(sessionIdToUse)
-                                    .catch((e) => logger.error(`Failed to save session: ${e}`));
+                                await this.sessionManager.save(sessionIdToUse);
                             }
 
                             // Log all tool calls for observability
@@ -97,7 +110,9 @@ export class Supervisor {
                                     callIdToNameMap.set(event.callId, event.toolName);
                                 }
 
-                                const argsPreview = JSON.stringify(event.toolArgs || {});
+                                const argsPreview = JSON.stringify(
+                                    DLPService.scrubDeep(event.toolArgs ?? {})
+                                );
                                 const truncatedArgs =
                                     argsPreview.length > 150
                                         ? argsPreview.substring(0, 150) + '...'
@@ -112,8 +127,9 @@ export class Supervisor {
                                     toolName.includes('memory_store_fact') ||
                                     toolName.includes('memory_delete_fact') ||
                                     (toolName.includes('manage_facts') &&
-                                        (event.toolArgs?.action === 'store' ||
-                                            event.toolArgs?.action === 'delete'))
+                                        (getStringProperty(event.toolArgs, 'action') === 'store' ||
+                                            getStringProperty(event.toolArgs, 'action') ===
+                                                'delete'))
                                 ) {
                                     logger.info(`   ✨ Memory Mutation: ${toolName}`);
                                     memoryMutated = true;
@@ -124,7 +140,7 @@ export class Supervisor {
                             if (event.type === 'tool_response' && event.toolName) {
                                 const toolName =
                                     callIdToNameMap.get(event.toolName) || 'unknown_tool';
-                                const content = event.content || '';
+                                const content = DLPService.scrubTextOrJson(event.content || '');
 
                                 let summary = '';
                                 if (content.startsWith('[') || content.startsWith('{')) {
@@ -133,7 +149,9 @@ export class Supervisor {
                                         if (Array.isArray(parsed)) {
                                             summary = ` -> ${parsed.length} results found`;
                                         }
-                                    } catch (e) {}
+                                    } catch {
+                                        // Non-JSON output has no structured result count.
+                                    }
                                 }
 
                                 const preview = content
@@ -155,7 +173,7 @@ export class Supervisor {
                                     // multi-turn tasks.
                                 }
                             }
-                            await onEvent(event as any);
+                            await onEvent(scrubEvent(event));
                         },
                         sessionIdToUse || undefined,
                         attachments,
@@ -163,9 +181,9 @@ export class Supervisor {
                     );
                     // Success - break out of retry loop
                     break;
-                } catch (error: any) {
-                    lastError = error;
-                    const isContextOverflow = error.message.includes(
+                } catch (error: unknown) {
+                    const errorMessage = getErrorMessage(error);
+                    const isContextOverflow = errorMessage.includes(
                         'exceeds the available context size'
                     );
 
@@ -176,7 +194,8 @@ export class Supervisor {
                         );
 
                         // Force compression
-                        await this.performCompressionIfNeeded(sessionIdToUse!, onEvent, onStatus);
+                        if (!sessionIdToUse) throw error;
+                        await this.performCompressionIfNeeded(sessionIdToUse, true);
 
                         // Small delay before retry
                         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -194,9 +213,10 @@ export class Supervisor {
                 logger.info('[Supervisor] Memory mutated — refreshing system instruction in-place');
                 this.tarsEngine.refreshSystemInstruction();
             }
-        } catch (error: any) {
-            logger.error(`❌ Supervisor execution error: ${error.message}`);
-            onEvent({ type: 'error', error: error.message });
+        } catch (error: unknown) {
+            const errorMessage = DLPService.scrub(getErrorMessage(error));
+            logger.error(`❌ Supervisor execution error: ${errorMessage}`);
+            await onEvent({ type: 'error', error: errorMessage });
         } finally {
             this.processingSince = null;
         }
@@ -213,9 +233,6 @@ export class Supervisor {
             throw new Error('Supervisor is busy');
         }
 
-        const isCron = prompt.includes('Task Directive:');
-        const taskType = isCron ? 'scheduled cron task' : 'background heartbeat check';
-
         logger.info(`⚙️ Executing background task...`);
 
         try {
@@ -223,16 +240,14 @@ export class Supervisor {
 
             // Run in the active session so context is shared
             const activeSessionId = await this.sessionManager.load();
-            const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined);
+            const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined, {
+                allowNotifications: false
+            });
 
             return result;
-        } catch (error: any) {
-            logger.error(`❌ Background task failed: ${error.message}`);
-            if (this.channelManager && isCron) {
-                await this.channelManager.notify(
-                    `⚠️ *Background task (${taskType}) failed:* ${error.message}`
-                );
-            }
+        } catch (error: unknown) {
+            const errorMessage = DLPService.scrub(getErrorMessage(error));
+            logger.error(`❌ Background task failed: ${errorMessage}`);
             throw error;
         } finally {
             this.processingSince = null;
@@ -245,10 +260,10 @@ export class Supervisor {
      */
     private async performCompressionIfNeeded(
         sessionIdToUse: string,
-        onEvent: TarsOutputHandler,
-        onStatus?: StatusUpdateHandler
+        force: boolean = false
     ): Promise<void> {
         if (
+            force ||
             this.sessionManager.needsCompression(
                 this.config.contextWindowTokens,
                 this.config.compressionThreshold
@@ -260,14 +275,14 @@ export class Supervisor {
             // This keeps the user experience smooth during multi-turn tasks
 
             try {
-                const didCompress = await this.tarsEngine.compressSession();
-                await this.sessionManager.recordCompression();
+                const didCompress = await this.tarsEngine.compressSession(force, sessionIdToUse);
 
                 if (didCompress) {
+                    await this.sessionManager.recordCompression();
                     logger.info('[Supervisor] Session memory compacted silently');
                 }
-            } catch (e: any) {
-                logger.warn(`[Supervisor] Compression failed: ${e.message}`);
+            } catch (error: unknown) {
+                logger.warn(`[Supervisor] Compression failed: ${getErrorMessage(error)}`);
             }
         }
     }
@@ -277,20 +292,11 @@ export class Supervisor {
     }
 
     /**
-     * Checks if the supervisor lock has been held longer than maxAgeMs and forcefully releases it if so.
-     * Returns true if a stale lock was released.
+     * Reports an unexpectedly long-running request without unlocking it.
+     * Clearing a live request would allow concurrent agents to mutate one session.
      */
-    public checkAndReleaseStaleLock(maxAgeMs: number): boolean {
-        if (this.processingSince !== null) {
-            const age = Date.now() - this.processingSince;
-            if (age > maxAgeMs) {
-                logger.warn(
-                    `⚠️ Supervisor lock has been held for ${Math.round(age / 1000)}s! Forcefully releasing stale lock.`
-                );
-                this.processingSince = null;
-                return true;
-            }
-        }
-        return false;
+    public hasStaleRun(maxAgeMs: number): boolean {
+        if (this.processingSince === null) return false;
+        return Date.now() - this.processingSince > maxAgeMs;
     }
 }

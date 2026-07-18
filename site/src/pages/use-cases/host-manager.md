@@ -1,45 +1,21 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Host Manager
-description: Automate systems administration on Linux hosts and homelabs.
-section: Use Cases
+title: Host Operations
+description: Assist with explicit diagnostics and maintenance under least privilege.
+section: Operational Guides
 ---
 
-Tars is an ideal automated systems administrator when deployed directly on a Linux host, VPS, or homelab. Its native shell access allows it to manage system resources as if you were logged in via SSH.
+Tars can analyze logs, inspect service state, or run a documented maintenance workflow when an
+enabled tool grants those operations.
 
-### Deployment
+## Recommended deployment
 
-Install Tars on your target host to begin:
+1. Create a dedicated non-root OS user.
+2. Grant read-only access first and add narrow command wrappers only as required.
+3. Keep the dashboard and local model endpoints on loopback.
+4. Store credentials outside prompts and allowlist only required extension variables.
+5. Require deterministic approval for restarts, package changes, firewall edits, user management,
+   and deletion.
 
-```bash
-npm install -g @saccolabs/tars
-tars setup
-```
-
-We recommend using a specific Discord Bot name (e.g., `Prod-Server-Bot`) to distinguish it from your personal instances.
-
-### Capabilities
-
-#### Scheduled Maintenance
-
-Automate routine updates and system checks. Tars can oversee complex upgrade paths and provide high-level summaries of the changes:
-
-```text
-User: "Every Sunday at 3 AM, update system packages and report any service restarts."
-```
-
-Tars will execute the maintenance, analyze the output, and send a concise status report to your Discord channel.
-
-#### Remediation & Recovery
-
-When a service fails, Tars is already on-site. You can diagnose and fix issues without opening a terminal:
-
-```text
-User: "The web server is returning 502s. Check the logs and restore service."
-```
-
-Tars can inspect `systemctl` statuses, read log files, identify configuration errors, and apply patches autonomously.
-
-#### Proactive Monitoring
-
-By combining the **Heartbeat** with custom **MCP Extensions**, Tars can monitor specific metrics (CPU, Memory, Disk) and alert you before a threshold is breached. It doesn't just send an alert—it can include a proposed fix based on the current system state.
+The heartbeat is not a host monitor. For continuous health checks, use a dedicated monitoring system
+and have it send bounded, explicit events or reports for Tars to analyze.

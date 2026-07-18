@@ -1,7 +1,29 @@
 {
     "name": "@saccolabs/tars",
     "version": "1.41.1",
-    "description": "Tars — Your personal AI assistant",
+    "description": "Tars — a local-first, self-hosted personal AI assistant",
+    "license": "MIT",
+    "homepage": "https://github.com/agustinsacco/tars#readme",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/agustinsacco/tars.git"
+    },
+    "bugs": {
+        "url": "https://github.com/agustinsacco/tars/issues"
+    },
+    "keywords": [
+        "ai",
+        "assistant",
+        "local-first",
+        "self-hosted",
+        "mcp",
+        "discord",
+        "automation"
+    ],
+    "engines": {
+        "node": ">=22.19.0",
+        "npm": ">=10.9.0"
+    },
     "publishConfig": {
         "access": "public"
     },
@@ -11,17 +33,33 @@
     },
     "main": "./dist/supervisor/main.js",
     "scripts": {
+        "clean": "node scripts/clean.mjs core",
+        "clean:src": "node scripts/clean.mjs src",
+        "clean:extensions": "node scripts/clean.mjs extensions",
+        "clean:all": "node scripts/clean.mjs all",
+        "ci:extensions": "npm ci --ignore-scripts --prefix extensions/memory && npm ci --ignore-scripts --prefix extensions/search && npm ci --ignore-scripts --prefix extensions/tasks",
         "build": "npm run build:src && npm run build:extensions",
-        "build:src": "tsc && chmod +x dist/cli/index.js",
-        "build:extensions": "find extensions -maxdepth 2 -name package.json -exec dirname {} \\; | xargs -I {} sh -c \"cd {} && npm install && (npm run build || true)\"",
+        "build:src": "npm run clean:src && tsc --project tsconfig.build.json && node scripts/set-cli-mode.mjs",
+        "build:extensions": "npm run build --prefix extensions/memory && npm run build --prefix extensions/search && npm run build --prefix extensions/tasks",
         "docs:dev": "npm run dev --prefix site",
         "docs:build": "npm run build --prefix site",
+        "docs:check": "npm run check --prefix site",
+        "dashboard:build": "npm run build --prefix dash",
+        "dashboard:lint": "npm run lint --prefix dash",
+        "dashboard:test": "npm test --prefix dash",
+        "dashboard:typecheck": "npm exec --prefix dash -- tsc --noEmit --project dash/tsconfig.json",
         "dev": "tsx watch src/supervisor/main.ts",
         "start": "node dist/supervisor/main.js",
         "test": "vitest run",
+        "test:canary": "node scripts/canary.mjs",
+        "test:coverage": "vitest run --coverage",
+        "test:extensions": "npm test --prefix extensions/memory && npm test --prefix extensions/search && npm test --prefix extensions/tasks",
         "test:watch": "vitest",
-        "lint": "prettier --check .",
+        "typecheck": "tsc --noEmit --project tsconfig.json",
+        "format:check": "prettier --check .",
+        "lint": "npm run typecheck",
         "format": "prettier --write .",
+        "check": "npm run format:check && npm run lint && npm run test:coverage",
         "prepare": "husky",
         "prepack": "npm run build"
     },
@@ -31,42 +69,42 @@
         "src/prompts/",
         "extensions/",
         "!extensions/**/node_modules/",
+        "!extensions/**/*.test.*",
         "dash/",
+        "!dash/tests/",
         "context/",
         "README.md",
         "!site/"
     ],
     "dependencies": {
-        "@earendil-works/pi-agent-core": "^0.79.1",
-        "@earendil-works/pi-ai": "^0.79.1",
-        "@earendil-works/pi-coding-agent": "^0.79.9",
+        "@earendil-works/pi-agent-core": "^0.79.10",
+        "@earendil-works/pi-ai": "^0.79.10",
+        "@earendil-works/pi-coding-agent": "^0.79.10",
         "@earendil-works/pi-tui": "^0.79.10",
-        "@modelcontextprotocol/sdk": "^1.26.0",
+        "@modelcontextprotocol/sdk": "^1.29.0",
         "chalk": "^5.0.0",
         "commander": "^12.0.0",
         "cron-parser": "^5.4.0",
-        "discord.js": "^14.16.3",
+        "discord.js": "^14.27.0",
         "dotenv": "^16.4.7",
         "inquirer": "^9.0.0",
         "ora": "^8.0.0",
-        "pino": "^10.3.1",
-        "pm2": "^5.3.0",
-        "uuid": "^13.0.0",
+        "pm2": "^7.0.3",
+        "typebox": "^1.3.6",
+        "uuid": "^13.0.1",
         "winston": "^3.19.0",
         "zod": "^3.25.76"
     },
     "devDependencies": {
         "@types/inquirer": "^9.0.9",
-        "@types/node": "^22.19.13",
-        "@types/qrcode-terminal": "^0.12.2",
-        "@types/uuid": "^10.0.0",
-        "@vitest/coverage-v8": "^2.1.9",
+        "@types/node": "^22.19.15",
+        "@vitest/coverage-v8": "^4.1.10",
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
         "prettier": "^3.8.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
-        "vitest": "^2.1.9"
+        "vitest": "^4.1.10"
     },
     "lint-staged": {
         "**/*": "prettier --write --ignore-unknown"

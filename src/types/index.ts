@@ -32,18 +32,12 @@ export interface AttachmentContext {
 
 export interface TarsEvent {
     type:
-        | 'tool_call'
-        | 'tool_response'
-        | 'text'
-        | 'image'
-        | 'error'
-        | 'done'
-        | 'thought'
-        | 'status';
+        'tool_call' | 'tool_response' | 'text' | 'image' | 'error' | 'done' | 'thought' | 'status';
     content?: string;
     toolName?: string;
-    toolArgs?: any;
+    toolArgs?: unknown;
     toolId?: string;
+    callId?: string;
     imagePath?: string;
     error?: string;
     role?: 'user' | 'assistant' | 'system';
@@ -60,4 +54,4 @@ export interface UsageStats {
     lastOutputTokens?: number;
 }
 
-export type TarsOutputHandler = (event: TarsEvent) => void;
+export type TarsOutputHandler = (event: TarsEvent) => unknown | Promise<unknown>;

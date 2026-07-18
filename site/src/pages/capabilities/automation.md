@@ -1,74 +1,41 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Automation & Tasks
-description: Cron-based and date-based task scheduling with automatic retry.
+title: Scheduled Tasks
+description: Run explicit one-time or cron-scheduled prompts through the supervisor.
 section: Capabilities
 ---
 
-## Overview
+The `tars-tasks` extension exposes one consolidated tool, `manage_tasks`. Its actions are `create`,
+`list`, `delete`, `toggle`, and `modify`.
 
-Tars supports autonomous task execution through a file-based scheduling system. Tasks are defined with cron expressions or ISO dates and executed by the **Cron Service**, which runs on a tight 60-second polling interval for high precision.
+## Create a task
 
-## Task Structure
+A task needs a title, prompt, and either a five-field cron expression or an ISO date/time. For
+example:
 
-Each task in `~/.tars/data/tasks.json`:
-
-```json
-{
-    "id": "uuid-v4",
-    "title": "Daily Status Report",
-    "prompt": "Generate a summary of today's activities",
-    "schedule": "0 18 * * *",
-    "nextRun": "2025-01-15T18:00:00.000Z",
-    "enabled": true,
-    "mode": "silent",
-    "lastRun": "2025-01-14T18:00:00.000Z",
-    "failedCount": 0,
-    "createdAt": "2025-01-01T00:00:00.000Z",
-    "updatedAt": "2025-01-14T18:00:12.000Z"
-}
+```text
+Create a notify task named "weekly report" with schedule "0 9 * * 1" and prompt
+"Summarize the build failures recorded in the approved report directory."
 ```
 
-## Schedule Formats
+The task store persists to `~/.tars/data/tasks.json` using cross-process locking and atomic writes.
 
-### Cron Expressions
+## Execution
 
-Standard 5-field cron format parsed by `cron-parser`:
+The cron service polls every 60 seconds. Due tasks execute through the active supervisor, so a busy
+interactive run can defer scheduled work. A successful one-time task is disabled; a recurring task
+computes its next run.
 
-| Expression     | Meaning                           |
-| -------------- | --------------------------------- |
-| `*/30 * * * *` | Every 30 minutes                  |
-| `0 9 * * 1-5`  | 9 AM on weekdays                  |
-| `0 18 * * *`   | 6 PM daily                        |
-| `0 0 1 * *`    | Midnight on the 1st of each month |
+Modes control result delivery:
 
-### ISO Date Strings
+- `notify` sends the completed result through the configured channel;
+- `silent` records execution without sending the result.
 
-For one-time tasks:
+## Limits
 
-```
-2025-03-15T14:00:00.000Z
-```
+Tars does not invent tasks from heartbeat activity. It is not a durable distributed job queue and
+does not guarantee second-level scheduling. Tasks inherit the permissions, model access, session
+constraints, and trusted tools of the running supervisor.
 
-### Fallback Behavior
-
-If a schedule is unparseable (not valid cron or ISO), the task falls back to running in **24 hours**. This prevents tasks from getting stuck or looping infinitely.
-
-## Task Lifecycle
-
-1. **Create** — Via the `tars-tasks` MCP extension or directly editing `tasks.json`
-2. **Schedule** — `nextRun` is calculated from the cron/date schedule
-3. **Execute** — When the **Cron Service** tick detects `nextRun <= now`, the task prompt is sent to `supervisor.executeTask()`
-4. **Update** — After execution, `lastRun` is set to now, `nextRun` is recalculated, and `failedCount` is reset (or incremented on failure)
-
-## Error Handling
-
-Failed tasks increment `failedCount` but remain enabled. The `nextRun` is still recalculated so the task retries on its next scheduled time. This ensures transient failures don't permanently stop a task.
-
-## Creating Tasks
-
-Tasks are typically created through the [tars-tasks MCP Extension](/extensions/tars-tasks), which Tars can invoke through natural language:
-
-> _"Schedule a task to check my email every morning at 9 AM"_
-
-Tars will call `create_task` with the appropriate cron expression.
+Use narrow prompts, avoid embedded secrets, and keep destructive automation behind deterministic
+confirmation or an external policy boundary.

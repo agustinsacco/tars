@@ -6,49 +6,66 @@ on:
             - main
         paths-ignore:
             - 'site/**'
+            - '.infra/tars-docs/**'
             - '.github/workflows/deploy-docs.yml'
             - 'docs/**'
     workflow_dispatch:
 
 permissions:
-    contents: write
-    pull-requests: write
+    contents: read
 
 jobs:
     release-please:
         runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: write
+            pull-requests: write
         outputs:
             release_created: ${{ steps.release.outputs.release_created }}
         steps:
-            - uses: googleapis/release-please-action@v4
+            - uses: googleapis/release-please-action@v5
               id: release
               with:
                   release-type: node
 
     publish:
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         needs: release-please
         if: ${{ needs.release-please.outputs.release_created }}
+        permissions:
+            contents: read
+            id-token: write
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
-                  node-version: '22'
+                  node-version: '22.19.0'
                   registry-url: 'https://registry.npmjs.org'
 
             - name: Install dependencies
               run: npm ci
 
+            - name: Install extension dependencies
+              run: npm run ci:extensions
+
             - name: Build
               run: npm run build
 
             - name: Run tests
-              run: npm test
+              run: npm run test:coverage
+
+            - name: Run extension tests
+              run: npm run test:extensions
+
+            - name: Inspect package contents
+              run: npm pack --dry-run --ignore-scripts
 
             - name: Publish to NPM
-              run: npm publish
+              run: npm publish --access public --provenance
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

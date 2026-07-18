@@ -1,10 +1,7 @@
-import fs from 'fs/promises';
 import path from 'path';
-import { Task } from '../types/index.js';
 import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
-import { CronExpressionParser } from 'cron-parser';
 import { AttachmentProcessor } from '../utils/attachment-processor.js';
 import { SessionManager } from './session-manager.js';
 
@@ -34,11 +31,15 @@ export class HeartbeatService {
         const intervalMs = this.config.heartbeatIntervalMs;
         logger.info(`💓 Heartbeat service started (Interval: ${intervalMs / 1000}s)`);
 
+        // Load the active session before maintenance so its chat transcript is
+        // never collected merely because the assistant was idle before restart.
+        await this.sessionManager?.load();
+
         // Run initial memory sync at startup
         await this.syncMemoryIfNeeded();
 
         // Start interval
-        this.interval = setInterval(() => this.tick(), intervalMs);
+        this.interval = setInterval(() => void this.tick(), intervalMs);
     }
 
     public stop(): void {
@@ -66,11 +67,12 @@ export class HeartbeatService {
                 return;
             }
 
-            // 1. Safety Net: Check for stale lock
+            // 1. Safety net: report unexpectedly long runs without unlocking them.
             const STALE_LOCK_MS = 10 * 60 * 1000; // 10 minutes
-            const staleLockReleased = this.supervisor.checkAndReleaseStaleLock(STALE_LOCK_MS);
-            if (staleLockReleased) {
-                logger.warn('⚠️ Stale supervisor lock released during heartbeat tick');
+            if (this.supervisor.hasStaleRun(STALE_LOCK_MS)) {
+                logger.warn(
+                    '⚠️ Supervisor has been busy for more than 10 minutes; the live run remains locked to prevent concurrent session writes'
+                );
             }
 
             // 2. Maintenance & Sync (rate-limited)
@@ -78,8 +80,9 @@ export class HeartbeatService {
             await this.syncMemoryIfNeeded();
 
             logger.debug('💓 Heartbeat tick completed successfully');
-        } catch (error: any) {
-            logger.error(`❌ Heartbeat tick error: ${error.message}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`❌ Heartbeat tick error: ${message}`);
         } finally {
             this.isExecuting = false;
         }
@@ -99,17 +102,25 @@ export class HeartbeatService {
         try {
             await this.supervisor.memory.fullSync();
             this.lastSyncTime = now;
-        } catch (error: any) {
-            logger.error(`❌ Memory sync failed: ${error.message}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`❌ Memory sync failed: ${message}`);
         }
 
         // Session file garbage collection (rate-limited by the same sync interval)
         if (this.sessionManager) {
-            const tmpDir = path.join(this.config.homeDir, 'tmp');
+            const chatsDir = path.join(this.config.homeDir, 'chats');
             try {
-                await this.sessionManager.garbageCollect(tmpDir, 3, 50);
-            } catch (e: any) {
-                logger.warn(`⚠️ Session GC failed: ${e.message}`);
+                const activeSessionId = this.sessionManager.getStats()?.sessionId;
+                await this.sessionManager.garbageCollect(
+                    chatsDir,
+                    3,
+                    50,
+                    activeSessionId ? [activeSessionId] : []
+                );
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
+                logger.warn(`⚠️ Session GC failed: ${message}`);
             }
         }
     }

@@ -4,6 +4,24 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { TaskStore, Task } from './store.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CronExpressionParser } from 'cron-parser';
+import { z } from 'zod';
+
+const ManageTaskInputSchema = z
+    .object({
+        action: z.enum(['create', 'list', 'delete', 'toggle', 'modify']),
+        id: z.string().min(1).optional(),
+        title: z.string().min(1).optional(),
+        prompt: z.string().min(1).optional(),
+        schedule: z.string().min(1).optional(),
+        enabled: z.boolean().optional(),
+        mode: z.enum(['notify', 'silent']).optional(),
+        enabledOnly: z.boolean().default(false)
+    })
+    .strict();
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 const store = new TaskStore();
 const server = new Server(
@@ -88,17 +106,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new Error(`Unknown tool: ${name}`);
         }
 
-        const {
-            action,
-            id,
-            title,
-            prompt,
-            schedule,
-            enabled,
-            mode = 'silent',
-            enabledOnly
-        } = args as any;
-        if (!action) throw new Error('Action is required.');
+        const { action, id, title, prompt, schedule, enabled, mode, enabledOnly } =
+            ManageTaskInputSchema.parse(args);
 
         switch (action) {
             case 'create': {
@@ -115,7 +124,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         throw new Error('Could not calculate next run time from cron expression.');
                     }
                     nextRun = iso;
-                } catch (error: any) {
+                } catch {
                     // If it's not a valid cron, try parsing as ISO date
                     const date = new Date(schedule);
                     if (!isNaN(date.getTime()) && schedule.includes('-')) {
@@ -134,7 +143,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     schedule,
                     nextRun,
                     enabled: true,
-                    mode,
+                    mode: mode ?? 'silent',
                     source: 'user',
                     failedCount: 0,
                     createdAt: new Date().toISOString(),
@@ -209,14 +218,17 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             case 'modify': {
                 if (!id) throw new Error('Task ID is required for modify action.');
-                const updates: any = {};
+                const updates: Partial<Task> = {};
                 if (title) updates.title = title;
                 if (prompt) updates.prompt = prompt;
+                if (mode) updates.mode = mode;
                 if (schedule) {
                     updates.schedule = schedule;
                     try {
                         const next = CronExpressionParser.parse(schedule).next();
-                        updates.nextRun = next.toISOString();
+                        const iso = next.toISOString();
+                        if (!iso) throw new Error('Could not calculate the next run time.');
+                        updates.nextRun = iso;
                     } catch {
                         const date = new Date(schedule);
                         if (!isNaN(date.getTime()) && schedule.includes('-')) {
@@ -243,9 +255,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             default:
                 throw new Error(`Unknown action: ${action}`);
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         return {
-            content: [{ type: 'text', text: `❌ Error: ${error.message}` }],
+            content: [{ type: 'text', text: `❌ Error: ${getErrorMessage(error)}` }],
             isError: true
         };
     }
@@ -254,7 +266,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 /**
  * Start Server
  */
-async function main() {
+async function main(): Promise<void> {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('Tars Tasks MCP Server running on stdio');

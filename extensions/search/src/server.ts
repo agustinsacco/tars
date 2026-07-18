@@ -2,6 +2,24 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { performWebSearch, fetchWebPage } from './search-helper.js';
+import { z } from 'zod';
+
+const WebSearchInputSchema = z
+    .object({
+        query: z.string().trim().min(1).max(500),
+        limit: z.number().int().min(1).max(10).default(5)
+    })
+    .strict();
+
+const WebFetchInputSchema = z
+    .object({
+        url: z.string().url()
+    })
+    .strict();
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 const server = new Server(
     {
@@ -72,8 +90,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
         switch (name) {
             case 'web_search': {
-                const { query, limit = 5 } = args as { query: string; limit?: number };
-                if (!query) throw new Error('Query is required.');
+                const { query, limit } = WebSearchInputSchema.parse(args);
 
                 const results = await performWebSearch(query, limit);
 
@@ -81,15 +98,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     content: [
                         {
                             type: 'text',
-                            text: JSON.stringify(results, null, 2)
+                            text: `<untrusted_web_search_results>\n${JSON.stringify(results, null, 2)}\n</untrusted_web_search_results>`
                         }
                     ]
                 };
             }
 
             case 'web_fetch': {
-                const { url } = args as { url: string };
-                if (!url) throw new Error('URL is required.');
+                const { url } = WebFetchInputSchema.parse(args);
 
                 const markdown = await fetchWebPage(url);
 
@@ -106,16 +122,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         return {
-            content: [{ type: 'text', text: `❌ Error: ${error.message}` }],
+            content: [{ type: 'text', text: `❌ Error: ${getErrorMessage(error)}` }],
             isError: true
         };
     }
 });
 
 // Start Server
-async function main() {
+async function main(): Promise<void> {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     console.error('tars-search MCP server running on stdio');

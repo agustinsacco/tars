@@ -1,21 +1,39 @@
 import { ChevronRight } from 'lucide-react';
+import type { ReactElement } from 'react';
 
-interface BreadcrumbsProps {
-    items: { label: string; href?: string }[];
+interface BreadcrumbItem {
+    readonly label: string;
+    readonly href?: string;
+    readonly current?: boolean;
 }
 
-export function Breadcrumbs({ items }: BreadcrumbsProps) {
+interface BreadcrumbsProps {
+    readonly items: readonly BreadcrumbItem[];
+}
+
+export function Breadcrumbs({ items }: BreadcrumbsProps): ReactElement {
     return (
-        <nav className="flex items-center gap-1 text-xs text-zinc-500 mb-6">
+        <nav
+            aria-label="Breadcrumb"
+            className="mb-6 flex items-center gap-1 text-xs text-text-secondary"
+        >
             {items.map((item, i) => (
-                <span key={i} className="flex items-center gap-1">
-                    {i > 0 && <ChevronRight className="w-3 h-3 text-zinc-600" />}
+                <span
+                    key={`${item.label}-${item.href ?? 'label'}`}
+                    className="flex items-center gap-1"
+                >
+                    {i > 0 && <ChevronRight className="h-3 w-3 text-text-muted" />}
                     {item.href ? (
-                        <a href={item.href} className="hover:text-zinc-300 transition-colors">
+                        <a href={item.href} className="transition-colors hover:text-zinc-300">
                             {item.label}
                         </a>
                     ) : (
-                        <span className="text-zinc-400">{item.label}</span>
+                        <span
+                            aria-current={item.current ? 'page' : undefined}
+                            className={item.current ? 'text-zinc-300' : 'text-zinc-400'}
+                        >
+                            {item.label}
+                        </span>
                     )}
                 </span>
             ))}

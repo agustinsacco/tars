@@ -1,95 +1,43 @@
-import { useState, useEffect } from 'react';
-
-interface NavItem {
-    title: string;
-    href: string;
-}
-
-interface NavSection {
-    category: string;
-    items: NavItem[];
-}
-
-export const NAV_SECTIONS: NavSection[] = [
-    {
-        category: 'Get Started',
-        items: [
-            { title: 'Home', href: '/' },
-            { title: 'Introduction', href: '/getting-started/what-is-tars' },
-            { title: 'Installation', href: '/getting-started/installation' },
-            { title: 'Quick Start', href: '/getting-started/setup' },
-            { title: 'Discord Integration', href: '/getting-started/discord' }
-        ]
-    },
-    {
-        category: 'Use Cases',
-        items: [
-            { title: 'Personal Assistant', href: '/use-cases/personal-assistant' },
-            { title: 'Host Manager', href: '/use-cases/host-manager' },
-            { title: 'Security Auditor', href: '/use-cases/security-auditor' },
-            { title: 'DevOps Engineer', href: '/use-cases/devops-engineer' },
-            { title: 'Multi-Instance', href: '/use-cases/multiple-instances' }
-        ]
-    },
-    {
-        category: 'Capabilities',
-        items: [
-            { title: 'Multi-Agent', href: '/capabilities/agents' },
-            { title: 'Persistent Memory', href: '/capabilities/memory' },
-            { title: 'Local Inference', href: '/capabilities/local-inference' },
-            { title: 'Scheduled Tasks', href: '/capabilities/automation' },
-            { title: 'Skills System', href: '/capabilities/skills' },
-            { title: 'MCP Extensions', href: '/capabilities/extensions' },
-            { title: 'Self-Modification', href: '/capabilities/self-modification' }
-        ]
-    },
-    {
-        category: 'Architecture',
-        items: [
-            { title: 'Supervisor Engine', href: '/architecture/supervisor' },
-            { title: 'Heartbeat Protocol', href: '/architecture/heartbeat' },
-            { title: 'Core Intelligence', href: '/architecture/tars-engine' },
-            { title: 'Configuration', href: '/architecture/configuration' }
-        ]
-    },
-    {
-        category: 'Extensions',
-        items: [
-            { title: 'tars-tasks', href: '/extensions/tars-tasks' },
-            { title: 'tars-memory', href: '/extensions/tars-memory' }
-        ]
-    }
-];
+import { useEffect, useState, type ReactElement } from 'react';
+import { acquireBodyScrollLock } from '../lib/body-scroll';
+import { dispatchMobileMenu, MOBILE_MENU_EVENT, readMobileMenuState } from '../lib/events';
+import { NAV_SECTIONS, normalizePath } from '../lib/navigation';
 
 interface SidebarProps {
     currentPath: string;
 }
 
-export function Sidebar({ currentPath }: SidebarProps) {
+export function Sidebar({ currentPath }: SidebarProps): ReactElement {
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
-        const handleToggle = (e: any) => {
-            if (e.detail && typeof e.detail.open === 'boolean') {
-                setIsOpen(e.detail.open);
-            }
+        const handleToggle = (event: Event): void => {
+            const open = readMobileMenuState(event);
+            if (open !== null) setIsOpen(open);
         };
-        window.addEventListener('tars:mobile-menu-toggle', handleToggle);
-        return () => window.removeEventListener('tars:mobile-menu-toggle', handleToggle);
+        const handleKeyDown = (event: KeyboardEvent): void => {
+            if (event.key !== 'Escape') return;
+            setIsOpen(false);
+            dispatchMobileMenu(false);
+        };
+        window.addEventListener(MOBILE_MENU_EVENT, handleToggle);
+        window.addEventListener('keydown', handleKeyDown);
+        return (): void => {
+            window.removeEventListener(MOBILE_MENU_EVENT, handleToggle);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
     }, []);
 
-    const normalize = (p: string) => {
-        let clean = p.replace(/\/$/, '').replace(/\/index$/, '');
-        return clean || '/';
-    };
+    useEffect((): (() => void) | undefined => {
+        if (!isOpen) return undefined;
+        return acquireBodyScrollLock();
+    }, [isOpen]);
 
-    const current = normalize(currentPath);
+    const current = normalizePath(currentPath);
 
-    const closeMenu = () => {
+    const closeMenu = (): void => {
         setIsOpen(false);
-        window.dispatchEvent(
-            new CustomEvent('tars:mobile-menu-toggle', { detail: { open: false } })
-        );
+        dispatchMobileMenu(false);
     };
 
     return (
@@ -103,35 +51,37 @@ export function Sidebar({ currentPath }: SidebarProps) {
             )}
 
             <aside
+                id="docs-sidebar"
                 className={`
           fixed lg:sticky top-14 h-[calc(100vh-3.5rem)] z-40
           w-64 shrink-0 bg-[#050505] lg:bg-transparent
           border-r border-zinc-900 lg:border-zinc-800
           transition-transform duration-300 ease-in-out
-          ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          ${isOpen ? 'visible translate-x-0' : 'invisible -translate-x-full lg:visible lg:translate-x-0'}
           overflow-y-auto py-6 px-4
         `}
             >
-                <nav className="space-y-6">
+                <nav aria-label="Documentation" className="space-y-6">
                     {NAV_SECTIONS.map((section) => (
                         <div key={section.category}>
-                            <h3 className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest mb-2 px-2">
+                            <h3 className="text-[11px] font-bold text-text-secondary uppercase tracking-widest mb-2 px-2">
                                 {section.category}
                             </h3>
                             <ul className="space-y-0.5">
                                 {section.items.map((item) => {
-                                    const isActive = normalize(item.href) === current;
+                                    const isActive = normalizePath(item.href) === current;
                                     return (
                                         <li key={item.href}>
                                             <a
                                                 href={item.href}
                                                 onClick={closeMenu}
+                                                aria-current={isActive ? 'page' : undefined}
                                                 className={`
                             block px-2 py-1.5 text-[13px] rounded-sm transition-colors cursor-pointer
                             ${
                                 isActive
                                     ? 'text-blue-400 bg-blue-500/5 border-l-2 border-blue-400 pl-[calc(0.5rem-2px)]'
-                                    : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/30 border-l-2 border-transparent pl-[calc(0.5rem-2px)]'
+                                    : 'text-text-secondary hover:text-zinc-200 hover:bg-zinc-800/30 border-l-2 border-transparent pl-[calc(0.5rem-2px)]'
                             }
                           `}
                                             >

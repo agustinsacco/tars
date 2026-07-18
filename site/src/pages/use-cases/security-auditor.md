@@ -1,38 +1,21 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Security Auditor
-description: Deploy Tars as a 24/7 autonomous security monitor.
-section: Use Cases
+title: Security Reviews
+description: Use Tars as a supervised analysis aid, not a 24/7 security control.
+section: Operational Guides
 ---
 
-Tars' ability to execute background operations makes it a highly effective **Security Auditor**. It can monitor logs, verify configurations, and alert you to anomalies without the overhead of enterprise SIEM platforms.
+Tars can summarize a supplied log sample, compare a configuration with a documented baseline, or
+draft remediation steps. It does not continuously collect events, detect incidents, or replace a
+SIEM, EDR, vulnerability scanner, or human responder.
 
-### Configuration
+## Safe pattern
 
-You can specialize a Tars instance for security by tailoring its system instructions:
+- provide a bounded, redacted input set;
+- request evidence and uncertainty, not only a verdict;
+- validate findings with authoritative tools;
+- keep remediation read-only until an operator approves an exact change;
+- record the source, time range, and limitations in the result.
 
-> "You are a senior security researcher. Monitor system logs for unauthorized access, bruteforce patterns, and configuration drift. Prioritize high-fidelity signals and provide actionable remediation paths."
-
-### Capabilities
-
-#### Log Auditing & Alerting
-
-Instead of complex query languages, use natural language to define auditing rules:
-
-```text
-User: "Every hour, audit /var/log/auth.log. Alert me via Discord if you identify SSH attempts from IPs outside our known range."
-```
-
-Tars parses log entries in the background, identifying patterns that traditional rule-based systems might miss.
-
-#### Automated Response
-
-With native shell access, Tars can mitigate common threats autonomously:
-
-```text
-User: "If you detect persistent brute-force attempts on the web tier, block the offending IP using UFW and log the incident."
-```
-
-#### Vulnerability Intelligence
-
-When new vulnerabilities are disclosed, you can ask Tars to assess your exposure immediately. Tars can search for the CVE details, cross-reference them with your local software versions, and generate a prioritized patch report.
+Adversarial log or document content can influence a model. Treat it as untrusted data, keep secrets
+out of the prompt, and enforce permissions outside Tars.

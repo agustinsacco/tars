@@ -1,24 +1,41 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: What is Tars?
-description: An autonomous intelligence layer for your personal infrastructure.
+description: A compact, local-first assistant for Discord and terminal workflows.
 section: Get Started
 ---
 
-Tars is an **Autonomous AI Worker** designed to run on your local hardware. Unlike cloud-based assistants, Tars operates directly on your machine, giving it the ability to execute commands, manage files, and orchestrate tasks within your own network.
+Tars is a self-hosted Node.js assistant that runs directly on your machine. A PM2-managed
+supervisor connects one active agent to Discord, while `tars chat --no-discord` provides a
+foreground terminal session without daemon-only services. Both modes use the configured
+`TARS_HOME`; do not send concurrent prompts through both.
 
-### Control via Discord
+## Local-first, not necessarily offline
 
-Tars uses Discord as its primary interface. This provides a secure, cross-platform command center that works on your desktop and mobile devices without requiring complex VPNs or web portals.
+Configuration, conversations, selected memory, tasks, skills, extensions, and logs are stored under
+`~/.tars/` by default. Model requests still leave the machine when you choose a cloud provider. Use a
+compatible local endpoint when inference must remain on your network.
 
-### Local-First Intelligence
+## Focus
 
-Powered by the **Pi Agent SDK**, Tars supports cloud models (Gemini, Claude, GPT) and local models (Qwen) to bridge the gap between high-level reasoning and low-level system execution:
+Tars intentionally focuses on a smaller operating model:
 
-- **Native Execution:** Tars can run bash commands, script workflows, and manage system resources directly.
-- **Background Autonomy:** It doesn't wait for your prompt. Tars runs on a continuous heartbeat to execute scheduled tasks and monitor system health.
-- **Episodic Memory:** Every interaction and decision is stored locally, allowing Tars to learn your preferences and improve over time.
+- bare-metal Node.js and PM2 instead of a containerized runtime;
+- Discord and terminal access;
+- provider choice through the Pi Agent SDK;
+- durable facts, notes, and explicit scheduled tasks;
+- trusted local skills and MCP extensions;
+- inspectable configuration and state.
 
-### Why Tars?
+[OpenClaw](https://docs.openclaw.ai/) is an example of a broader self-hosted gateway with a larger
+channel and platform ecosystem. Tars does not currently provide sub-agent orchestration, mobile or
+voice clients, or broad multi-channel parity.
 
-Cloud assistants are sandboxed. Tars is integrated. By running locally, Tars has the context of your files, your tools, and your network, enabling a level of automation that cloud APIs cannot reach.
+## Boundaries
+
+Tars is not a sandbox. Its model tools and extensions have the permissions of the operating-system
+user. The heartbeat performs maintenance rather than inventing background work. Recurring work runs
+only after an explicit task is created.
+
+Start with a dedicated least-privilege account and read the [security model](/capabilities/security)
+before granting access to sensitive files, commands, or services.

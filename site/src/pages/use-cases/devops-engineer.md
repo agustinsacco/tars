@@ -1,38 +1,17 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: DevOps Engineer
-description: Automate deployment pipelines and infrastructure management.
-section: Use Cases
+title: DevOps Workflows
+description: Assist with explicit diagnostics, build analysis, and runbook-driven operations.
+section: Operational Guides
 ---
 
-Deploy Tars within your development environment or build servers to act as an autonomous **DevOps Engineer**. It bridges the gap between high-level orchestration and low-level system execution.
+Useful Tars workflows include summarizing CI logs, comparing manifests, drafting a rollout plan, or
+following a reviewed runbook through narrow tools.
 
-### Capabilities
+Keep deployment credentials out of model context. Prefer short-lived identities, read-only
+diagnostics, protected environments, and external approval gates. Let CI/CD systems perform builds
+and deployments; use Tars to inspect their state and prepare an exact requested change.
 
-#### Pipeline Troubleshooting
-
-Instead of manually parsing verbose CI/CD logs, allow Tars to analyze failures directly on the build runner:
-
-```text
-User: "The production build failed. Analyze the logs, identify the regression, and propose a patch."
-```
-
-Tars can locate the workspace, parse test output, identify the root cause, and generate a fix—drastically reducing time-to-recovery (MTTR).
-
-#### Automated Release Orchestration
-
-Tars can handle the repetitive manual checks required for stable releases:
-
-```text
-User: "Synthesize a changelog from the recent git commits and execute the deployment script to staging."
-```
-
-Tars reviews your git history, writes professional release notes, and manages the execution of your deployment scripts.
-
-#### Intelligent Infrastructure Management
-
-By leveraging **MCP Extensions**, Tars can interact securely with your databases and cloud providers. This enables complex operations via natural language:
-
-- **Database Migrations:** Execute SQL migrations and verify schema integrity.
-- **Environment Parity:** Audit configurations across staging and production to detect drift.
-- **Data Scrubbing:** Sanitize production data dumps for use in lower environments.
+For scheduled reports, create an explicit task with a bounded prompt and `notify` mode. The cron
+poller runs once per minute and can defer work while the supervisor is busy, so it should not gate a
+deployment or incident response deadline.

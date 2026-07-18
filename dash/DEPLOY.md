@@ -1,30 +1,22 @@
-# PM2 Deployment for Tars Dash
+# Dashboard deployment
 
-1. **Build the application:**
+The dashboard is deployed as part of a Tars installation rather than as a separate public service.
 
-    ```bash
-    npm run build
-    ```
+Requirements:
 
-2. **Start with PM2:**
+- Node.js 22.19 or newer;
+- a configured Tars home;
+- `DASH_ENABLED=true`;
+- `DASH_HOST=127.0.0.1` unless an operator has supplied another trusted network boundary;
+- a non-default `DASH_PASSWORD` containing at least 16 characters.
 
-    ```bash
-    pm2 start server.js --name "tars-dash" --env production
-    ```
+Run `tars setup` to configure and install the dashboard. The supervisor starts the installed copy
+through PM2 using the configured instance name. For an asset update, run:
 
-3. **Save PM2 process list:**
+```bash
+tars refresh --dashboard-only
+tars restart
+```
 
-    ```bash
-    pm2 save
-    ```
-
-4. **Monitor logs:**
-    ```bash
-    pm2 logs tars-dash
-    ```
-
-## Requirements
-
-- Node.js 18+ (20+ recommended for Next.js 15)
-- PM2 installed globally: `npm i -g pm2`
-- Ensure `.env` is configured with a strong `DASH_PASSWORD`.
+Refresh builds in a staging directory and replaces the installed dashboard only after validation.
+Keep TLS and any remote-access gateway outside the dashboard process.

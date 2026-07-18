@@ -7,6 +7,7 @@ interface RequestRecord {
 
 export class LocalRateLimiter {
     private history: RequestRecord[] = [];
+    private reservationQueue: Promise<void> = Promise.resolve();
     private readonly windowMs = 60 * 1000; // 1 minute window
 
     constructor(
@@ -48,9 +49,35 @@ export class LocalRateLimiter {
     public recordRequest(tokens: number): void {
         this.history.push({
             timestamp: Date.now(),
-            tokens
+            tokens: this.normalizeTokens(tokens)
         });
         this.cleanup();
+    }
+
+    /**
+     * Atomically waits for capacity and reserves it. Concurrent callers are
+     * serialized so they cannot all observe the same available quota.
+     */
+    public acquire(estimatedTokens: number, onWait?: (waitMs: number) => void): Promise<void> {
+        const normalizedTokens = this.normalizeTokens(estimatedTokens);
+        const reservation = this.reservationQueue.then(async () => {
+            while (true) {
+                const waitMs = this.checkWaitTime(normalizedTokens);
+                if (waitMs <= 0) {
+                    this.recordRequest(normalizedTokens);
+                    return;
+                }
+                onWait?.(waitMs);
+                await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+            }
+        });
+        this.reservationQueue = reservation.catch(() => undefined);
+        return reservation;
+    }
+
+    private normalizeTokens(tokens: number): number {
+        if (!Number.isFinite(tokens)) return this.maxTPM;
+        return Math.min(this.maxTPM, Math.max(0, Math.ceil(tokens)));
     }
 
     private cleanup(): void {

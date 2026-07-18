@@ -44,13 +44,17 @@ program
 
 program
     .command('restart')
-    .description('Check for updates and restart the assistant')
-    .action(restart);
+    .description('Restart active assistant processes without installing updates')
+    .action(async () => {
+        if (!(await restart())) process.exitCode = 1;
+    });
 
 program
     .command('update')
     .description('Force check and install the latest version of Tars')
-    .action(update);
+    .action(async () => {
+        if (!(await update())) process.exitCode = 1;
+    });
 
 program
     .command('refresh')
@@ -59,10 +63,11 @@ program
     .option('--extensions-only', 'Only refresh extensions')
     .action(async (options) => {
         const { refresh } = await import('./commands/refresh.js');
-        return refresh({
+        const refreshed = await refresh({
             dashboard: !options.extensionsOnly,
             extensions: !options.dashboardOnly
         });
+        if (!refreshed) process.exitCode = 1;
     });
 
 program
@@ -76,9 +81,10 @@ program
     .command('export')
     .description('Export your brain (memories, tasks, extensions)')
     .option('-o, --output <path>', 'Output path for the archive')
+    .option('--include-secrets', 'Include credentials and secrets in the archive')
     .action(async (options) => {
         const { exportBrain } = await import('./commands/export.js');
-        return exportBrain(options);
+        await exportBrain(options);
     });
 
 program
@@ -87,7 +93,7 @@ program
     .argument('<path>', 'Path to the brain archive (.tar.gz)')
     .action(async (path) => {
         const { importBrain } = await import('./commands/import.js');
-        return importBrain(path);
+        await importBrain(path);
     });
 
 program
@@ -105,7 +111,7 @@ program
     .description('Manage secure environment variables for extensions')
     .argument('<action>', 'Action to perform (set, list, remove)')
     .argument('[key]', 'Secret key')
-    .argument('[value]', 'Secret value (required for set)')
+    .argument('[value]', 'Secret value for set (stdin is safer for automation)')
     .action(secret);
 
 program
@@ -121,6 +127,12 @@ program
 program
     .command('uninstall')
     .description('Uninstall the assistant and remove all data')
-    .action(uninstall);
+    .action(async () => {
+        await uninstall();
+    });
 
-program.parse();
+program.parseAsync().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Tars command failed: ${message}`);
+    process.exitCode = 1;
+});

@@ -1,48 +1,50 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Discord Integration
-description: Interact with Tars through your own secure command center.
+title: Discord
+description: Connect a Discord bot and configure a single preauthorized owner.
 section: Get Started
 ---
 
-Discord serves as the primary interface for Tars. It provides a secure, cross-platform environment to monitor and control your infrastructure from any device.
+Discord is the supported background channel. Tars responds to direct messages and addressed guild
+messages, then streams the supervised model response back to the same channel.
 
-### Message Triggers
+## Bot setup
 
-Tars monitors your Discord channels and responds to specific triggers:
+1. Create an application and bot in the Discord Developer Portal.
+2. Enable the Message Content privileged intent.
+3. Invite the bot with only the permissions it needs: view channels, read message history, send
+   messages, and attach files if you use attachments.
+4. Enable Developer Mode in Discord, copy your own user ID, then run `tars setup` and provide both
+   the bot token and that 17–20 digit owner ID.
 
-| Trigger            | Use Case             | Example                         |
-| ------------------ | -------------------- | ------------------------------- |
-| **Direct Message** | Private Commands     | _(No prefix needed)_            |
-| **@Mention**       | Public Multi-tasking | `@Tars check the server status` |
-| **!tars** Prefix   | Channel Commands     | `!tars summarize recent logs`   |
+`tars discord` prints setup and invitation guidance; it does not open a browser automatically.
 
-### File Attachments
+## Owner authorization
 
-You can send files directly to Tars in Discord. Tars will download the attachment, analyze its content, and include it in the conversation context. This is ideal for:
+Preconfigure `channels.discord.ownerId` or the legacy `discordOwnerId`. The setup wizard writes both
+fields for compatibility. Tars accepts Discord messages only when their author matches that owner.
 
-- Analyzing log files
-- Explaining code snippets
-- Processing images or documents
+If no owner ID is configured, every Discord message is ignored. Direct messages never establish or
+replace the owner. Run `tars setup` again, or set `DISCORD_OWNER_ID` before restarting the process.
+Use `tars discord` to check whether the local workspace currently has an owner ID configured.
 
-_Note: Uploaded files are automatically purged from the local cache after 24 hours._
+Set `channels.discord.enabled` to `false` to keep the Discord channel off. An explicit false value
+wins even when `DISCORD_TOKEN` is present.
 
-### Bot Permissions
+## Message commands
 
-To function correctly, your Discord bot requires the following **Gateway Intents** enabled in the [Developer Portal](https://discord.com/developers/applications):
+Send these as messages to the bot:
 
-- **Guild Messages**
-- **Message Content** (Privileged)
-- **Direct Messages**
+- `/help` — show supported message commands;
+- `/stats` — show active-session usage;
+- `/quota` — show provider rate-limit information;
+- `/reset` or `/clear` — immediately delete the active conversation and start a new session.
 
-The `tars setup` wizard will verify these permissions automatically during configuration.
+There is no `$ping` command.
 
-### Inviting the Bot
+## Attachments
 
-Once configured, generate a secure invite link to add Tars to your server:
-
-```bash
-tars discord
-```
-
-This command opens a browser tab with the required permissions pre-configured for your bot.
+Tars constrains the Discord CDN source, filename, declared and streamed size, download time, and
+local destination before placing a file in its temporary area. Treat every attachment type and its
+content as untrusted prompt input. Do not upload credentials, private keys, or data the configured
+model provider should not receive.

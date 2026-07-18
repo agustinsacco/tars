@@ -1,0 +1,73 @@
+import { z } from 'zod';
+
+const BooleanLikeSchema = z
+    .preprocess(
+        (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+        z.union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
+    )
+    .transform((value) => value === true || value === 'true' || value === '1');
+
+const HttpUrlSchema = z
+    .string()
+    .url()
+    .refine(
+        (value) => {
+            const protocol = new URL(value).protocol;
+            return protocol === 'http:' || protocol === 'https:';
+        },
+        { message: 'URL must use HTTP or HTTPS' }
+    );
+
+export const ChannelConfigSchema = z
+    .object({
+        enabled: z.boolean().default(false),
+        token: z.string().min(1).optional(),
+        ownerId: z.string().min(1).optional()
+    })
+    .passthrough();
+
+export const ConfigFileSchema = z.record(z.unknown());
+
+export const RuntimeConfigSchema = z.object({
+    assistantName: z.string().trim().min(1).max(100).default('Tars'),
+    instanceName: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+        .default('tars-supervisor'),
+    instanceRole: z.string().trim().min(1).max(200).default('General purpose'),
+    geminiModel: z.string().trim().min(1).default('auto'),
+    piProvider: z.string().trim().min(1).default('google'),
+    piModel: z.string().trim().min(1).default('gemini-2.5-flash'),
+    piBaseUrl: z.union([z.literal(''), HttpUrlSchema]).default(''),
+    inferenceBackend: z
+        .preprocess(
+            (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+            z.enum(['tars', 'pi', 'gemini', 'llamacpp'])
+        )
+        .default('tars')
+        .transform((value): 'tars' | 'llamacpp' => {
+            return value === 'llamacpp' ? 'llamacpp' : 'tars';
+        }),
+    localInferenceUrl: HttpUrlSchema.default('http://localhost:8080'),
+    statusUpdates: z
+        .object({
+            tars: BooleanLikeSchema.default(true),
+            llamacpp: BooleanLikeSchema.default(true)
+        })
+        .default({ tars: true, llamacpp: true }),
+    heartbeatIntervalSec: z.coerce.number().int().min(1).max(86_400).default(300),
+    contextWindowTokens: z.coerce.number().int().min(1).max(10_000_000).default(128_000),
+    compressionThreshold: z.coerce.number().min(0.1).max(0.9).default(0.6),
+    preflightCompressionThreshold: z.coerce.number().min(0.2).max(0.98).default(0.75),
+    maxRPM: z.coerce.number().int().min(1).max(10_000).default(14),
+    maxTPM: z.coerce.number().int().min(1).max(100_000_000).default(900_000),
+    channels: z.record(ChannelConfigSchema).default({}),
+    primaryChannel: z.string().trim().min(1).default('discord'),
+    discordToken: z.string().default(''),
+    discordOwnerId: z.string().trim().min(1).nullable().default(null)
+});
+
+export type RuntimeConfig = z.infer<typeof RuntimeConfigSchema>;
