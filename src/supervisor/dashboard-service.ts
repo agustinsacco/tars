@@ -1,12 +1,22 @@
-import pm2 from 'pm2';
-import path from 'path';
 import fs from 'fs';
-import logger from '../utils/logger.js';
+import path from 'path';
+import pm2 from 'pm2';
 import { Config } from '../config/config.js';
-import { fileURLToPath } from 'url';
+import logger from '../utils/logger.js';
+import {
+    createTarsPm2Identity,
+    deleteTarsProcessNames,
+    findTarsProcessesByHome
+} from '../utils/pm2-processes.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const unsafeDashboardPasswords = new Set(['changeme', 'tars123']);
+
+export function isSafeDashboardPassword(password: string | undefined): boolean {
+    const normalized = password?.trim().toLowerCase();
+    return Boolean(
+        normalized && normalized.length >= 16 && !unsafeDashboardPasswords.has(normalized)
+    );
+}
 
 export class DashboardService {
     private readonly dashDir: string;
@@ -19,13 +29,20 @@ export class DashboardService {
     }
 
     public async start(): Promise<void> {
+        const dashEnabled = process.env.DASH_ENABLED === 'true';
+        if (!dashEnabled) return;
+
+        if (!isSafeDashboardPassword(process.env.DASH_PASSWORD)) {
+            logger.error(
+                '❌ Dashboard disabled: configure a strong DASH_PASSWORD before enabling it.'
+            );
+            return;
+        }
+
         if (!fs.existsSync(this.dashDir)) {
             logger.warn('⚠️ Tars Dashboard directory not found. Skipping dashboard start.');
             return;
         }
-
-        const dashEnabled = process.env.DASH_ENABLED === 'true';
-        if (!dashEnabled) return;
 
         return new Promise((resolve) => {
             pm2.connect((err) => {
@@ -48,6 +65,7 @@ export class DashboardService {
             logger.info(`🚀 Starting Tars Dashboard [${this.dashName}] (PM2)...`);
 
             const port = process.env.DASH_PORT || '3000';
+            const host = process.env.DASH_HOST || '127.0.0.1';
 
             // Strip PM2 injected variables to prevent overwriting the parent process
             const cleanEnv: Record<string, string | undefined> = { ...process.env };
@@ -69,6 +87,10 @@ export class DashboardService {
                     env: {
                         ...cleanEnv,
                         PORT: port,
+                        DASH_HOST: host,
+                        ...createTarsPm2Identity('dashboard'),
+                        TARS_HOME: this.config.homeDir,
+                        TARS_SUPERVISOR_MODE: 'false',
                         NODE_ENV: 'production'
                     }
                 },
@@ -79,7 +101,7 @@ export class DashboardService {
                         );
                     } else {
                         logger.info(`✨ Dashboard [${this.dashName}] active on port ${port}`);
-                        logger.info(`🔗 Local URL: http://localhost:${port}`);
+                        logger.info(`🔗 Dashboard URL: http://${host}:${port}`);
                     }
                     resolve();
                 }
@@ -87,21 +109,16 @@ export class DashboardService {
         });
     }
 
-    public stop(): void {
-        pm2.connect((err) => {
-            if (err) {
-                logger.error(`❌ PM2 connection failed for Dashboard stop: ${err.message}`);
-                return;
-            }
-
-            pm2.delete(this.dashName, (deleteErr) => {
-                if (deleteErr) {
-                    logger.warn(
-                        `[DashboardService] Failed to stop dashboard: ${deleteErr.message}`
-                    );
-                }
-                pm2.disconnect();
-            });
-        });
+    public async stop(): Promise<void> {
+        try {
+            const dashboard = (await findTarsProcessesByHome(this.config.homeDir)).find(
+                ({ kind, name }) => kind === 'dashboard' && name === this.dashName
+            );
+            if (!dashboard) return;
+            await deleteTarsProcessNames([dashboard.name]);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn(`[DashboardService] Failed to stop dashboard: ${message}`);
+        }
     }
 }

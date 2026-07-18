@@ -1,9 +1,16 @@
 import chalk from 'chalk';
 import { Config } from '../../config/config.js';
 import { MemoryManager } from '../../memory/memory-manager.js';
+import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
 
-export async function memory(action: string, ...args: string[]) {
+export async function memory(action: string, ...args: string[]): Promise<void> {
     const config = Config.getInstance();
+    await withTarsHomeMutationLease(config.homeDir, `${action} Tars memory`, () =>
+        runMemoryAction(config, action, args)
+    );
+}
+
+async function runMemoryAction(config: Config, action: string, args: string[]): Promise<void> {
     const manager = new MemoryManager(config);
 
     switch (action) {

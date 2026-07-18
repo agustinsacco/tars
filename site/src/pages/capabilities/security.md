@@ -1,81 +1,57 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Security & Sovereignty
-description: How Tars protects your data and ensures agent integrity.
+title: Security Model
+description: Implemented controls, trust boundaries, and known limitations.
 section: Capabilities
 ---
 
-# Security & Sovereignty
+Tars keeps its workspace local and adds defensive checks around common ingress, process, web, log,
+dashboard, and archive paths. These controls reduce risk; they do not make an AI agent a security
+boundary.
 
-Tars is designed with a **Security-First** and **Local-First** philosophy. Unlike cloud-hosted agents, Tars runs on your hardware, giving you full control over your data, secrets, and execution environment.
+## Implemented controls
 
-To counteract the common vulnerabilities prevalent in autonomous agents (like OpenClaw or AutoGPT), Tars implements multiple layers of deterministic and behavioral defense.
+- **Discord ownership:** every accepted message must match the preconfigured owner ID. With no owner
+  ID, all Discord messages are ignored; inbound messages never establish or replace trust.
+- **Attachments:** the Discord CDN source, filename, declared and streamed size, download time, and
+  local destination are constrained.
+- **Configuration:** external data is schema-validated; numeric values are bounded; exported
+  environment variables are not overwritten by `.env`.
+- **MCP:** missing or invalid enablement denies all extensions. Subprocess environment variables are
+  minimized and explicitly allowlisted; working directories and timeouts are bounded.
+- **Web fetch:** only public HTTP(S) destinations are allowed. Private, loopback, and non-HTTP targets
+  are rejected across redirects, with time and response-size limits.
+- **Logs and events:** common sensitive tool arguments and output are redacted.
+- **Dashboard:** disabled by default, loopback-bound, requires a non-default password of at least 16
+  characters, is rate-limited, and uses constant-time Basic authentication. File APIs enforce
+  real-path containment and deny credential files.
+- **Backups and maintenance:** exports exclude known credential files and redact recognized JSON
+  keys on a best-effort basis. Import and refresh validate staged content and use atomic replacement
+  with rollback. Update validates the package before installation and attempts to reinstall the prior
+  version if a later step fails. Uninstall rejects broad or unmarked targets.
+- **State writes:** session compression and task writes preserve valid prior data on failure; task
+  storage coordinates across processes.
 
-## 1. Data Loss Prevention (DLP)
+## Explicit limitations
 
-Tars features a built-in **DLP Service** that prevents the inadvertent exposure of sensitive information.
+- Tars and its extensions run with the OS user's authority. There is no filesystem, shell, network,
+  or process sandbox.
+- Model output and prompt instructions are not trusted authorization decisions.
+- Redaction is not comprehensive DLP and cannot retract data already sent to a provider or external
+  tool.
+- Tars does not provide prompt-injection immunity, model rollback detection, signed extensions, or
+  human confirmation for every destructive operation.
+- A local workspace does not imply local inference. Cloud providers and Discord receive data sent to
+  them.
+- Basic authentication is not a substitute for TLS or a trusted network boundary.
 
-### Deterministic Redaction
+## Deployment guidance
 
-Tars automatically scans all tool outputs (e.g., from reading files or running shell commands) for sensitive patterns before they reach the LLM or are logged. Patterns include:
+Run Tars as a dedicated least-privilege user. Keep `~/.tars/.env` owner-readable only. Review each
+skill and extension, maintain strict enablement, and avoid granting administrator credentials.
+Keep the dashboard and local inference on loopback and use authenticated tunnels for remote access.
+Treat backup archives as sensitive, test restoration, and monitor logs for denied access and
+repeated failures.
 
-- **API Keys**: OpenAI, GitHub, Google Cloud, and other service-specific formats.
-- **High-Entropy Strings**: Long random strings that typically represent secrets or tokens.
-- **Private Keys**: RSA, ED25519, and other cryptographic keys.
-- **Auth Tokens**: JWTs and Bearer tokens.
-
-If a secret is detected, it is replaced with a placeholder (e.g., `[REDACTED_SECRET_sk-...]`), ensuring that **even if the agent reads a secret file, it never enters the model's context or conversation history.**
-
-### Path Restrictions & Sensitive Data
-
-Tars maintains a dual-tier approach to filesystem access to protect your secrets while retaining operational context:
-
-**1. Blocked Paths (Zero Access)**
-Tars is strictly forbidden from accessing highly critical files. Any attempt to read or modify them will be blocked immediately, and a security warning will be emitted.
-
-- `~/.ssh/` directories
-- RSA / ED25519 private keys
-- Shell histories (`.bash_history`, `.zsh_history`)
-
-**2. Sensitive Paths (Aggressive Scrubbing)**
-For configuration files that Tars requires for its daily operations, access is permitted, but the output undergoes an **aggressive scrubbing protocol** before reaching the model:
-
-- `.env` files
-- `config.json` (Internal Tars configuration)
-- `secrets.*`
-
-When Tars reads a `.env` file, the DLP Service extracts and redacts the values while preserving the key names (e.g., `OPENAI_API_KEY=[REDACTED]`). This allows Tars to check _if_ a service is configured without ever seeing the actual credentials.
-
-## 2. Rollback Protection (SIP-001)
-
-Autonomous agents are often vulnerable to "Temporal Reset" attacks, where a host snapshots a VM and rolls the agent back to a previous state. This can cause the agent to lose its "Causality Anchor" and repeat actions or misremember history.
-
-Tars implements **SIP-001 (Active Bleed)**, which uses **Physical Entropy** to sign every memory update.
-
-- **Hardware Jitter**: Tars measures nanosecond-scale CPU variance that is impossible for a host to forge.
-- **Thermal Data**: System temperatures are used as an additional source of physical randomness.
-
-By comparing the current physical entropy against the last recorded state, Tars can detect if its environment has been rolled back in time and alert the user immediately.
-
-## 3. Instructional Hierarchy
-
-To prevent **Indirect Prompt Injection** (also known as "Poisoned Doc" attacks), Tars enforces a strict instructional hierarchy.
-
-- **System Priority**: Core system instructions always take precedence over any data found in external files, web pages, or emails.
-- **Untrusted Data Handling**: All external data is wrapped in unique delimiters and treated as untrusted. Tars is hard-coded to ignore any "commands" found within untrusted data.
-- **Human-in-the-Loop**: Destructive or high-impact shell commands (e.g., `rm -rf`, `git push`) require explicit user confirmation unless specifically authorized in YOLO mode.
-
-## 4. Local-First Identity
-
-Tars uses your local filesystem as its **"Bone Anchor"**—the immutable source of truth. By keeping your memory and identity local, Tars avoids the "Agent Amnesia" and drift common in agents that rely purely on cloud-hosted context windows.
-
----
-
-### Comparison: Tars vs. Others
-
-| Feature          | Other Agents       | Tars (Your Sidekick)           |
-| :--------------- | :----------------- | :----------------------------- |
-| **Secret Leaks** | Vulnerable         | **DLP Redaction**              |
-| **Snapshots**    | Blind to rollbacks | **SIP-001 Protection**         |
-| **Injection**    | Susceptible        | **Instructional Hierarchy**    |
-| **Latency**      | High (Cloud-only)  | **Local-First (Milliseconds)** |
+For high-risk commands, enforce authorization and confirmation outside the model—for example with
+OS permissions, `sudoers` rules, a constrained wrapper, or a separate approval service.

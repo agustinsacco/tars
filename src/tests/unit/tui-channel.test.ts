@@ -209,13 +209,22 @@ describe('TuiChannel', () => {
             expect(result).toBe(false);
         });
 
-        it('should return true from editStatus after a notify', async () => {
+        it('should return true from editStatus after sendStatus', async () => {
             channel = new TuiChannel({ input: mockInput, output: mockOutput });
 
-            await channel.notify('initial status');
+            await channel.sendStatus('initial status');
             const result = await channel.editStatus('updated status');
             expect(result).toBe(true);
             expect(mockOutput.captured).toContain('updated status');
+        });
+
+        it('should not make an ordinary notification editable as status', async () => {
+            channel = new TuiChannel({ input: mockInput, output: mockOutput });
+
+            await channel.notify('durable notification');
+
+            await expect(channel.editStatus('replacement')).resolves.toBe(false);
+            expect(mockOutput.captured).not.toContain('replacement');
         });
     });
 

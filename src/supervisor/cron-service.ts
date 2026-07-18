@@ -1,10 +1,15 @@
-import fs from 'fs/promises';
 import { Task } from '../types/index.js';
 import { Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { CronExpressionParser } from 'cron-parser';
 import { ChannelManager } from '../channels/channel-manager.js';
+import { TaskFileStore } from './task-file-store.js';
+import { DLPService } from '../utils/dlp-service.js';
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * CronService - Dedicated operator for scheduled tasks.
@@ -13,13 +18,16 @@ import { ChannelManager } from '../channels/channel-manager.js';
 export class CronService {
     private interval: NodeJS.Timeout | null = null;
     private isExecuting: boolean = false;
+    private readonly taskStore: TaskFileStore;
     private static readonly POLL_INTERVAL_MS = 60 * 1000; // Check every minute
 
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config,
         private readonly channelManager: ChannelManager
-    ) {}
+    ) {
+        this.taskStore = new TaskFileStore(config.taskFilePath);
+    }
 
     public async start(): Promise<void> {
         const tasks = await this.loadTasks();
@@ -30,10 +38,10 @@ export class CronService {
         );
 
         // Start the polling loop
-        this.interval = setInterval(() => this.tick(), CronService.POLL_INTERVAL_MS);
+        this.interval = setInterval(() => void this.tick(), CronService.POLL_INTERVAL_MS);
 
         // Initial tick to catch any tasks immediately
-        this.tick();
+        void this.tick();
     }
 
     public stop(): void {
@@ -60,8 +68,8 @@ export class CronService {
                     await this.runTask(task);
                 }
             }
-        } catch (error: any) {
-            logger.error(`❌ Cron service tick error: ${error.message}`);
+        } catch (error: unknown) {
+            logger.error(`❌ Cron service tick error: ${getErrorMessage(error)}`);
         } finally {
             this.isExecuting = false;
         }
@@ -71,54 +79,51 @@ export class CronService {
         logger.info(`🚀 [CRON] Running task: ${task.title} (${task.id})`);
 
         try {
-            // Tasks run in their own ephemeral session within the engine
-            const contextualPrompt = `[SYSTEM: You are executing a scheduled background task. This is a NON-INTERACTIVE session. You CANNOT speak to the user using the ask_user tool. If you need to alert the user about the result of this task, you MUST use the send_notification tool. Execute the directive autonomously and output a summary of your actions.]\n\nTask Directive: ${task.prompt}`;
+            const contextualPrompt = `[SYSTEM: Execute this scheduled task non-interactively. Do not ask questions or send notifications; the scheduler applies the task's notification policy. Return a concise result summary.]\n\nTask Directive: ${task.prompt}`;
             const result = await this.supervisor.executeTask(contextualPrompt);
             logger.info(`✅ [CRON] Task ${task.id} completed. Result length: ${result.length}`);
 
-            // Important: Reload tasks from disk to check if the AI tool deleted its own task during execution
-            const currentTasks = await this.loadTasks();
-            const taskToUpdate = currentTasks.find((t) => t.id === task.id);
+            const updatedTask = await this.taskStore.updateTask(task.id, (taskToUpdate) => {
+                taskToUpdate.lastRun = new Date().toISOString();
+                taskToUpdate.failedCount = 0;
 
-            if (!taskToUpdate) {
+                try {
+                    CronExpressionParser.parse(taskToUpdate.schedule);
+                } catch {
+                    taskToUpdate.enabled = false;
+                    logger.info(
+                        `✅ [CRON] One-off task ${taskToUpdate.id} disabled after successful execution.`
+                    );
+                }
+
+                if (taskToUpdate.enabled) {
+                    taskToUpdate.nextRun = this.calculateNextRun(taskToUpdate.schedule);
+                }
+                taskToUpdate.updatedAt = new Date().toISOString();
+            });
+
+            if (!updatedTask) {
                 logger.info(
                     `ℹ️ [CRON] Task ${task.id} was deleted during execution. Skipping sync.`
                 );
                 return;
             }
 
-            taskToUpdate.lastRun = new Date().toISOString();
-            taskToUpdate.failedCount = 0;
-
-            // Check if it's a one-off task (not a cron expression)
-            try {
-                CronExpressionParser.parse(taskToUpdate.schedule);
-            } catch {
-                // If it fails to parse as cron, it's a one-off (ISO date). Disable it.
-                taskToUpdate.enabled = false;
-                logger.info(
-                    `✅ [CRON] One-off task ${taskToUpdate.id} disabled after successful execution.`
-                );
+            if (updatedTask.mode === 'notify') {
+                await this.notifySafely(result);
             }
-
-            if (taskToUpdate.enabled) {
-                taskToUpdate.nextRun = this.calculateNextRun(taskToUpdate.schedule);
-            }
-            taskToUpdate.updatedAt = new Date().toISOString();
-
-            await this.saveTasks(currentTasks);
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = getErrorMessage(error);
+            const safeErrorMessage = DLPService.scrub(errorMessage);
             // Don't count busy skips as failures — the supervisor is temporarily occupied
-            if (error.message?.includes('busy')) {
+            if (errorMessage.includes('busy')) {
                 logger.info(`⏳ [CRON] Task ${task.id} skipped — supervisor busy`);
                 return;
             }
 
-            logger.error(`❌ [CRON] Task ${task.id} failed: ${error.message}`);
+            logger.error(`❌ [CRON] Task ${task.id} failed: ${safeErrorMessage}`);
 
-            const currentTasks = await this.loadTasks();
-            const taskToUpdate = currentTasks.find((t) => t.id === task.id);
-            if (taskToUpdate) {
+            const updatedTask = await this.taskStore.updateTask(task.id, (taskToUpdate) => {
                 taskToUpdate.failedCount++;
                 if (taskToUpdate.failedCount >= 3) {
                     try {
@@ -131,8 +136,23 @@ export class CronService {
                     }
                 }
                 taskToUpdate.updatedAt = new Date().toISOString();
-                await this.saveTasks(currentTasks);
+            });
+
+            if (updatedTask?.mode === 'notify') {
+                await this.notifySafely(
+                    `⚠️ Scheduled task "${updatedTask.title}" failed: ${safeErrorMessage}`
+                );
             }
+        }
+    }
+
+    private async notifySafely(content: string): Promise<void> {
+        try {
+            await this.channelManager.notify(content);
+        } catch (error: unknown) {
+            logger.error(
+                `❌ [CRON] Notification delivery failed: ${DLPService.scrub(getErrorMessage(error))}`
+            );
         }
     }
 
@@ -140,7 +160,7 @@ export class CronService {
         try {
             const interval = CronExpressionParser.parse(schedule);
             const next = interval.next().toISOString();
-            return (next as any) || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            return next || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         } catch (err) {
             const date = new Date(schedule);
             if (!isNaN(date.getTime()) && schedule.includes('-')) {
@@ -157,17 +177,6 @@ export class CronService {
     }
 
     private async loadTasks(): Promise<Task[]> {
-        try {
-            const data = await fs.readFile(this.config.taskFilePath, 'utf-8');
-            return JSON.parse(data);
-        } catch (error: any) {
-            if (error.code === 'ENOENT') return [];
-            throw error;
-        }
-    }
-
-    private async saveTasks(tasks: Task[]): Promise<void> {
-        const data = JSON.stringify(tasks, null, 2);
-        await fs.writeFile(this.config.taskFilePath, data, 'utf-8');
+        return this.taskStore.loadTasks();
     }
 }

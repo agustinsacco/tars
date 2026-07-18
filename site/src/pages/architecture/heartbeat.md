@@ -1,52 +1,31 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Heartbeat Service
-description: The autonomous background loop that drives task execution and self-correction.
-section: Architecture (Advanced)
+title: Heartbeat and Cron
+description: Separate maintenance and explicit scheduling services.
+section: Architecture
 ---
 
-## Overview
+Tars has two background loops with different responsibilities.
 
-The `HeartbeatService` is Tars' background maintenance engine. It runs on a configurable interval (default: 300 seconds) and manages memory synchronization, filesystem cleanup, and self-correcting health checks.
+## Maintenance heartbeat
 
-> **Note:** For precisely timed scheduled tasks (cron), Tars uses a separate **Cron Service** that polls every 60 seconds.
+The heartbeat runs at the validated `heartbeatIntervalSec` interval. It:
 
-## The Tick Loop
+- reports a supervisor run that has remained busy for more than ten minutes without unlocking it;
+- cleans eligible temporary attachments;
+- synchronizes the knowledge index at most once per hour;
+- garbage-collects eligible old files under `~/.tars/chats/`;
+- skips heavier maintenance after more than two hours without a user interaction.
 
-Each heartbeat tick follows this sequence:
+It does not ask the model to invent work, continuously monitor the host, or execute scheduled tasks.
 
-1. **Cleanup** — `AttachmentProcessor.cleanup()` removes old temp files (1h) and uploads (24h).
-2. **Memory Sync** — `MemoryManager.fullSync()` re-indexes the brain (facts, skills, and past sessions).
-3. **Autonomous Check** — Performs a `SILENT_ACK` heuristic check to see if autonomous action is required.
+## Cron service
 
-```
-tick()
- ├── cleanup()           # Remove stale files
- ├── fullSync()          # Rate-limited re-indexing
- └── autonomousCheck()   # Heuristic goal assessment
-```
+The cron service polls `~/.tars/data/tasks.json` every 60 seconds and executes due, enabled tasks
+through the supervisor. A schedule can be a five-field cron expression or an ISO date/time.
 
-## The SILENT_ACK Protocol
+Task state uses cross-process locking and atomic writes. A successful one-time task is disabled;
+recurring tasks receive a new `nextRun`. Busy interactive work can defer a task until a later poll.
 
-When no scheduled tasks are due, the heartbeat sends a special prompt to the AI to verify the system's state.
-
-This interaction happens in an **Ephemeral Session**. It does not use the user's active conversation ID, which means background autonomous checks **never bloat your main context window** or interfere with your chat history.
-
-Two outcomes:
-
-- **SILENT_ACK response** — Everything is fine. The ephemeral session is discarded.
-- **Any other response** — The AI detected something that needs attention. The action is logged and the Supervisor handles the resulting tool calls or notifications.
-
-This creates a self-correcting feedback loop where the AI periodically reviews its own state and takes initiative when needed.
-
-## Concurrency Guard
-
-A boolean `isExecuting` flag prevents overlapping ticks. If a tick is still running when the next interval fires, it's skipped.
-
-## Configuration
-
-| Setting            | Default | Environment Variable     |
-| ------------------ | ------- | ------------------------ |
-| Heartbeat Interval | 300s    | `HEARTBEAT_INTERVAL_SEC` |
-
-Adjust via `tars setup` or edit `~/.tars/config.json` directly.
+Because polling is minute-based, do not use Tars for second-level, hard real-time, or safety-critical
+scheduling.

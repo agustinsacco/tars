@@ -1,46 +1,33 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Persistent Memory
-description: How Tars manages context and long-term knowledge retrieval.
+description: Keep selected facts and notes beyond the active conversation.
 section: Capabilities
 ---
 
-Tars implements an **Episodic Session** architecture paired with a dedicated memory system. This approach ensures high performance by maintaining concise context windows while preserving critical knowledge across sessions.
+Tars separates active conversation history from durable memory.
 
-### Episodic Sessions
+## Active session
 
-To prevent context bloat and performance degradation, Tars manages short-lived conversation segments:
+The current session persists under `~/.tars/chats/` with metadata in
+`~/.tars/data/session.json`. Token-aware compression summarizes older context atomically. If summary
+generation fails, Tars preserves the original history.
 
-- **Active Sessions:** While you are actively interacting, Tars maintains full continuity of the conversation.
-- **Auto-Refresh:** After 2 hours of inactivity, the session is archived. Your next interaction starts a fresh session, ensuring a clean and efficient context window.
-- **Hot-Reloading:** When you instruct Tars to "remember" a key fact, the current session is re-initialized to incorporate the new information into its core instructions immediately.
+An idle period does not automatically create a new agent or archive every conversation. The
+heartbeat can garbage-collect eligible old chat files according to retention limits.
 
-### Knowledge Tiers
+## Durable memory tools
 
-Tars categorizes information into two distinct tiers via the `tars-memory` extension:
+The built-in memory extension exposes:
 
-#### 1. Core Facts
+- `manage_facts` with `store`, `delete`, and `list` actions for intentional key/value facts;
+- `manage_notes` with `add` and `search` actions for timestamped daily notes and retrieval.
 
-Critical preferences and static context that Tars must always know. These are injected directly into every new session's system prompt.
+Facts are stored under `~/.tars/data/memory/facts.json`; notes live beside them. `tars memory sync`
+indexes facts, skills, and eligible chat history into the local knowledge database.
 
-```text
-User: "The production database uses PostgreSQL, but staging uses SQLite."
-Tars: "✅ Fact stored. I'll maintain this context across all future sessions."
-```
+## Data discipline
 
-#### 2. Historical Notes
-
-Higher-volume daily logs like meeting summaries or technical observations. These are stored as timestamped markdown files and are searchable via the `memory_search` tool.
-
-#### 3. Episodic Memory
-
-Tars index transcripts of past conversations into an SQLite-based Full-Text Search (FTS) engine. This allows the agent to recall specific details from previous interactions (e.g. "What did we decide about the API naming last week?") even after the active session has been archived.
-
-### Data Portability
-
-Your agent's knowledge resides entirely on your local machine:
-
-- **Core Facts:** `~/.tars/data/memory/facts.json`
-- **Daily Notes:** `~/.tars/data/memory/notes/`
-- **Search Index:** `~/.tars/data/knowledge.db`
-- **Transcripts:** `~/.tars/chats/`
+Tars does not reliably remember every statement. Ask it to store a fact when persistence matters,
+and periodically review or delete stale information. Do not store passwords, tokens, private keys,
+or data that should not be sent to the configured model provider.

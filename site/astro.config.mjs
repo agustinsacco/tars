@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import mdx from '@astrojs/mdx';
 
 export default defineConfig({
+    site: 'https://tars.saccolabs.com',
     integrations: [react(), mdx()],
     vite: {
         plugins: [tailwindcss()]

@@ -1,66 +1,50 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Setup Wizard
-description: Configure your autonomous AI agent.
+description: Configure a model provider, Discord, identity, and optional local services.
 section: Get Started
 ---
 
-Run the setup wizard to connect Tars to your Google and Discord accounts:
+Run the interactive wizard after installation:
 
 ```bash
 tars setup
 ```
 
-The wizard will guide you through the following steps:
+## Model provider
 
-### 1. Model Provider & Credentials
+Choose Google, OpenAI, Anthropic, a local endpoint, or another OpenAI-compatible endpoint. The wizard
+stores the provider and model ID in `~/.tars/config.json`; API credentials go to `~/.tars/.env`.
 
-Tars uses the **Pi Agent SDK** for multi-provider intelligence. The setup wizard will prompt you to select your preferred AI provider:
+Set the context-window size to the actual limit of the selected model. Tars validates and bounds
+context, compression, rate-limit, and heartbeat values when configuration loads.
 
-- **Google (Gemini SDK)**: Requires `TARS_API_KEY` (Google Cloud API Key). Defaults to `gemini-2.5-flash`.
-- **OpenAI**: Requires `OPENAI_API_KEY`. Defaults to `gpt-4o`.
-- **Anthropic**: Requires `ANTHROPIC_API_KEY`. Defaults to `claude-3-5-sonnet-latest`.
-- **Local Stark**: Connects to your local model endpoint (e.g., `http://stark:8086/v1`). Defaults to Qwen 3.6.
-- **Custom**: Connects to any OpenAI-compatible proxy or local endpoint.
+## Discord
 
-### 2. Communication Channel
+Provide a Discord bot token with Message Content intent enabled and your 17–20 digit Discord user
+ID. The wizard requires that owner ID and stores it in `config.json`. Tars accepts messages only from
+the preconfigured owner; if a migrated configuration has no owner ID, every Discord message is
+ignored until you rerun `tars setup` or set `DISCORD_OWNER_ID`. No direct or guild message can claim
+ownership. An explicit `channels.discord.enabled: false` keeps the channel disabled even when a
+token is configured.
 
-Tars uses Discord as its communication interface.
+See [Discord](/getting-started/discord) for bot permissions and interaction behavior.
 
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications).
-2. Create a new application, add a Bot, and copy the **Token**.
-3. Enable the **Message Content Intent** under the Bot settings.
+## Dashboard
 
-The wizard will validate your bot token in real-time before saving.
+The dashboard is optional and disabled by default. Enabling it creates a strong password unless an
+existing password already meets the current policy. It binds to `127.0.0.1` by default and refuses to
+start with a missing, known-default, or shorter-than-16-character password.
 
-### 3. Identity & Heartbeat
+Keep it on loopback and use an authenticated tunnel for remote access.
 
-Choose the Bot's display name (e.g., `Tars`) and the **Heartbeat Interval** (how often Tars checks for scheduled tasks or performs autonomous system health checks; recommended default is 30 minutes).
-
-### 4. Tars Dashboard
-
-Choose whether to enable the built-in **Tars Dashboard** (Web UI), customize the port (defaults to `3000`), and set an access password.
-
-### 5. Initialization
-
-Tars will provision its workspace at `~/.tars/`. This directory stores its memory database, task list, and local configurations.
-
-> **Tip**: If you are migrating from another machine, run `tars import <path>` **before** starting `tars setup` to restore your existing memory and tasks.
-
----
-
-### Lifecycle Commands
-
-**Start the agent:**
+## Verify
 
 ```bash
 tars start
+tars status
+tars logs
 ```
 
-**Stop the agent:**
-
-```bash
-tars stop
-```
-
-Once running, your bot will appear online in Discord. Type `$ping` to confirm it responded efficiently.
+`status` confirms the PM2 process and session metrics. Use logs to inspect channel, extension,
+heartbeat, or cron startup.

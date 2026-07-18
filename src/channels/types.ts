@@ -1,4 +1,4 @@
-import { AttachmentContext } from '../types/index.js';
+import type { AttachmentContext } from '../types/index.js';
 
 /**
  * Common message structure across all channels
@@ -9,7 +9,7 @@ export interface ChannelMessage {
     senderName: string;
     channelId: string;
     attachments?: AttachmentContext[];
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     reply: (content: string, attachments?: string[]) => Promise<void>;
     startTyping: () => void;
     stopTyping: () => void;
@@ -36,6 +36,11 @@ export interface CommunicationChannel {
      * Send a proactive notification to the user
      */
     notify(content: string, attachments?: string[]): Promise<void>;
+
+    /**
+     * Start a transient status notification that later status updates may edit.
+     */
+    sendStatus(content: string): Promise<void>;
 
     /**
      * Edit the last proactive status notification in-place.

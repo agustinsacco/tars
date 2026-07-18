@@ -17,7 +17,7 @@ export class SendNotificationTool implements AgentTool<typeof NotifyParamsSchema
     public readonly name = 'send_notification';
     public readonly label = 'Send Notification';
     public readonly description =
-        'Send a proactive message or notification back to the user. Use this tool during background tasks to report results, alert the user to issues, or ask questions that you want them to see when they return.';
+        'Send a proactive message back to the configured owner during an interactive workflow.';
     public readonly parameters = NotifyParamsSchema;
 
     constructor(private readonly channelManager: ChannelManager) {}

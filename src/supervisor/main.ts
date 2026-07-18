@@ -34,7 +34,7 @@ async function main() {
             await channelManager.stop();
             heartbeat.stop();
             cron.stop();
-            dashboard.stop();
+            await dashboard.stop();
             process.exit(0);
         });
     } catch (error: any) {

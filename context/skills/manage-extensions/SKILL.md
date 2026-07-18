@@ -1,64 +1,54 @@
 ---
-name: extension-manager
-description: Enable, disable, list, and install MCP extensions at runtime.
+name: manage-extensions
+description: Audits, enables, disables, and refreshes trusted local MCP extensions.
 ---
 
-# manage-extensions Guide Skill
+# Manage MCP extensions
 
-Use this skill when you need to manage Tars' MCP extensions. Tars integrates extensions from `~/.tars/.gemini/extensions/`.
+Extensions live in `~/.tars/extensions/`. Each extension directory contains a
+`tars-extension.json` manifest. Authorization is stored in
+`~/.tars/extensions/extension-enablement.json`.
 
-## How It Works
+## Inspect
 
-Tars performs **Extension Discovery** at startup. It scans the extensions directory for `tars-extension.json` files. Enablement state and safety overrides are persisted in `~/.tars/.gemini/extensions/extension-enablement.json`.
+Before changing state:
 
-## Operational Tasks
+1. List extension directories and resolve symlinks.
+2. Read the manifest and enablement entry.
+3. Review the command, arguments, working directory, explicit environment, `envAllowlist`, and
+   startup/tool timeouts.
+4. Treat all extension code and dependencies as trusted native code, not sandboxed content.
 
-### 1. List Installed Extensions
+## Enable or disable
 
-Check the contents of the extensions directory and the enablement file.
-
-```bash
-# List all extension directories
-ls -F ~/.tars/.gemini/extensions/
-
-# Check enablement and safety overrides
-cat ~/.tars/.gemini/extensions/extension-enablement.json
-```
-
-### 2. Enable/Disable an Extension
-
-Modify `~/.tars/.gemini/extensions/extension-enablement.json`.
-
-To **enable** or reconfigure an extension, add an entry with trusted path overrides:
+Use an explicit allowlist entry:
 
 ```json
 {
     "extension-name": {
-        "overrides": ["/home/user/src/*"]
+        "enabled": true,
+        "envAllowlist": ["REQUIRED_API_KEY"],
+        "startupTimeoutMs": 30000,
+        "toolTimeoutMs": 60000
     }
 }
 ```
 
-To **disable**, simply remove its key from the JSON object.
+Set `enabled` to `false` or remove the entry to prevent the extension from loading. Keep the JSON
+valid and grant only variables the server needs.
 
-### 3. Install a New Extension
+## Install or refresh
 
-1. Create a directory in `~/.tars/.gemini/extensions/<name>`.
-2. Add a `tars-extension.json` manifest.
-3. Add the extension server code (prefer plain JavaScript for runtime extensions).
-4. Register it in `extension-enablement.json`.
-5. Restart Tars.
-
-### 4. Restart Tars
-
-Changes to extensions (installing or modifying manifests) require a system restart to be picked up by the Gemini Core.
+For repository-packaged extensions, use the transactional refresh command:
 
 ```bash
-tars stop && tars start
+tars refresh --extensions-only
 ```
 
-## Important Notes
+For a user extension, stage and validate the directory before placing it under
+`~/.tars/extensions/`. Do not execute an unreviewed install script. Ask the operator to restart Tars
+after an enablement or manifest change.
 
-1. **JS vs TS**: Extensions created at runtime should use **plain JavaScript** with ESM (`type: "module"` in `package.json` or `.js` extension with `import`/`export`) to avoid a compilation step.
-2. **Path Substitution**: Use `${extensionPath}` in your `tars-extension.json` `args` or `env` to ensure paths resolve correctly regardless of the host's absolute path.
-3. **Safety**: Always include appropriate path patterns in the `overrides` array in `extension-enablement.json` to allow the extension to access your workspace.
+If a tool is missing, inspect startup logs and enablement rather than running the MCP server directly
+or guessing a tool name. Unique tools keep their declared names; collisions receive deterministic
+extension namespaces.

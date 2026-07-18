@@ -1,10 +1,18 @@
-import { Client, GatewayIntentBits, Message, ChannelType, Partials } from 'discord.js';
+import { Client, GatewayIntentBits, Partials } from 'discord.js';
+import type { Message, User } from 'discord.js';
+
 import { Config } from '../../config/config.js';
-import logger from '../../utils/logger.js';
-import { MessageFormatter } from './message-formatter.js';
-import { AttachmentContext } from '../../types/index.js';
+import type { AttachmentContext } from '../../types/index.js';
 import { AttachmentProcessor } from '../../utils/attachment-processor.js';
-import { CommunicationChannel, ChannelMessage } from '../types.js';
+import { DLPService } from '../../utils/dlp-service.js';
+import logger from '../../utils/logger.js';
+import type { ChannelMessage, CommunicationChannel } from '../types.js';
+import { MessageFormatter } from './message-formatter.js';
+
+function getSafeErrorMessage(error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return DLPService.scrub(message);
+}
 
 /**
  * Discord Channel Implementation for Tars
@@ -22,7 +30,6 @@ export class DiscordChannel implements CommunicationChannel {
     private lastStatusMessage: { channelId: string; messageId: string } | null = null;
     private statusEditCount: number = 0;
     private statusEditResetAt: number = 0;
-    private lastActiveUser: { userId: string; channelId: string } | null = null;
     // Discord allows ~20 edits per message per 5-minute window
     private static readonly MAX_EDITS_PER_WINDOW = 18;
     private static readonly EDIT_WINDOW_MS = 5 * 60 * 1000;
@@ -45,8 +52,10 @@ export class DiscordChannel implements CommunicationChannel {
     }
 
     get isEnabled(): boolean {
-        // For backward compatibility, if no explicit channels are configured but discordToken exists, it's enabled.
-        return !!this.config.discordToken;
+        const discordConfig = this.config.channels.discord;
+        return discordConfig
+            ? discordConfig.enabled && !!this.config.discordToken
+            : !!this.config.discordToken;
     }
 
     /**
@@ -67,66 +76,62 @@ export class DiscordChannel implements CommunicationChannel {
         this.client.destroy();
     }
 
-    /**
-     * Send a proactive notification to the primary contact.
-     * Tracks the last sent message for in-place editing (status updates).
-     */
+    /** Send a durable proactive notification to the primary contact. */
     public async notify(content: string, attachments?: string[]): Promise<void> {
-        if (!content.trim()) return;
+        await this.sendNotification(content, attachments, false);
+    }
+
+    /** Send and track a transient notification for in-place status editing. */
+    public async sendStatus(content: string): Promise<void> {
+        await this.sendNotification(content, undefined, true);
+    }
+
+    private async sendNotification(
+        content: string,
+        attachments: string[] | undefined,
+        trackStatus: boolean
+    ): Promise<void> {
+        const safeContent = DLPService.scrubTextOrJson(content);
+        if (!safeContent.trim()) throw new Error('Cannot deliver an empty Discord notification.');
         try {
-            let target: any = null;
-            if (this.lastActiveUser?.channelId) {
-                try {
-                    target = await this.client.channels.fetch(this.lastActiveUser.channelId);
-                } catch (err: any) {
-                    logger.debug(
-                        `[Discord] Could not fetch target active channel ${this.lastActiveUser.channelId}: ${err.message}`
-                    );
-                }
-            }
+            const targetId =
+                this.config.discordOwnerId || this.config.channels.discord?.ownerId || null;
+            if (!targetId) throw new Error('Discord owner ID is not configured.');
+            const target: User = await this.client.users.fetch(targetId);
+            const formatted = MessageFormatter.format(safeContent);
+            const files = attachments || [];
 
-            // Fallback to DM user if no active channel, or if it is not text-based
-            if (!target || !target.isTextBased()) {
-                const targetId = this.lastActiveUser?.userId || this.config.discordOwnerId;
-                if (targetId) {
-                    target = await this.client.users.fetch(targetId);
-                }
-            }
-
-            if (target) {
-                const formatted = MessageFormatter.format(content);
-                const files = attachments || [];
-
-                if (formatted.length > 8000) {
-                    const filePath = this.processor.saveResponse(content, 'md');
+            if (formatted.length > 8000) {
+                const filePath = this.processor.saveResponse(safeContent, 'md');
+                const sent = await target.send({
+                    content: `🔔 **Notification** (Response too long, see attached):`,
+                    files: [filePath, ...files]
+                });
+                if (trackStatus) this.trackStatusMessage(sent);
+            } else {
+                const chunks = MessageFormatter.split(formatted);
+                for (let i = 0; i < chunks.length; i++) {
                     const sent = await target.send({
-                        content: `🔔 **Notification** (Response too long, see attached):`,
-                        files: [filePath, ...files]
+                        content: chunks[i],
+                        files: i === chunks.length - 1 ? files : []
                     });
-                    this.trackStatusMessage(sent);
-                } else {
-                    const chunks = MessageFormatter.split(formatted);
-                    for (let i = 0; i < chunks.length; i++) {
-                        const sent = await target.send({
-                            content: chunks[i],
-                            files: i === chunks.length - 1 ? files : []
-                        });
-                        // Track the first chunk for editing
-                        if (i === 0) {
-                            this.trackStatusMessage(sent);
-                        }
+                    // Track the first chunk for editing
+                    if (trackStatus && i === 0) {
+                        this.trackStatusMessage(sent);
                     }
                 }
             }
-        } catch (e: any) {
-            logger.error(`Failed to send proactive notification via Discord: ${e.message}`);
+        } catch (error: unknown) {
+            const safeMessage = getSafeErrorMessage(error);
+            logger.error(`Failed to send proactive notification via Discord: ${safeMessage}`);
+            throw new Error(`Discord notification delivery failed: ${safeMessage}`);
         }
     }
 
     /**
      * Track a sent message so it can be edited later (for status updates).
      */
-    private trackStatusMessage(sent: any): void {
+    private trackStatusMessage(sent: Pick<Message, 'channelId' | 'id'>): void {
         this.lastStatusMessage = {
             channelId: sent.channelId,
             messageId: sent.id
@@ -171,7 +176,7 @@ export class DiscordChannel implements CommunicationChannel {
             }
 
             const message = await channel.messages.fetch(this.lastStatusMessage.messageId);
-            const formatted = MessageFormatter.format(content);
+            const formatted = MessageFormatter.format(DLPService.scrubTextOrJson(content));
 
             // If content grew too large for a single edit, truncate or send new
             if (formatted.length > 1990) {
@@ -183,9 +188,9 @@ export class DiscordChannel implements CommunicationChannel {
 
             this.statusEditCount++;
             return true;
-        } catch (e: any) {
+        } catch (error: unknown) {
             // Message may have been deleted or we lost access
-            logger.warn(`[Discord] Failed to edit status message: ${e.message}`);
+            logger.warn(`[Discord] Failed to edit status message: ${getSafeErrorMessage(error)}`);
             await this.deleteLastStatusMessage();
             this.clearStatus();
             return false;
@@ -203,8 +208,8 @@ export class DiscordChannel implements CommunicationChannel {
                 const msg = await channel.messages.fetch(this.lastStatusMessage.messageId);
                 await msg.delete().catch(() => {});
             }
-        } catch (e: any) {
-            logger.warn(`[Discord] Failed to delete status message: ${e.message}`);
+        } catch (error: unknown) {
+            logger.warn(`[Discord] Failed to delete status message: ${getSafeErrorMessage(error)}`);
         }
     }
 
@@ -234,7 +239,7 @@ export class DiscordChannel implements CommunicationChannel {
                 logger.info(`👤 Primary Discord Contact ID: ${this.config.discordOwnerId}`);
             } else {
                 logger.warn(
-                    `⚠️ No Primary Discord Contact ID set. Will bind to the first user who sends a message.`
+                    '⚠️ No Primary Discord Contact ID is configured. Discord messages will be ignored until you run `tars setup`.'
                 );
             }
         });
@@ -270,8 +275,10 @@ export class DiscordChannel implements CommunicationChannel {
                     );
                     await this.handleIncomingMessage(message);
                 }
-            } catch (err: any) {
-                logger.error(`❌ [DM Rescue] Failed to hydrate dropped message: ${err.message}`);
+            } catch (error: unknown) {
+                logger.error(
+                    `❌ [DM Rescue] Failed to hydrate dropped message: ${getSafeErrorMessage(error)}`
+                );
             }
         });
     }
@@ -281,6 +288,14 @@ export class DiscordChannel implements CommunicationChannel {
      */
     private async handleIncomingMessage(message: Message): Promise<void> {
         try {
+            // Guard against partial messages with missing author data
+            if (!message.author || message.author.bot || !this.messageHandler) return;
+
+            const userPrompt = this.extractPrompt(message);
+            if (userPrompt === null || (!userPrompt && message.attachments.size === 0)) return;
+
+            if (!this.isAuthorizedSender(message.author.id)) return;
+
             // Deduplicate messages (prevent race conditions between 'messageCreate' and 'raw' DM rescue)
             if (this.processedMessages.has(message.id)) {
                 logger.debug(`[Discord] Deduplicating message ${message.id}`);
@@ -291,34 +306,8 @@ export class DiscordChannel implements CommunicationChannel {
             setTimeout(() => this.processedMessages.delete(message.id), 60000);
 
             logger.debug(
-                `📥 Received Discord message: "${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}" from ${message.author?.tag || 'Unknown'} (Guild: ${message.guildId || 'DM'})`
+                `📥 Received authorized Discord message ${message.id} (${message.content.length} characters, ${message.guildId ? 'guild' : 'DM'})`
             );
-
-            // Guard against partial messages with missing author data
-            if (!message.author || message.author.bot || !this.messageHandler) return;
-
-            this.lastActiveUser = {
-                userId: message.author.id,
-                channelId: message.channelId
-            };
-
-            const userPrompt = this.extractPrompt(message);
-            if (userPrompt === null) return;
-
-            // Auto-Bind on first interaction if not set
-            const wasAutoBound = !this.config.discordOwnerId;
-            if (wasAutoBound) {
-                this.config.discordOwnerId = message.author.id;
-                if (this.config.channels.discord) {
-                    this.config.channels.discord.ownerId = message.author.id;
-                }
-                this.config.saveSettings();
-                logger.info(
-                    `🔒 Automatically bound Primary Contact to Discord user: ${message.author.id} (Channel: ${message.channelId})`
-                );
-            }
-
-            if (!userPrompt && message.attachments.size === 0) return;
 
             // Handle Attachments
             const attachments: AttachmentContext[] = [];
@@ -332,8 +321,10 @@ export class DiscordChannel implements CommunicationChannel {
                                 mimeType: attachment.contentType
                             });
                         }
-                    } catch (err: any) {
-                        logger.error(`Failed to download Discord attachment: ${err.message}`);
+                    } catch (error: unknown) {
+                        logger.error(
+                            `Failed to download Discord attachment: ${getSafeErrorMessage(error)}`
+                        );
                     }
                 }
             }
@@ -345,11 +336,11 @@ export class DiscordChannel implements CommunicationChannel {
                 senderName: message.author.username,
                 channelId: message.channelId,
                 attachments,
-                metadata: { wasAutoBound },
                 reply: async (response: string, outAttachments?: string[]) => {
-                    const formatted = MessageFormatter.format(response);
+                    const safeResponse = DLPService.scrubTextOrJson(response);
+                    const formatted = MessageFormatter.format(safeResponse);
                     if (formatted.length > 8000) {
-                        const filePath = this.processor.saveResponse(response, 'md');
+                        const filePath = this.processor.saveResponse(safeResponse, 'md');
                         await message.reply({
                             content: `📄 **Response too long** (${formatted.length} chars). See attached file:`,
                             files: [filePath, ...(outAttachments || [])]
@@ -369,10 +360,11 @@ export class DiscordChannel implements CommunicationChannel {
                     if (this.typingIntervals.has(channelId)) return;
 
                     // Send first one immediately
-                    if ('sendTyping' in message.channel) {
-                        message.channel.sendTyping().catch(() => {});
+                    const typingChannel = message.channel;
+                    if ('sendTyping' in typingChannel) {
+                        typingChannel.sendTyping().catch(() => {});
                         const interval = setInterval(() => {
-                            (message.channel as any).sendTyping().catch(() => {
+                            typingChannel.sendTyping().catch(() => {
                                 this.stopTypingInternal(channelId);
                             });
                         }, 5000); // Discord typing state lasts ~10s, we refresh every 5s
@@ -386,9 +378,26 @@ export class DiscordChannel implements CommunicationChannel {
 
             // Forward to the registered handler (Supervisor via ChannelManager)
             await this.messageHandler(channelMessage);
-        } catch (error: any) {
-            logger.error(`❌ Discord message handler error: ${error.message}`);
+        } catch (error: unknown) {
+            logger.error(`❌ Discord message handler error: ${getSafeErrorMessage(error)}`);
         }
+    }
+
+    /**
+     * Verify the sender before mutating message or routing state.
+     * Ownership is configured locally; Discord messages never establish trust.
+     */
+    private isAuthorizedSender(userId: string): boolean {
+        const configuredOwnerId =
+            this.config.discordOwnerId || this.config.channels.discord?.ownerId;
+
+        if (configuredOwnerId === userId) return true;
+        logger.warn(
+            configuredOwnerId
+                ? `[Discord] Ignoring message from unauthorized user ${userId}.`
+                : '[Discord] Ignoring message because no owner ID is configured.'
+        );
+        return false;
     }
 
     private stopTypingInternal(channelId: string): void {

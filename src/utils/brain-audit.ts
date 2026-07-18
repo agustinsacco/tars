@@ -1,9 +1,18 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
-import logger from './logger.js';
+import { randomUUID } from 'crypto';
 import chalk from 'chalk';
+import { z } from 'zod';
+import logger from './logger.js';
 import { getTarsHome } from './paths.js';
+import { pkg } from './version.js';
+
+const currentPackageVersion = typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+const metadataRecordSchema = z.record(z.unknown());
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * BrainAuditor - Ensures the stability and structural integrity of the Tars workspace (~/.tars).
@@ -79,8 +88,8 @@ export class BrainAuditor {
                 fs.writeFileSync(enablementPath, rehomedContent);
                 log('Normalized extension paths for this machine.');
             }
-        } catch (err: any) {
-            logger.warn(`Auditor failed to re-home extensions: ${err.message}`);
+        } catch (error) {
+            logger.warn(`Auditor failed to re-home extensions: ${getErrorMessage(error)}`);
         }
     }
 
@@ -106,10 +115,32 @@ export class BrainAuditor {
 
     private updateMetadata(): void {
         const metaPath = path.join(this.tarsHome, 'metadata.json');
+        const temporaryPath = `${metaPath}.tmp-${randomUUID()}`;
+        let existingMetadata: Record<string, unknown> = {};
+        try {
+            const parsed: unknown = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+            const result = metadataRecordSchema.safeParse(parsed);
+            if (result.success) existingMetadata = result.data;
+        } catch {
+            // Missing or invalid legacy metadata is replaced with a valid marker.
+        }
+
         const meta = {
+            ...existingMetadata,
             lastAudit: new Date().toISOString(),
-            version: '1.0.48'
+            version: currentPackageVersion
         };
-        fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+        try {
+            fs.writeFileSync(temporaryPath, `${JSON.stringify(meta, null, 2)}\n`, {
+                encoding: 'utf8',
+                flag: 'wx',
+                mode: 0o600
+            });
+            fs.chmodSync(temporaryPath, 0o600);
+            fs.renameSync(temporaryPath, metaPath);
+            fs.chmodSync(metaPath, 0o600);
+        } finally {
+            if (fs.existsSync(temporaryPath)) fs.rmSync(temporaryPath, { force: true });
+        }
     }
 }

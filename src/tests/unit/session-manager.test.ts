@@ -54,6 +54,21 @@ describe('SessionManager', () => {
         expect(manager.getStats()?.compressionCount).toBe(2);
     });
 
+    it('rejects a stored session ID that could escape the chats directory', async () => {
+        // ARRANGE
+        vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+        vi.mocked(fs.promises.readFile).mockResolvedValue(
+            JSON.stringify({ sessionId: '../../outside', totalInputTokens: 100 })
+        );
+
+        // ACT
+        const sessionId = await manager.load();
+
+        // ASSERT
+        expect(sessionId).toBeNull();
+        expect(manager.getStats()).toBeNull();
+    });
+
     it('should default compressionCount to 0 if missing from stored data', async () => {
         const mockData = {
             sessionId: 'test-session-old',
@@ -165,6 +180,35 @@ describe('SessionManager', () => {
         expect(stats?.interactionCount).toBe(5);
     });
 
+    it('updates a failed-request context estimate without inflating usage totals', async () => {
+        // ARRANGE
+        const mockData = {
+            sessionId: 'failed-request-test',
+            totalInputTokens: 200,
+            totalOutputTokens: 100,
+            totalNetTokens: 180,
+            totalCachedTokens: 20,
+            interactionCount: 3,
+            lastInputTokens: 120,
+            compressionCount: 0
+        };
+        vi.mocked(fs.promises.access).mockResolvedValue(undefined);
+        vi.mocked(fs.promises.readFile).mockResolvedValue(JSON.stringify(mockData));
+        await manager.load();
+
+        // ACT
+        await manager.updateContextEstimate(4_096);
+
+        // ASSERT
+        expect(manager.getStats()).toMatchObject({
+            totalInputTokens: 200,
+            totalOutputTokens: 100,
+            totalNetTokens: 180,
+            interactionCount: 3,
+            lastInputTokens: 4_096
+        });
+    });
+
     it('should clear the session file', async () => {
         vi.mocked(fs.promises.unlink).mockResolvedValue(undefined);
         await manager.clear();
@@ -258,7 +302,13 @@ describe('SessionManager', () => {
 
             vi.mocked(fs.promises.readdir).mockImplementation(async (dir: any) => {
                 if (dir === tmpDir) {
-                    return [{ name: 'project1', isDirectory: () => true }] as any;
+                    return [
+                        {
+                            name: 'project1',
+                            isDirectory: () => true,
+                            isFile: () => false
+                        }
+                    ] as any;
                 }
                 if (dir.includes('chats')) {
                     return ['old-session.json', 'new-session.json'];
@@ -289,6 +339,42 @@ describe('SessionManager', () => {
 
             const deleted = await manager.garbageCollect('/nonexistent', 3, 50);
             expect(deleted).toBe(0);
+        });
+
+        it('preserves the active chat even when it is old', async () => {
+            // ARRANGE
+            const chatsDir = '/tmp/tars-active-chat-gc';
+            const fourDaysAgo = Date.now() - 4 * 24 * 60 * 60 * 1000;
+            vi.mocked(fs.promises.readdir)
+                .mockResolvedValueOnce([
+                    {
+                        name: 'active-session.json',
+                        isDirectory: () => false,
+                        isFile: () => true
+                    },
+                    {
+                        name: 'old-session.json',
+                        isDirectory: () => false,
+                        isFile: () => true
+                    }
+                ] as never)
+                .mockResolvedValueOnce(['active-session.json', 'old-session.json'] as never);
+            vi.mocked(fs.promises.stat).mockResolvedValue({
+                mtimeMs: fourDaysAgo
+            } as Awaited<ReturnType<typeof fs.promises.stat>>);
+            vi.mocked(fs.promises.unlink).mockResolvedValue(undefined);
+
+            // ACT
+            const deleted = await manager.garbageCollect(chatsDir, 3, 100, ['active-session']);
+
+            // ASSERT
+            expect(deleted).toBe(1);
+            expect(fs.promises.unlink).not.toHaveBeenCalledWith(
+                path.join(chatsDir, 'active-session.json')
+            );
+            expect(fs.promises.unlink).toHaveBeenCalledWith(
+                path.join(chatsDir, 'old-session.json')
+            );
         });
     });
 });

@@ -1,80 +1,27 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: tars-tasks Extension
-description: The built-in MCP server for creating, managing, and scheduling autonomous tasks.
-section: Extensibility
+title: Tasks Extension
+description: The built-in MCP tool for durable one-time and recurring tasks.
+section: Extensions
 ---
 
-## Overview
+The bundled `tars-tasks` server exposes one tool: `manage_tasks`.
 
-`tars-tasks` is Tars' built-in MCP extension that provides task scheduling capabilities. It exposes 5 tools that the AI can call through natural language.
+## Actions
 
-## Tools
+| Action   | Required input                | Effect                               |
+| -------- | ----------------------------- | ------------------------------------ |
+| `create` | `title`, `prompt`, `schedule` | Add an enabled task                  |
+| `list`   | none                          | List tasks; `enabledOnly` can filter |
+| `modify` | `id` plus changed fields      | Update an existing task              |
+| `toggle` | `id`, `enabled`               | Enable or disable a task             |
+| `delete` | `id`                          | Remove a task                        |
 
-### create_task
+`schedule` accepts a five-field cron expression or an ISO date/time. `mode` is `silent` by default;
+set it to `notify` to send the completed result to the owner.
 
-Creates a new scheduled task.
+Task data is stored at `~/.tars/data/tasks.json` with cross-process locking and atomic replacement.
+The separate cron service polls once per minute and executes due tasks through the supervisor.
 
-| Parameter  | Type   | Required | Description                         |
-| ---------- | ------ | -------- | ----------------------------------- |
-| `title`    | string | ✓        | Human-readable task name            |
-| `prompt`   | string | ✓        | The prompt to execute               |
-| `schedule` | string | ✓        | Cron expression or ISO date         |
-| `mode`     | string | —        | `silent` (default) or `interactive` |
-
-```
-"Schedule a daily check of my GitHub notifications at 9 AM"
-→ create_task("GitHub Notifications", "Check my GitHub...", "0 9 * * *")
-```
-
-### list_tasks
-
-Lists all tasks with optional filtering.
-
-| Parameter     | Type    | Required | Description             |
-| ------------- | ------- | -------- | ----------------------- |
-| `enabledOnly` | boolean | —        | Only show enabled tasks |
-
-Returns: task ID, title, schedule, next run, enabled status, and failure count.
-
-### delete_task
-
-Permanently removes a task.
-
-| Parameter | Type   | Required | Description |
-| --------- | ------ | -------- | ----------- |
-| `id`      | string | ✓        | Task UUID   |
-
-### toggle_task
-
-Enables or disables a task without deleting it.
-
-| Parameter | Type    | Required | Description       |
-| --------- | ------- | -------- | ----------------- |
-| `id`      | string  | ✓        | Task UUID         |
-| `enabled` | boolean | ✓        | New enabled state |
-
-### modify_task
-
-Updates task properties.
-
-| Parameter  | Type   | Required | Description          |
-| ---------- | ------ | -------- | -------------------- |
-| `id`       | string | ✓        | Task UUID            |
-| `title`    | string | —        | New title            |
-| `prompt`   | string | —        | New prompt           |
-| `schedule` | string | —        | New cron or ISO date |
-
-## Storage
-
-Tasks are stored in `~/.tars/data/tasks.json` as a JSON array. The extension reads and writes this file directly using the `TaskStore` class.
-
-## Architecture
-
-The extension runs as a standalone Node.js MCP server using `@modelcontextprotocol/sdk`:
-
-```
-StdioServerTransport → Server → Tool Handlers → TaskStore → tasks.json
-```
-
-The Tars supervisor manages and runs this server when the AI invokes any task-related tool.
+This is not a distributed queue or a real-time scheduler. Use narrow prompts and keep destructive
+work behind deterministic safeguards.

@@ -6,98 +6,136 @@ on:
     pull_request:
         branches: [main]
 
+permissions:
+    contents: read
+
 jobs:
-    # Lint pull request title for conventional commits
     pr-title:
-        runs-on: ubuntu-latest
+        name: Conventional pull request title
         if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        permissions:
+            contents: read
+            pull-requests: read
         steps:
-            - uses: amannn/action-semantic-pull-request@v5
+            - uses: amannn/action-semantic-pull-request@v6
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    # Always run linting on all changes to maintain repo-wide style
-    lint:
+    formatting:
+        name: Repository formatting
         runs-on: ubuntu-latest
+        timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
               with:
-                  node-version: '22'
-                  cache: 'npm'
+                  node-version: '22.19.0'
+                  cache: npm
             - run: npm ci
-            - run: npx prettier --check .
+            - run: npm run format:check
 
-    # Run core validation (build, test) only when code or its CI changes
-    validate-core:
+    security-audit:
+        name: Dependency audit — ${{ matrix.directory }}
         runs-on: ubuntu-latest
-        needs: lint
+        timeout-minutes: 5
+        strategy:
+            fail-fast: false
+            matrix:
+                directory:
+                    - .
+                    - dash
+                    - site
+                    - extensions/memory
+                    - extensions/search
+                    - extensions/tasks
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
               with:
-                  fetch-depth: 0
+                  node-version: '22.19.0'
+            - run: npm audit --prefix "${{ matrix.directory }}" --audit-level=high
 
-            - name: Check for core changes
-              id: core_changes
-              uses: tj-actions/changed-files@v44
-              with:
-                  files: |
-                      src/**
-                      extensions/**
-                      package.json
-                      package-lock.json
-                      tsconfig.json
-                      vitest.config.ts
-                      .github/workflows/validate.yml
-                      .github/workflows/publish.yml
-
-            - name: Setup Node.js
-              if: steps.core_changes.outputs.any_changed == 'true'
-              uses: actions/setup-node@v4
-              with:
-                  node-version: '22'
-                  cache: 'npm'
-
-            - name: Install dependencies
-              if: steps.core_changes.outputs.any_changed == 'true'
-              run: npm ci
-
-            - name: Build
-              if: steps.core_changes.outputs.any_changed == 'true'
-              run: npm run build
-
-            - name: Test
-              if: steps.core_changes.outputs.any_changed == 'true'
-              run: npm test
-
-    # Run site validation (build) only when the documentation site changes
-    validate-site:
+    core:
+        name: Core build and tests
         runs-on: ubuntu-latest
-        needs: lint
+        timeout-minutes: 15
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
               with:
-                  fetch-depth: 0
+                  node-version: '22.19.0'
+                  cache: npm
+            - run: npm ci
+            - run: npm run typecheck
+            - run: npm run build:src
+            - run: npm run test:coverage
 
-            - name: Check for site changes
-              id: site_changes
-              uses: tj-actions/changed-files@v44
+    extensions:
+        name: Extension — ${{ matrix.extension }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        strategy:
+            fail-fast: false
+            matrix:
+                extension: [memory, search, tasks]
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
               with:
-                  files: |
-                      site/**
+                  node-version: '22.19.0'
+                  cache: npm
+                  cache-dependency-path: extensions/${{ matrix.extension }}/package-lock.json
+            - run: npm ci --prefix "extensions/${{ matrix.extension }}"
+            - run: npm run build --prefix "extensions/${{ matrix.extension }}"
+            - run: npm test --if-present --prefix "extensions/${{ matrix.extension }}"
 
-            - name: Setup Node.js
-              if: steps.site_changes.outputs.any_changed == 'true'
-              uses: actions/setup-node@v4
+    dashboard:
+        name: Dashboard type and production build
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
               with:
-                  node-version: '22'
-                  cache: 'npm'
+                  node-version: '22.19.0'
+                  cache: npm
+                  cache-dependency-path: dash/package-lock.json
+            - run: npm ci --prefix dash
+            - run: npm run dashboard:lint
+            - run: npm run dashboard:typecheck
+            - run: npm run dashboard:test
+            - run: npm run dashboard:build
+
+    documentation:
+        name: Documentation production build
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: '22.19.0'
+                  cache: npm
                   cache-dependency-path: site/package-lock.json
+            - run: npm ci --prefix site
+            - run: npm run docs:check
+            - run: npm run docs:build
 
-            - name: Install site dependencies
-              if: steps.site_changes.outputs.any_changed == 'true'
-              run: cd site && npm install
-
-            - name: Build site
-              if: steps.site_changes.outputs.any_changed == 'true'
-              run: cd site && npm run build
+    package-smoke:
+        name: npm package smoke check
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        needs: [core, extensions, dashboard]
+        steps:
+            - uses: actions/checkout@v6
+            - uses: actions/setup-node@v6
+              with:
+                  node-version: '22.19.0'
+                  cache: npm
+            - run: npm ci
+            - run: npm run ci:extensions
+            - run: npm run build
+            - run: npm run test:canary
+            - run: npm pack --dry-run --ignore-scripts

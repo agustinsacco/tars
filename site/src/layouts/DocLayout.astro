@@ -1,9 +1,10 @@
 ---
 import BaseLayout from './BaseLayout.astro';
 import { Header } from '../components/Header';
-import { Sidebar, NAV_SECTIONS } from '../components/Sidebar';
+import { Sidebar } from '../components/Sidebar';
 import { TableOfContents } from '../components/TableOfContents';
 import { Breadcrumbs } from '../components/Breadcrumbs';
+import { NAV_ITEMS, normalizePath } from '../lib/navigation';
 
 interface Props {
   frontmatter: {
@@ -22,51 +23,66 @@ const currentPath = Astro.url.pathname;
 const segments = currentPath.split('/').filter(Boolean);
 const breadcrumbItems = [
   { label: 'Docs', href: '/' },
-  ...segments.map((seg, i) => ({
-    label: seg.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-    href: i < segments.length - 1 ? '/' + segments.slice(0, i + 1).join('/') : undefined,
-  })),
+  ...segments.map((seg, i) => {
+    const segmentPath = '/' + segments.slice(0, i + 1).join('/');
+    const current = i === segments.length - 1;
+    const hasRoute = NAV_ITEMS.some(item => normalizePath(item.href) === normalizePath(segmentPath));
+    return {
+      label: seg.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      href: !current && hasRoute ? segmentPath : undefined,
+      current,
+    };
+  }),
 ];
 
-// Flat list of navigation items for "Next Up"
-const allNavItems = NAV_SECTIONS.flatMap(s => s.items);
-const currentIndex = allNavItems.findIndex(item => {
-    const normalize = (p: string) => p.replace(/\/$/, '').replace(/\/index$/, '') || '/';
-    return normalize(item.href) === normalize(currentPath);
-});
-const nextItem = currentIndex !== -1 ? allNavItems[currentIndex + 1] : null;
+const currentIndex = NAV_ITEMS.findIndex(item => normalizePath(item.href) === normalizePath(currentPath));
+const previousItem = currentIndex > 0 ? NAV_ITEMS[currentIndex - 1] : null;
+const nextItem = currentIndex >= 0 ? (NAV_ITEMS[currentIndex + 1] ?? null) : null;
 ---
 
-<BaseLayout title={frontmatter.title}>
+<BaseLayout title={frontmatter.title} description={frontmatter.description}>
   <Header client:load />
 
   <div class="flex pt-14 max-w-[1440px] mx-auto">
     <Sidebar currentPath={currentPath} client:load />
 
-    <main class="flex-1 min-w-0 px-6 py-10 lg:px-8">
+    <main id="main-content" tabindex="-1" class="flex-1 min-w-0 px-6 py-10 lg:px-8">
       <div class="max-w-4xl mx-auto">
-        <Breadcrumbs items={breadcrumbItems} client:load />
+        <Breadcrumbs items={breadcrumbItems} />
 
         <article class="prose max-w-none mt-8 border-b border-zinc-900 pb-16">
           <h1>{frontmatter.title}</h1>
           {frontmatter.description && (
-            <p class="text-zinc-500 text-sm mt-1 mb-8 !text-[14px]">{frontmatter.description}</p>
+            <p class="mt-1 mb-8 text-sm text-text-secondary !text-[14px]">{frontmatter.description}</p>
           )}
           <slot />
         </article>
 
-        {nextItem && (
-          <div class="mt-12 flex justify-end">
+        {(previousItem || nextItem) && (
+          <nav aria-label="Document pagination" class="mt-12 flex flex-col gap-4 sm:flex-row sm:justify-between">
+            {previousItem ? (
+              <a
+                href={previousItem.href}
+                class="group flex min-w-[220px] flex-col items-start gap-2 rounded-lg border border-zinc-800 p-6 no-underline transition-all hover:border-blue-500/50 hover:bg-blue-500/5"
+              >
+                <span class="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Previous</span>
+                <span class="font-bold text-zinc-100 transition-colors group-hover:text-blue-400">
+                  ← {previousItem.title}
+                </span>
+              </a>
+            ) : <span />}
+            {nextItem && (
             <a 
               href={nextItem.href}
               class="group flex flex-col items-end gap-2 p-6 border border-zinc-800 rounded-lg hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer no-underline min-w-[240px]"
             >
-              <span class="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Next Up</span>
+              <span class="text-[10px] text-text-secondary uppercase tracking-widest font-bold">Next Up</span>
               <span class="text-zinc-100 font-bold group-hover:text-blue-400 transition-colors">
                 {nextItem.title} →
               </span>
             </a>
-          </div>
+            )}
+          </nav>
         )}
       </div>
     </main>

@@ -5,7 +5,3 @@ namespace: tars
 resources:
     - service.yaml
     - deployment.yaml
-
-images:
-    - name: saccodigital/tars-docs
-      newName: saccodigital/tars-docs

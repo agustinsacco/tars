@@ -2,20 +2,29 @@
     "name": "tars-search",
     "version": "1.0.0",
     "description": "Web search and page fetching MCP server for Tars",
+    "private": true,
+    "license": "MIT",
     "type": "module",
+    "engines": {
+        "node": ">=22.19.0"
+    },
     "scripts": {
-        "build": "tsc",
-        "start": "node dist/server.js"
+        "clean": "tsc --build --clean",
+        "build": "npm run clean && tsc",
+        "start": "node dist/server.js",
+        "test": "npm run build && node --test dist/search-helper.test.js",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.26.0",
+        "@modelcontextprotocol/sdk": "^1.29.0",
         "duck-duck-scrape": "^2.2.5",
         "linkedom": "^0.18.5",
-        "turndown": "^7.2.0"
+        "turndown": "^7.2.0",
+        "zod": "^3.25.76"
     },
     "devDependencies": {
-        "@types/node": "^22.10.2",
+        "@types/node": "^22.19.15",
         "@types/turndown": "^5.0.5",
-        "typescript": "^5.7.2"
+        "typescript": "^5.9.3"
     }
 }

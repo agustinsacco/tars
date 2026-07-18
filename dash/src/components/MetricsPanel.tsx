@@ -1,58 +1,221 @@
 'use client';
-import { useEffect, useState, useRef, memo, useCallback } from 'react';
-import { useSocket } from '@/context/SocketContext';
-import {
-    Terminal,
-    Cpu,
-    MemoryStick as Memory,
-    Database,
-    Activity,
-    Clock,
-    Server,
-    RefreshCw,
-    Zap,
-    HardDrive,
-    ArrowUpRight,
-    ArrowDownLeft
-} from 'lucide-react';
+
 import { motion } from 'framer-motion';
+import {
+    Activity,
+    ArrowDownLeft,
+    ArrowUpRight,
+    Clock,
+    Cpu,
+    HardDrive,
+    MemoryStick as Memory,
+    RefreshCw,
+    Server,
+    Zap,
+    type LucideIcon
+} from 'lucide-react';
+import {
+    memo,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+    type ReactElement,
+    type ReactNode
+} from 'react';
 
-const MetricCard = memo(({ icon: Icon, label, value, unit, color, extra, children }: any) => (
-    <div className="card card-with-header relative hover:border-accent-primary/40 transition-all border-white/5 bg-[#0c0c0c] p-4">
-        <div className="card-header-btop">{label}</div>
-        <div className="flex items-center justify-between mb-4 mt-2">
-            <div className="flex items-center gap-3">
-                <div
-                    className={`p-1.5 rounded-lg bg-opacity-10 ${color.replace('text-', 'bg-')} border border-white/5`}
-                >
-                    <Icon size={18} className={color} />
+import { useSocket } from '@/context/SocketContext';
+
+type MetricValue = string | number;
+
+interface MetricCardProps {
+    readonly icon: LucideIcon;
+    readonly label: string;
+    readonly value: MetricValue;
+    readonly unit: string;
+    readonly color: string;
+    readonly extra?: ReactNode;
+    readonly children?: ReactNode;
+}
+
+interface CpuMetrics {
+    readonly load: MetricValue;
+    readonly cpus: readonly string[];
+    readonly temp: MetricValue;
+}
+
+interface MemoryMetrics {
+    readonly usage: MetricValue;
+    readonly used: MetricValue;
+    readonly total: MetricValue;
+    readonly cached: MetricValue;
+    readonly swapUsed: MetricValue;
+}
+
+interface GpuMetrics {
+    readonly usage: MetricValue;
+    readonly memUsed: MetricValue;
+    readonly temp: MetricValue;
+    readonly power: MetricValue;
+    readonly clock: MetricValue;
+}
+
+interface DiskMetrics {
+    readonly mount: string;
+    readonly use: MetricValue;
+}
+
+interface NetworkMetrics {
+    readonly iface: string;
+    readonly rx: MetricValue;
+    readonly tx: MetricValue;
+}
+
+interface MetricsData {
+    readonly cpu: CpuMetrics;
+    readonly mem: MemoryMetrics;
+    readonly gpu: GpuMetrics | null;
+    readonly disks: readonly DiskMetrics[];
+    readonly net: readonly NetworkMetrics[];
+    readonly uptime: number;
+}
+
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMetricValue(value: unknown): value is MetricValue {
+    return typeof value === 'string' || typeof value === 'number';
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+    return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isCpuMetrics(value: unknown): value is CpuMetrics {
+    return (
+        isRecord(value) &&
+        isMetricValue(value.load) &&
+        isStringArray(value.cpus) &&
+        isMetricValue(value.temp)
+    );
+}
+
+function isMemoryMetrics(value: unknown): value is MemoryMetrics {
+    return (
+        isRecord(value) &&
+        isMetricValue(value.usage) &&
+        isMetricValue(value.used) &&
+        isMetricValue(value.total) &&
+        isMetricValue(value.cached) &&
+        isMetricValue(value.swapUsed)
+    );
+}
+
+function isGpuMetrics(value: unknown): value is GpuMetrics {
+    return (
+        isRecord(value) &&
+        isMetricValue(value.usage) &&
+        isMetricValue(value.memUsed) &&
+        isMetricValue(value.temp) &&
+        isMetricValue(value.power) &&
+        isMetricValue(value.clock)
+    );
+}
+
+function isDiskMetrics(value: unknown): value is DiskMetrics {
+    return isRecord(value) && typeof value.mount === 'string' && isMetricValue(value.use);
+}
+
+function isNetworkMetrics(value: unknown): value is NetworkMetrics {
+    return (
+        isRecord(value) &&
+        typeof value.iface === 'string' &&
+        isMetricValue(value.rx) &&
+        isMetricValue(value.tx)
+    );
+}
+
+function isMetricsData(value: unknown): value is MetricsData {
+    return (
+        isRecord(value) &&
+        isCpuMetrics(value.cpu) &&
+        isMemoryMetrics(value.mem) &&
+        (value.gpu === null || isGpuMetrics(value.gpu)) &&
+        Array.isArray(value.disks) &&
+        value.disks.every(isDiskMetrics) &&
+        Array.isArray(value.net) &&
+        value.net.every(isNetworkMetrics) &&
+        typeof value.uptime === 'number'
+    );
+}
+
+function formatGeminiLog(log: string): string {
+    if (!log.includes('Raw Gemini Event')) return log;
+
+    try {
+        const match = log.match(/\[Turn (\d+)\]: (\{.*\})/);
+        if (!match) return log;
+
+        const data: unknown = JSON.parse(match[2]);
+        if (!isRecord(data) || typeof data.type !== 'string' || !('value' in data)) return log;
+
+        const displayValue =
+            typeof data.value === 'string'
+                ? data.value.slice(0, 100) + (data.value.length > 100 ? '...' : '')
+                : JSON.stringify(data.value);
+        return `[Turn ${match[1]}] GEMINI_${data.type.toUpperCase()}: ${displayValue}`;
+    } catch {
+        return log;
+    }
+}
+
+const MetricCard = memo(function MetricCard({
+    icon: Icon,
+    label,
+    value,
+    unit,
+    color,
+    extra,
+    children
+}: MetricCardProps): ReactElement {
+    return (
+        <div className="card card-with-header relative hover:border-accent-primary/40 transition-all border-white/5 bg-[#0c0c0c] p-4">
+            <div className="card-header-btop">{label}</div>
+            <div className="flex items-center justify-between mb-4 mt-2">
+                <div className="flex items-center gap-3">
+                    <div
+                        className={`p-1.5 rounded-lg bg-opacity-10 ${color.replace('text-', 'bg-')} border border-white/5`}
+                    >
+                        <Icon size={18} className={color} />
+                    </div>
+                    <span className={`text-[14px] font-black font-mono text-white`}>{value}</span>
+                    <span className={`text-[9px] font-bold opacity-40 text-white uppercase`}>
+                        {unit}
+                    </span>
                 </div>
-                <span className={`text-[14px] font-black font-mono text-white`}>{value}</span>
-                <span className={`text-[9px] font-bold opacity-40 text-white uppercase`}>
-                    {unit}
-                </span>
             </div>
-        </div>
 
-        <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden relative mb-2">
-            <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, parseFloat(value))}%` }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-                className={`h-full ${color.replace('text-', 'bg-')} shadow-[0_0:10px_currentColor]`}
-            />
-        </div>
-
-        {extra && (
-            <div className="flex justify-between items-center text-[9px] font-bold text-white uppercase mt-3 tracking-widest opacity-60">
-                {extra}
+            <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden relative mb-2">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, Number.parseFloat(String(value)))}%` }}
+                    transition={{ duration: 1, ease: 'easeOut' }}
+                    className={`h-full ${color.replace('text-', 'bg-')} shadow-[0_0:10px_currentColor]`}
+                />
             </div>
-        )}
-        {children}
-    </div>
-));
 
-export const LogViewer = memo(() => {
+            {extra && (
+                <div className="flex justify-between items-center text-[9px] font-bold text-white uppercase mt-3 tracking-widest opacity-60">
+                    {extra}
+                </div>
+            )}
+            {children}
+        </div>
+    );
+});
+
+export const LogViewer = memo(function LogViewer(): ReactElement {
     const { socket, subscribe, unsubscribe } = useSocket();
     const [logs, setLogs] = useState<string[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,17 +276,7 @@ export const LogViewer = memo(() => {
                         const isWarn = log.includes('[WARN]');
 
                         // Clean up Gemini events for readability
-                        let displayLog = log;
-                        if (log.includes('Raw Gemini Event')) {
-                            try {
-                                const match = log.match(/\[Turn (\d+)\]: (\{.*\})/);
-                                if (match) {
-                                    const turn = match[1];
-                                    const data = JSON.parse(match[2]);
-                                    displayLog = `[Turn ${turn}] GEMINI_${data.type.toUpperCase()}: ${typeof data.value === 'string' ? data.value.slice(0, 100) + (data.value.length > 100 ? '...' : '') : JSON.stringify(data.value)}`;
-                                }
-                            } catch (e) {}
-                        }
+                        const displayLog = formatGeminiLog(log);
 
                         return (
                             <div
@@ -145,15 +298,17 @@ export const LogViewer = memo(() => {
     );
 });
 
-export function MetricsPanel() {
+export function MetricsPanel(): ReactElement {
     const { socket, subscribe, unsubscribe } = useSocket();
-    const [metrics, setMetrics] = useState<any>(null);
+    const [metrics, setMetrics] = useState<MetricsData | null>(null);
 
     useEffect(() => {
         if (!socket) return;
         subscribe('metrics');
 
-        const handleMetrics = (data: any) => setMetrics(data);
+        const handleMetrics = (data: unknown): void => {
+            if (isMetricsData(data)) setMetrics(data);
+        };
         socket.on('metrics_update', handleMetrics);
 
         return () => {
@@ -162,7 +317,7 @@ export function MetricsPanel() {
         };
     }, [socket, subscribe, unsubscribe]);
 
-    const formatUptime = useCallback((seconds: number) => {
+    const formatUptime = useCallback((seconds: number): string => {
         const d = Math.floor(seconds / (3600 * 24));
         const h = Math.floor((seconds % (3600 * 24)) / 3600);
         const m = Math.floor((seconds % 3600) / 60);
@@ -286,7 +441,7 @@ export function MetricsPanel() {
                     }
                 >
                     <div className="flex flex-col gap-1.5 mt-3">
-                        {metrics.disks.slice(1, 3).map((d: any, i: number) => (
+                        {metrics.disks.slice(1, 3).map((d, i) => (
                             <div
                                 key={i}
                                 className="flex justify-between items-center bg-white/[0.03] p-1.5 px-2.5 rounded-lg border border-white/5"
@@ -310,7 +465,7 @@ export function MetricsPanel() {
                     color="text-accent-secondary"
                 >
                     <div className="flex flex-col gap-1.5 mt-3">
-                        {metrics.net.slice(0, 1).map((n: any, i: number) => (
+                        {metrics.net.slice(0, 1).map((n, i) => (
                             <div key={i} className="flex flex-col gap-1">
                                 <div className="flex justify-between items-center bg-white/[0.03] p-1.5 px-2.5 rounded-lg border border-white/5">
                                     <div className="flex items-center gap-2">

@@ -1,38 +1,12 @@
 {
-  "model": {
-    "compressionThreshold": 0.5
-  },
-  "general": {
-    "sessionRetention": {
-      "enabled": true,
-      "maxAge": "3d",
-      "maxCount": 5
-    }
-  },
-  "tools": {
-    "exclude": ["save_memory"]
-  },
-  "security": {
-    "auth": {
-      "selectedType": "oauth-personal"
-    }
-  },
-  "experimental": {
-    "enableAgents": true,
-    "codebaseInvestigatorSettings": {
-      "enabled": true,
-      "maxNumTurns": 20
-    }
-  },
-  "agents": {
-    "overrides": {
-      "codebase_investigator": {
-        "enabled": true,
-        "runConfig": {
-          "maxTurns": 20
+    "model": {
+        "compressionThreshold": 0.5
+    },
+    "general": {
+        "sessionRetention": {
+            "enabled": true,
+            "maxAge": "3d",
+            "maxCount": 5
         }
-      }
     }
-  }
 }
-

@@ -60,4 +60,23 @@ describe('LocalRateLimiter', () => {
         // Should allow now
         expect(limiter.checkWaitTime(10)).toBe(0);
     });
+
+    it('serializes concurrent reservations so bursts cannot exceed the limit', async () => {
+        // ARRANGE
+        const limiter = new LocalRateLimiter(2, 100);
+        const completed: number[] = [];
+
+        // ACT
+        const reservations = [1, 2, 3].map(async (id) => {
+            await limiter.acquire(10);
+            completed.push(id);
+        });
+        await vi.advanceTimersByTimeAsync(0);
+
+        // ASSERT
+        expect(completed).toEqual([1, 2]);
+        await vi.advanceTimersByTimeAsync(60_000);
+        await Promise.all(reservations);
+        expect(completed).toEqual([1, 2, 3]);
+    });
 });

@@ -4,6 +4,32 @@ import { Supervisor } from '../../supervisor/supervisor.js';
 import { Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
 import { DiscordChannel } from '../../channels/discord/discord-channel.js';
+import type { Task } from '../../types/index.js';
+
+function createTask(overrides: Partial<Task> = {}): Task {
+    const now = new Date().toISOString();
+    return {
+        id: 'task-1',
+        title: 'Task 1',
+        prompt: 'Run the task',
+        schedule: '0 0 * * *',
+        nextRun: now,
+        enabled: true,
+        mode: 'silent',
+        source: 'user',
+        failedCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        ...overrides
+    };
+}
+
+async function runTask(service: CronService, task: Task): Promise<void> {
+    const privateService = service as unknown as {
+        runTask(candidate: Task): Promise<void>;
+    };
+    await privateService.runTask(task);
+}
 
 vi.mock('fs/promises');
 
@@ -53,7 +79,22 @@ describe('CronService', () => {
 
     describe('loadTasks', () => {
         it('should load tasks from disk', async () => {
-            const mockTasks = [{ id: '1', title: 'Task 1' }];
+            const now = new Date().toISOString();
+            const mockTasks = [
+                {
+                    id: '1',
+                    title: 'Task 1',
+                    prompt: 'Run the task',
+                    schedule: '0 0 * * *',
+                    nextRun: now,
+                    enabled: true,
+                    mode: 'silent',
+                    source: 'user',
+                    failedCount: 0,
+                    createdAt: now,
+                    updatedAt: now
+                }
+            ];
             vi.mocked(readFile).mockResolvedValue(JSON.stringify(mockTasks));
 
             const tasks = await (service as any).loadTasks();
@@ -67,6 +108,82 @@ describe('CronService', () => {
 
             const tasks = await (service as any).loadTasks();
             expect(tasks).toEqual([]);
+        });
+    });
+
+    describe('notification policy', () => {
+        it('sends exactly one completion notification for notify tasks', async () => {
+            // ARRANGE
+            const task = createTask({ mode: 'notify' });
+            const updateTask = vi.fn(
+                async (
+                    id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task | null> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            );
+            Reflect.set(service, 'taskStore', { updateTask });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(updateTask).toHaveBeenCalledOnce();
+            expect(mockDiscordChannel.notify).toHaveBeenCalledOnce();
+            expect(mockDiscordChannel.notify).toHaveBeenCalledWith('task completed successfully');
+        });
+
+        it('redacts and reports failures only when the task requests notifications', async () => {
+            // ARRANGE
+            const token = `ghp_${'a'.repeat(82)}`;
+            const task = createTask({ mode: 'notify' });
+            vi.mocked(mockSupervisor.executeTask!).mockRejectedValue(
+                new Error(`provider rejected ${token}`)
+            );
+            Reflect.set(service, 'taskStore', {
+                updateTask: async (
+                    id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockDiscordChannel.notify).toHaveBeenCalledOnce();
+            const notification = vi.mocked(mockDiscordChannel.notify!).mock.calls[0][0];
+            expect(notification).not.toContain(token);
+            expect(notification).toContain('Scheduled task');
+        });
+
+        it('keeps failure notifications silent for silent tasks', async () => {
+            // ARRANGE
+            const task = createTask({ mode: 'silent' });
+            vi.mocked(mockSupervisor.executeTask!).mockRejectedValue(new Error('failed'));
+            Reflect.set(service, 'taskStore', {
+                updateTask: async (
+                    id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockDiscordChannel.notify).not.toHaveBeenCalled();
         });
     });
 });

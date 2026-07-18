@@ -1,121 +1,158 @@
-import { useState, useEffect, useRef } from 'react';
+import {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type KeyboardEvent as ReactKeyboardEvent,
+    type ReactElement
+} from 'react';
 import { Search, X } from 'lucide-react';
+import { acquireBodyScrollLock } from '../lib/body-scroll';
+import { SEARCH_OPEN_EVENT } from '../lib/events';
+import { SEARCH_PAGES, type SearchPage } from '../lib/navigation';
 
-interface SearchResult {
-    title: string;
-    href: string;
-    section: string;
-}
-
-const ALL_PAGES: SearchResult[] = [
-    { title: 'Home', href: '/', section: 'Get Started' },
-    { title: 'Introduction', href: '/getting-started/what-is-tars', section: 'Get Started' },
-    { title: 'Installation', href: '/getting-started/installation', section: 'Get Started' },
-    { title: 'Quick Start', href: '/getting-started/setup', section: 'Get Started' },
-    { title: 'Discord Integration', href: '/getting-started/discord', section: 'Get Started' },
-
-    { title: 'Supervisor Engine', href: '/architecture/supervisor', section: 'Architecture' },
-    { title: 'Heartbeat Protocol', href: '/architecture/heartbeat', section: 'Architecture' },
-    { title: 'Core Intelligence', href: '/architecture/tars-engine', section: 'Architecture' },
-    { title: 'Configuration', href: '/architecture/configuration', section: 'Architecture' },
-    { title: 'Multi-Agent', href: '/capabilities/agents', section: 'Capabilities' },
-    { title: 'Persistent Memory', href: '/capabilities/memory', section: 'Capabilities' },
-    { title: 'Scheduled Tasks', href: '/capabilities/automation', section: 'Capabilities' },
-    { title: 'Skills System', href: '/capabilities/skills', section: 'Capabilities' },
-    { title: 'MCP Extensions', href: '/capabilities/extensions', section: 'Capabilities' },
-    {
-        title: 'Self-Modification',
-        href: '/capabilities/self-modification',
-        section: 'Capabilities'
-    },
-    { title: 'tars-tasks Extension', href: '/extensions/tars-tasks', section: 'Extensions' },
-    { title: 'tars-memory Extension', href: '/extensions/tars-memory', section: 'Extensions' },
-    { title: 'Personal Assistant', href: '/use-cases/personal-assistant', section: 'Use Cases' },
-    { title: 'Host Manager', href: '/use-cases/host-manager', section: 'Use Cases' },
-    { title: 'Security Auditor', href: '/use-cases/security-auditor', section: 'Use Cases' },
-    { title: 'DevOps Engineer', href: '/use-cases/devops-engineer', section: 'Use Cases' },
-    { title: 'Multi-Instance', href: '/use-cases/multiple-instances', section: 'Use Cases' }
-];
-
-export function SearchModal() {
+export function SearchModal(): ReactElement | null {
     const [isOpen, setIsOpen] = useState(false);
     const [query, setQuery] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const previousFocusRef = useRef<HTMLElement | null>(null);
+    const isOpenRef = useRef(false);
+
+    const open = (): void => {
+        if (isOpenRef.current) return;
+        isOpenRef.current = true;
+        previousFocusRef.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setIsOpen(true);
+    };
+
+    const close = (): void => {
+        if (!isOpenRef.current) return;
+        isOpenRef.current = false;
+        setIsOpen(false);
+        setQuery('');
+        window.requestAnimationFrame((): void => previousFocusRef.current?.focus());
+    };
 
     useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
-                setIsOpen(true);
+        const handleKeyDown = (event: KeyboardEvent): void => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                open();
             }
-            if (e.key === 'Escape') {
-                setIsOpen(false);
-                setQuery('');
+            if (event.key === 'Escape' && isOpenRef.current) {
+                close();
             }
         };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
+        const handleOpen = (): void => open();
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener(SEARCH_OPEN_EVENT, handleOpen);
+        return (): void => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener(SEARCH_OPEN_EVENT, handleOpen);
+        };
     }, []);
 
-    useEffect(() => {
-        if (isOpen && inputRef.current) {
-            inputRef.current.focus();
-        }
+    useEffect((): (() => void) | undefined => {
+        if (!isOpen) return undefined;
+        inputRef.current?.focus();
+        return acquireBodyScrollLock();
     }, [isOpen]);
 
-    const filtered = query.trim()
-        ? ALL_PAGES.filter(
-              (p) =>
-                  p.title.toLowerCase().includes(query.toLowerCase()) ||
-                  p.section.toLowerCase().includes(query.toLowerCase())
-          )
-        : ALL_PAGES;
+    const filtered = useMemo((): readonly SearchPage[] => {
+        const normalizedQuery = query.trim().toLowerCase();
+        if (!normalizedQuery) return SEARCH_PAGES;
+
+        return SEARCH_PAGES.filter((page): boolean => {
+            const searchable = [page.title, page.section, page.summary, ...(page.keywords ?? [])]
+                .join(' ')
+                .toLowerCase();
+            return searchable.includes(normalizedQuery);
+        });
+    }, [query]);
+
+    const containFocus = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+        if (event.key !== 'Tab' || !dialogRef.current) return;
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled])'
+        );
+        if (focusable.length === 0) return;
+
+        const first = focusable.item(0);
+        const last = focusable.item(focusable.length - 1);
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    };
 
     if (!isOpen) return null;
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
-            onClick={() => {
-                setIsOpen(false);
-                setQuery('');
-            }}
+            onMouseDown={close}
         >
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div aria-hidden="true" className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
             <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="search-dialog-title"
+                onKeyDown={containFocus}
                 className="relative w-full max-w-xl bg-[#0e0e10] border border-zinc-800 rounded-lg shadow-2xl overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(event): void => event.stopPropagation()}
             >
                 {/* Input */}
                 <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800">
-                    <Search className="w-4 h-4 text-zinc-500 shrink-0" />
+                    <Search className="w-4 h-4 text-text-secondary shrink-0" />
+                    <span id="search-dialog-title" className="sr-only">
+                        Search documentation
+                    </span>
                     <input
                         ref={inputRef}
                         type="text"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                         placeholder="Search docs..."
-                        className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-zinc-600 outline-none"
+                        aria-label="Search documentation"
+                        aria-controls="search-results"
+                        className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-text-muted outline-none"
                     />
-                    <kbd className="text-[10px] text-zinc-600 bg-zinc-800/50 px-1.5 py-0.5 rounded border border-zinc-700">
-                        ESC
-                    </kbd>
+                    <button
+                        type="button"
+                        onClick={close}
+                        aria-label="Close search"
+                        className="rounded p-1 text-text-secondary hover:text-zinc-200"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
                 </div>
 
                 {/* Results */}
-                <div className="max-h-80 overflow-y-auto p-2">
+                <p className="sr-only" aria-live="polite">
+                    {filtered.length} documentation result{filtered.length === 1 ? '' : 's'}
+                </p>
+                <div id="search-results" className="max-h-80 overflow-y-auto p-2">
                     {filtered.length === 0 ? (
-                        <p className="text-sm text-zinc-500 text-center py-8">No results found</p>
+                        <p className="py-8 text-center text-sm text-text-secondary">
+                            No results found
+                        </p>
                     ) : (
-                        filtered.map((result, i) => (
+                        filtered.map((result) => (
                             <a
-                                key={i}
+                                key={result.href}
                                 href={result.href}
                                 className="flex items-center justify-between px-3 py-2 rounded text-sm text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100 transition-colors"
                             >
                                 <span>{result.title}</span>
-                                <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+                                <span className="text-[10px] text-text-muted uppercase tracking-wider">
                                     {result.section}
                                 </span>
                             </a>
@@ -127,20 +164,22 @@ export function SearchModal() {
     );
 }
 
-export function SearchTrigger() {
+export function SearchTrigger(): ReactElement {
     return (
         <button
-            onClick={() =>
-                window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))
-            }
-            className="flex items-center justify-between w-full md:w-64 px-2 md:px-3 py-1.5 text-xs text-zinc-500 bg-zinc-950 md:bg-zinc-900/50 border border-zinc-800 rounded-md hover:border-zinc-700 hover:text-zinc-400 transition-colors cursor-pointer"
+            type="button"
+            onClick={(): void => {
+                window.dispatchEvent(new Event(SEARCH_OPEN_EVENT));
+            }}
+            aria-label="Search documentation"
+            className="flex items-center justify-between w-full md:w-64 px-2 md:px-3 py-1.5 text-xs text-text-secondary bg-zinc-950 md:bg-zinc-900/50 border border-zinc-800 rounded-md hover:border-zinc-700 hover:text-zinc-400 transition-colors cursor-pointer"
         >
             <div className="flex items-center gap-2">
                 <Search className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden xs:inline">Search</span>
             </div>
             <kbd className="hidden md:inline text-[10px] bg-zinc-800/50 px-1.5 py-0.5 rounded border border-zinc-700">
-                ⌘K
+                ⌘/Ctrl K
             </kbd>
         </button>
     );

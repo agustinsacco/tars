@@ -1,114 +1,148 @@
-# Tars: Your Autonomous AI Assistant
+# Tars
 
-<div align="center">
-  <img src="assets/logo.png" alt="Tars Logo" width="300" />
-</div>
+<p align="center">
+  <img src="https://raw.githubusercontent.com/agustinsacco/tars/main/assets/logo.png" alt="Tars" width="260" />
+</p>
 
-<div align="center">
-  <a href="https://opensource.org/licenses/MIT">License: MIT</a> | <a href="https://www.typescriptlang.org/">TypeScript</a> | <a href="https://github.com/saccolabs/tars">Powered by Pi Agent SDK</a>
-</div>
+Tars is a compact, local-first AI assistant for Discord and terminal workflows. It runs as a
+bare-metal Node.js process managed by PM2, supports cloud providers and OpenAI-compatible local
+endpoints, and adds durable memory, explicit scheduled tasks, local skills, and MCP extensions.
 
----
+Tars is designed for operators who want a small self-hosted assistant with a transparent workspace
+at `~/.tars/`. It is competitive with broader local-assistant projects such as
+[OpenClaw](https://docs.openclaw.ai/) in this narrower operating model; it does not claim parity with
+their multi-agent, mobile, voice, or broad multi-channel ecosystems.
 
-Tars is an autonomous, local-first AI assistant powered by the **Pi Agent SDK**. It supports cloud models (Gemini, Claude, GPT) and local inference (Qwen) out of the box, running directly on your machine. Tars maintains its own database of memories, tasks, and skills, allowing it to adapt to your workflow and retain context over time.
+## What it provides
 
-## Philosophy
+- Discord and interactive terminal interfaces backed by one active agent.
+- Google, OpenAI, Anthropic, local, and custom OpenAI-compatible model configuration.
+- Durable facts, searchable notes, and scheduled tasks through built-in MCP extensions.
+- A PM2-managed supervisor with explicit cron execution and a maintenance heartbeat.
+- Local skills and explicitly enabled MCP servers with restricted subprocess environments.
+- Backup and restore commands with secret exclusion by default and transactional imports.
+- Defensive defaults for Discord ownership, dashboard access, outbound fetching, attachments, and
+  sensitive log redaction.
 
-Tars is designed for developers who need an assistant that integrates deeply with their local environment without the overhead of heavy containers or expensive cloud subscriptions.
+Tars is not a sandbox. Model tools and trusted extensions run with the permissions of the operating
+system user. Use a dedicated least-privilege account, review installed skills and extensions, and
+keep credentials out of prompts and repositories. See the [security model](https://tars.saccolabs.com/capabilities/security/).
 
-- **Private**: All data, including memories and task history, is stored locally in your home directory (`~/.tars/`).
-- **Portable**: The entire "brain" can be exported and moved to a new machine seamlessly.
-- **Extensible**: Tars can write its own tools and extensions to expand its capabilities.
-- **Cost-Effective & Flexible**: Integrates with various cloud providers and local inference endpoints without requiring expensive subscription lock-in.
+## Install
 
-### Comparison
+Prerequisites:
 
-| Feature     | Tars                      | Traditional Cloud Assistants                      |
-| :---------- | :------------------------ | :------------------------------------------------ |
-| **Cost**    | Cloud APIs / Local        | Subscription / Token Usage Fees                   |
-| **Runtime** | Native Node.js Process    | Often Web-based or Heavy Local LLMs               |
-| **Latency** | Low (API Inference)       | High (Local Inference) or Variable (Cloud Queues) |
-| **Context** | Persistent Project Memory | Session-based / Limited Context Window            |
-| **Focus**   | System & Code Execution   | General Chat & Q&A                                |
-
----
-
-## Key Features
-
-- **Multi-Agent Orchestration**: Delegates specialized tasks (like coding or research) to sub-agents for better accuracy.
-- **Pi Agent SDK Core**: Built on the Pi Coding Agent SDK for high-performance reasoning, autonomous task execution, and native tool-calling.
-- **Autonomous Autonomy**: A background "Heartbeat" service manages scheduled tasks and system health automatically.
-- **Local Inference Support**: Tars can be configured to run with local models (such as Qwen via llama-server, Ollama, LM Studio, etc.) for 100% privacy and offline capability.
-- **Context-Aware Memory**: Utilizes structured memory database files (`facts.json`, `notes/`) to maintain long-term awareness of project structures and decisions.
-
----
-
-## Documentation
-
-Full documentation is available at [tars.saccolabs.com](https://tars.saccolabs.com) or in the `site/` directory.
-
-- **Website**: [tars.saccolabs.com](https://tars.saccolabs.com)
-- **Development**: `npm run docs:dev`
-- **Build**: `npm run docs:build`
-- **Live Deployment**: `http://<ULTRON_IP>:5252`
-
----
-
-## Installation and Setup
-
-### Prerequisites
-
-- **Node.js**: ≥ 22.0.2
-
-### Installation
-
-Tars is powered by the **Pi Agent SDK**, which is automatically bundled during installation.
+- Node.js 22.19 or newer
+- npm 10.9 or newer
+- A supported model provider or an OpenAI-compatible endpoint
+- A Discord bot token and preconfigured owner user ID for the Discord channel
 
 ```bash
 npm install -g @saccolabs/tars
+tars setup
+tars start
+tars status
 ```
 
-### Initial Setup
+Use `tars chat --no-discord` for a foreground terminal session with Discord disabled. It does not
+start the background heartbeat, cron service, dashboard, or a second Discord connection. It still
+uses the configured `TARS_HOME`. Run `tars stop` first: Tars refuses foreground chat while a matching
+PM2 engine is active and holds a cross-process home lease for the full terminal session. Exit chat
+before running setup, start, stop, restart, import, export, refresh, update, uninstall, secret
+writes, or memory index operations; those commands refuse a live lease.
 
-Run the setup wizard to configure your preferred AI model provider and connect your Discord bot:
+## Common commands
+
+| Command                            | Purpose                                                    |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `tars setup`                       | Create or update the local configuration.                  |
+| `tars start` / `tars stop`         | Start or stop PM2 processes for the configured Tars home.  |
+| `tars restart`                     | Restart active processes without installing an update.     |
+| `tars status`                      | Show process and active-session metrics.                   |
+| `tars logs`                        | Follow logs for the configured supervisor.                 |
+| `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.       |
+| `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`. |
+| `tars memory search QUERY`         | Search the local knowledge index.                          |
+| `tars export` / `tars import FILE` | Back up or restore the Tars workspace.                     |
+| `tars refresh`                     | Rebuild packaged dashboard and extensions transactionally. |
+
+Run `tars --help` for the complete command reference.
+
+Keep secret values out of shell history, process arguments, and tool logs. Read a value without
+echoing it, pipe it to Tars, and then clear the temporary shell variable:
 
 ```bash
-tars setup
+read -rs TARS_SECRET_VALUE
+printf '%s' "$TARS_SECRET_VALUE" | tars secret set KEY
+unset TARS_SECRET_VALUE
 ```
 
----
+## Runtime layout
 
-## Usage
+```text
+Discord / terminal
+        │
+        ▼
+Channel manager ──► Supervisor ──► Tars engine / model
+                         │                    │
+                         │                    └── MCP extensions
+                         ├── active session
+                         ├── cron service
+                         └── maintenance heartbeat
 
-### Commands
+~/.tars/
+├── config.json          non-secret settings
+├── .env                 local secrets (restricted permissions)
+├── system.md            system instructions
+├── skills/              trusted instruction packages
+├── extensions/          trusted MCP servers
+├── chats/               conversation history
+├── data/                sessions, tasks, memory, and indexes
+└── logs/                redacted operational logs
+```
 
-- `tars start`: Launch the Tars supervisor.
-- `tars restart`: Check for updates and restart the supervisor.
-- `tars status`: View system health and brain statistics.
-- `tars export`: Compress the brain and configuration for portability.
-- `tars import <path>`: Restore a brain with automatic path re-homing.
-- `tars secret set <key> <value>`: Securely store platform credentials.
+Configuration precedence is exported environment variables, then `~/.tars/.env`, then
+`~/.tars/config.json`, then validated defaults. Values such as intervals, context limits,
+compression thresholds, and rate limits are bounded during loading.
 
-### Interaction
+## Documentation
 
-Tars communicates primarily through **Discord**. It supports file uploads, long-running task management, and complex multi-step instructions.
+- [User documentation](https://tars.saccolabs.com/)
+- [Architecture](https://github.com/agustinsacco/tars/blob/main/docs/ARCHITECTURE.md)
+- [Development guide](https://github.com/agustinsacco/tars/blob/main/docs/DEVELOPMENT.md)
+- [Operations guide](https://github.com/agustinsacco/tars/blob/main/docs/OPERATIONS.md)
+- [Contributing](https://github.com/agustinsacco/tars/blob/main/CONTRIBUTING.md)
 
-> **Discord**: `!tars Analyze the logs in /var/log/syslog and summarize any critical errors.`
+Build the documentation locally with `npm run docs:build` or run it with `npm run docs:dev`.
 
----
+## Project status and boundaries
 
-## Architecture
+- Discord is the supported daemon channel; terminal chat is available in the foreground.
+- Foreground chat uses the same `TARS_HOME`; daemon/chat and chat/mutation exclusivity are enforced.
+- The heartbeat performs maintenance. It does not independently invent work or run continuous
+  security monitoring.
+- Scheduled tasks are explicit and poll on a separate cron loop.
+- Tars has one active agent and does not implement sub-agent orchestration.
+- Multiple PM2 process names can be created, but the convenience lifecycle commands are not fully
+  instance-aware. Treat multi-instance deployments as advanced and isolate each `TARS_HOME`.
+- Redaction reduces accidental disclosure in logs and events; it is not data-loss prevention,
+  prompt-injection protection, or a security boundary.
 
-Tars utilizes a Supervisor-Orchestrator model:
+## Development
 
-1. **Supervisor**: Manages persistent sessions and multi-channel communication.
-2. **Channel Manager**: Orchestrates communication with Discord.
-3. **Subagents**: Specialized expert agents invoked dynamically for specific technical domains.
-4. **Heartbeat**: Cron-based engine for autonomous execution and cleanup.
-5. **Extensions**: MCP servers that provide tool-level capabilities to the intelligence core.
+```bash
+npm ci
+npm run ci:extensions
+npm run build
+npm run typecheck
+npm run test:coverage
+npm run test:extensions
+npm run format:check
+```
 
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. Releases and npm publishing are
+managed by Release Please; do not edit the package version manually.
 
 ## License
 
-MIT Copyright Agustin Sacco
+[MIT](LICENSE) © Agustin Sacco

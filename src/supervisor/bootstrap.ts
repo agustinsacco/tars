@@ -1,24 +1,205 @@
-import { Config } from '../config/config.js';
-import { TarsEngine, ToolStatus } from './tars-engine.js';
-import { SessionManager } from './session-manager.js';
-import { GetQuotaTool } from '../tools/get-quota.js';
-import { Supervisor } from './supervisor.js';
-import { HeartbeatService } from './heartbeat-service.js';
-import { CronService } from './cron-service.js';
-import { DashboardService } from './dashboard-service.js';
+import { execFileSync } from 'node:child_process';
+import { createHash, randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { z } from 'zod';
+
 import { ChannelManager } from '../channels/channel-manager.js';
-import { ChannelMessage } from '../channels/types.js';
+import type { ChannelMessage } from '../channels/types.js';
 import { TuiChannel } from '../channels/tui/tui-channel.js';
-import logger, { configureDaemonLogging } from '../utils/logger.js';
-import fs from 'fs';
-import path from 'path';
-import { execSync } from 'child_process';
-import { fileURLToPath } from 'url';
+import { Config } from '../config/config.js';
+import { GetQuotaTool } from '../tools/get-quota.js';
 import { BrainAuditor } from '../utils/brain-audit.js';
 import { initializeMemoryFiles } from '../utils/memory-initializer.js';
+import logger, { configureDaemonLogging } from '../utils/logger.js';
+import { DLPService } from '../utils/dlp-service.js';
+import { CronService } from './cron-service.js';
+import { DashboardService } from './dashboard-service.js';
+import { HeartbeatService } from './heartbeat-service.js';
+import { SessionManager } from './session-manager.js';
+import { Supervisor } from './supervisor.js';
+import { TarsEngine } from './tars-engine.js';
+import type { ToolStatus } from './tars-engine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const LEGACY_BUNDLED_PROMPT_HASH =
+    'cc3c835004fd340459aeaf9af1e81da37aef877bd10ceeb2a78c340f93b84a7c';
+
+const BootstrapExtensionEnablementEntrySchema = z.union([
+    z.boolean(),
+    z
+        .object({
+            enabled: z.boolean().optional(),
+            overrides: z.array(z.string()).optional()
+        })
+        .passthrough()
+]);
+
+const BootstrapExtensionEnablementSchema = z.record(
+    z.string().trim().min(1),
+    BootstrapExtensionEnablementEntrySchema
+);
+const ManagedExtensionMarkerSchema = z
+    .object({
+        schemaVersion: z.literal(1),
+        name: z.string().trim().min(1)
+    })
+    .strict();
+
+type BootstrapExtensionEnablementEntry = z.infer<typeof BootstrapExtensionEnablementEntrySchema>;
+
+export interface LiveStatusState {
+    initialized: boolean;
+}
+
+export async function deliverStatusUpdateBestEffort(
+    channelManager: Pick<ChannelManager, 'editStatus' | 'sendStatus'>,
+    state: LiveStatusState,
+    content: string
+): Promise<void> {
+    // Live progress is presentation-only. Final replies remain awaited by the routing flow.
+    try {
+        if (!state.initialized) {
+            await channelManager.sendStatus(content);
+            state.initialized = true;
+            return;
+        }
+
+        const edited = await channelManager.editStatus(content);
+        if (edited) return;
+
+        logger.warn('[Main] Status edit failed, sending new notification.');
+        state.initialized = false;
+        await channelManager.sendStatus(content);
+        state.initialized = true;
+    } catch (error: unknown) {
+        state.initialized = false;
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(
+            `[Main] Live status delivery failed; continuing the active turn: ${DLPService.scrub(message)}`
+        );
+    }
+}
+
+export function isManagedBundledExtension(directoryPath: string, expectedName: string): boolean {
+    const markerPath = path.join(directoryPath, '.tars-managed-extension.json');
+    try {
+        const markerStats = fs.lstatSync(markerPath);
+        if (!markerStats.isFile() || markerStats.isSymbolicLink()) return false;
+        const parsed: unknown = JSON.parse(fs.readFileSync(markerPath, 'utf8'));
+        const marker = ManagedExtensionMarkerSchema.safeParse(parsed);
+        return marker.success && marker.data.name === expectedName;
+    } catch {
+        return false;
+    }
+}
+
+function createBuildEnvironment(): NodeJS.ProcessEnv {
+    return Object.fromEntries(
+        Object.entries(process.env).filter(([key]) => !DLPService.isSensitiveKey(key))
+    );
+}
+
+function writePrivateFileAtomic(filePath: string, content: string): void {
+    const temporaryPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(temporaryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+        fs.renameSync(temporaryPath, filePath);
+    } catch (error: unknown) {
+        try {
+            fs.unlinkSync(temporaryPath);
+        } catch {
+            // Best-effort cleanup; the original destination remains untouched.
+        }
+        throw error;
+    }
+}
+
+function pathEntryExists(filePath: string): boolean {
+    try {
+        fs.lstatSync(filePath);
+        return true;
+    } catch (error: unknown) {
+        const code =
+            typeof error === 'object' && error !== null ? Reflect.get(error, 'code') : undefined;
+        if (code === 'ENOENT') return false;
+        throw error;
+    }
+}
+
+function hasRunnableExtension(directoryPath: string): boolean {
+    return (
+        fs.existsSync(path.join(directoryPath, 'node_modules')) &&
+        fs.existsSync(path.join(directoryPath, 'dist', 'server.js'))
+    );
+}
+
+function installManagedExtensionCopy(
+    sourcePath: string,
+    destinationPath: string,
+    extensionName: string
+): void {
+    const parentDirectory = path.dirname(destinationPath);
+    const stagedPath = path.join(
+        parentDirectory,
+        `.tars-bootstrap-${extensionName}-${randomUUID()}`
+    );
+    const backupPath = `${destinationPath}.backup-${randomUUID()}`;
+    let movedExisting = false;
+    try {
+        fs.cpSync(sourcePath, stagedPath, {
+            recursive: true,
+            filter: (source) => {
+                const relative = path.relative(sourcePath, source);
+                if (!relative) return true;
+                return !relative
+                    .split(path.sep)
+                    .some(
+                        (segment) =>
+                            segment === 'node_modules' ||
+                            segment === 'dist' ||
+                            segment === '.env' ||
+                            segment.startsWith('.env.')
+                    );
+            }
+        });
+        execFileSync('npm', ['ci', '--ignore-scripts'], {
+            cwd: stagedPath,
+            env: createBuildEnvironment(),
+            stdio: 'pipe'
+        });
+        execFileSync('npm', ['run', 'build'], {
+            cwd: stagedPath,
+            env: createBuildEnvironment(),
+            stdio: 'pipe'
+        });
+        if (!hasRunnableExtension(stagedPath)) {
+            throw new Error(`${extensionName} did not produce dist/server.js and dependencies.`);
+        }
+        writePrivateFileAtomic(
+            path.join(stagedPath, '.tars-managed-extension.json'),
+            `${JSON.stringify({ schemaVersion: 1, name: extensionName }, null, 2)}\n`
+        );
+
+        if (pathEntryExists(destinationPath)) {
+            fs.renameSync(destinationPath, backupPath);
+            movedExisting = true;
+        }
+        fs.renameSync(stagedPath, destinationPath);
+        if (movedExisting) fs.rmSync(backupPath, { recursive: true, force: true });
+    } catch (error) {
+        fs.rmSync(stagedPath, { recursive: true, force: true });
+        if (movedExisting && !pathEntryExists(destinationPath)) {
+            fs.renameSync(backupPath, destinationPath);
+        }
+        throw error;
+    }
+}
 
 /**
  * Result of the bootstrap process. Contains all initialized services.
@@ -34,8 +215,32 @@ export interface BootstrapResult {
     dashboard: DashboardService;
 }
 
+function normalizeLegacyBundledPrompt(content: string): string {
+    return content
+        .replace(/\r\n/g, '\n')
+        .replace(/^# .+ - System Instructions$/m, '# {{ASSISTANT_NAME}} - System Instructions')
+        .replace(/^- \*\*Assistant Name\*\*: .+$/m, '- **Assistant Name**: {{ASSISTANT_NAME}}')
+        .replace(/^- \*\*Instance ID\*\*: .+$/m, '- **Instance ID**: {{INSTANCE_NAME}}')
+        .replace(/^- \*\*Provider\*\*: .+$/m, '- **Provider**: {{PROVIDER}}')
+        .replace(/^- \*\*Model\*\*: .+$/m, '- **Model**: {{MODEL_NAME}}')
+        .replace(
+            /^- \*\*Context Window\*\*: .+ tokens$/m,
+            '- **Context Window**: {{CONTEXT_WINDOW}} tokens'
+        )
+        .replace(
+            /^You are \*\*.+\*\*, an autonomous/m,
+            'You are **{{ASSISTANT_NAME}}**, an autonomous'
+        );
+}
+
+function isLegacyBundledPrompt(content: string): boolean {
+    const normalized = normalizeLegacyBundledPrompt(content);
+    const fingerprint = createHash('sha256').update(normalized).digest('hex');
+    return fingerprint === LEGACY_BUNDLED_PROMPT_HASH;
+}
+
 /**
- * Install the fixed system prompt into the Tars home directory.
+ * Install the bundled system prompt without replacing user-customized instructions.
  */
 function installSystemPrompt(config: Config): void {
     let searchDir = __dirname;
@@ -63,6 +268,16 @@ function installSystemPrompt(config: Config): void {
     const targetDir = path.dirname(config.systemPromptPath);
     fs.mkdirSync(targetDir, { recursive: true });
 
+    let installAction = 'installed';
+    if (fs.existsSync(config.systemPromptPath)) {
+        const existingPrompt = fs.readFileSync(config.systemPromptPath, 'utf-8');
+        if (!isLegacyBundledPrompt(existingPrompt)) {
+            logger.debug(`Preserving customized system prompt: ${config.systemPromptPath}`);
+            return;
+        }
+        installAction = 'migrated from the legacy bundled prompt';
+    }
+
     let promptContent = fs.readFileSync(srcPrompt, 'utf-8');
     promptContent = promptContent.replace(/{{ASSISTANT_NAME}}/g, config.assistantName);
     promptContent = promptContent.replace(/{{INSTANCE_NAME}}/g, config.instanceName);
@@ -74,7 +289,7 @@ function installSystemPrompt(config: Config): void {
     );
 
     fs.writeFileSync(config.systemPromptPath, promptContent);
-    logger.info(`📝 System prompt installed: ${config.systemPromptPath}`);
+    logger.info(`📝 System prompt ${installAction}: ${config.systemPromptPath}`);
 }
 
 /**
@@ -138,7 +353,7 @@ function installSkills(config: Config): void {
 /**
  * Automatically install/link extensions and enable them.
  */
-function installExtensions(config: Config): void {
+export function installExtensions(config: Config): void {
     const repoExtensionsDir = path.join(__dirname, '..', '..', 'extensions');
     const targetExtensionsDir = path.join(config.homeDir, 'extensions');
     const enablementFile = path.join(targetExtensionsDir, 'extension-enablement.json');
@@ -152,16 +367,27 @@ function installExtensions(config: Config): void {
         fs.mkdirSync(targetExtensionsDir, { recursive: true });
     }
 
-    let enablement: Record<string, any> = {};
+    let enablement: Record<string, BootstrapExtensionEnablementEntry> = {};
     if (fs.existsSync(enablementFile)) {
         try {
-            enablement = JSON.parse(fs.readFileSync(enablementFile, 'utf-8'));
-        } catch (e) {
-            logger.warn('⚠️ Could not parse extension-enablement.json, starting fresh');
+            const rawEnablement: unknown = JSON.parse(fs.readFileSync(enablementFile, 'utf-8'));
+            const parsedEnablement = BootstrapExtensionEnablementSchema.safeParse(rawEnablement);
+            if (!parsedEnablement.success) {
+                logger.error(
+                    `❌ Invalid extension-enablement.json; preserving it unchanged: ${parsedEnablement.error.message}`
+                );
+                return;
+            }
+            enablement = parsedEnablement.data;
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`❌ Could not parse extension-enablement.json; preserving it: ${message}`);
+            return;
         }
     }
 
     const builtInExtensions = fs.readdirSync(repoExtensionsDir);
+    const useDevelopmentLinks = process.env.TARS_DEV_EXTENSION_LINKS === 'true';
     for (const extName of builtInExtensions) {
         const srcPath = path.resolve(repoExtensionsDir, extName);
         if (!fs.statSync(srcPath).isDirectory()) continue;
@@ -176,84 +402,113 @@ function installExtensions(config: Config): void {
                     : extName;
         const finalDestPath = path.join(targetExtensionsDir, finalExtName);
 
-        let needsLink = true;
-        try {
-            if (fs.existsSync(finalDestPath)) {
-                const stats = fs.lstatSync(finalDestPath);
-                if (stats.isSymbolicLink()) {
-                    const realPath = fs.realpathSync(finalDestPath);
-                    if (realPath === srcPath) {
-                        needsLink = false;
-                    }
-                }
-            }
-        } catch (e) {}
-
-        if (needsLink) {
+        if (useDevelopmentLinks) {
             try {
-                if (
-                    fs.existsSync(finalDestPath) ||
-                    (fs.existsSync(finalDestPath) && fs.lstatSync(finalDestPath).isSymbolicLink())
-                ) {
+                if (pathEntryExists(finalDestPath)) {
+                    const stats = fs.lstatSync(finalDestPath);
+                    if (
+                        !stats.isSymbolicLink() &&
+                        !isManagedBundledExtension(finalDestPath, finalExtName)
+                    ) {
+                        logger.warn(
+                            `⚠️ Preserving unmanaged extension directory at ${finalDestPath}; move it aside to use a development link.`
+                        );
+                        continue;
+                    }
                     fs.rmSync(finalDestPath, { recursive: true, force: true });
                 }
                 fs.symlinkSync(srcPath, finalDestPath);
-                logger.info(`🔌 Integrated extension: ${finalExtName}`);
-            } catch (error) {
-                logger.error(`❌ Failed to integrate extension ${finalExtName}: ${error}`);
+                logger.info(`🔌 Linked development extension: ${finalExtName}`);
+            } catch (error: unknown) {
+                logger.error(
+                    `❌ Failed to link development extension ${finalExtName}: ${DLPService.scrub(String(error))}`
+                );
+                continue;
+            }
+            if (!hasRunnableExtension(finalDestPath)) {
+                logger.info(`💧 Hydrating development extension: ${finalExtName}...`);
+                execFileSync('npm', ['ci', '--ignore-scripts'], {
+                    cwd: finalDestPath,
+                    env: createBuildEnvironment(),
+                    stdio: 'pipe'
+                });
+                execFileSync('npm', ['run', 'build'], {
+                    cwd: finalDestPath,
+                    env: createBuildEnvironment(),
+                    stdio: 'pipe'
+                });
+            }
+        } else {
+            try {
+                if (pathEntryExists(finalDestPath)) {
+                    const stats = fs.lstatSync(finalDestPath);
+                    if (
+                        stats.isDirectory() &&
+                        isManagedBundledExtension(finalDestPath, finalExtName)
+                    ) {
+                        if (hasRunnableExtension(finalDestPath)) {
+                            logger.debug(`Preserving validated extension copy: ${finalExtName}`);
+                        } else {
+                            installManagedExtensionCopy(srcPath, finalDestPath, finalExtName);
+                            logger.info(`🔄 Repaired managed extension copy: ${finalExtName}`);
+                        }
+                    } else if (!stats.isSymbolicLink()) {
+                        logger.warn(
+                            `⚠️ Preserving unmanaged extension directory at ${finalDestPath}; move it aside to restore the bundled ${finalExtName} extension.`
+                        );
+                        continue;
+                    } else {
+                        installManagedExtensionCopy(srcPath, finalDestPath, finalExtName);
+                        logger.info(
+                            `🔄 Migrated extension link to a managed copy: ${finalExtName}`
+                        );
+                    }
+                } else {
+                    installManagedExtensionCopy(srcPath, finalDestPath, finalExtName);
+                    logger.info(`🔌 Installed managed extension: ${finalExtName}`);
+                }
+            } catch (error: unknown) {
+                logger.error(
+                    `❌ Failed to install extension ${finalExtName}; previous copy was preserved: ${DLPService.scrub(String(error))}`
+                );
+                continue;
             }
         }
 
-        const nmPath = path.join(finalDestPath, 'node_modules');
-        if (!fs.existsSync(nmPath)) {
-            logger.info(`💧 Hydrating extension: ${finalExtName}...`);
-            try {
-                execSync('npm install --production', {
-                    cwd: finalDestPath,
-                    stdio: 'pipe'
-                });
+        if (!hasRunnableExtension(finalDestPath)) {
+            logger.error(`❌ Extension ${finalExtName} is not runnable; leaving it disabled.`);
+            continue;
+        }
 
-                const pkgPath = path.join(finalDestPath, 'package.json');
-                if (fs.existsSync(pkgPath)) {
-                    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-                    if (pkg.scripts?.build) {
-                        logger.info(`🏗️ Building extension: ${finalExtName}...`);
-                        execSync('npm run build', {
-                            cwd: finalDestPath,
-                            stdio: 'pipe'
-                        });
-                    }
-                }
-                logger.info(`✅ Extension ${finalExtName} hydrated successfully.`);
-            } catch (e: any) {
-                const stdout = e.stdout?.toString();
-                const stderr = e.stderr?.toString();
-                const out = stderr || stdout || e.message;
-                logger.error(`❌ Failed to hydrate extension ${finalExtName}: ${out}`);
-            }
+        // Bundled extensions are trusted distribution components. Preserve explicit disablement.
+        if (!Object.prototype.hasOwnProperty.call(enablement, finalExtName)) {
+            enablement[finalExtName] = { overrides: [] };
         }
     }
 
     const allInstalledExtensions = fs.readdirSync(targetExtensionsDir);
     for (const extName of allInstalledExtensions) {
-        const extPath = path.join(targetExtensionsDir, extName);
         if (extName === 'extension-enablement.json') continue;
+
+        const rawEntry = enablement[extName];
+        if (rawEntry === undefined || rawEntry === false) continue;
+
+        const entry = rawEntry === true ? { enabled: true, overrides: [] } : rawEntry;
+        if (entry.enabled === false) continue;
+
+        const extPath = path.join(targetExtensionsDir, extName);
         if (!fs.statSync(extPath).isDirectory()) continue;
 
         const realPath = fs.realpathSync(extPath);
-
-        if (!enablement[extName]) {
-            enablement[extName] = { overrides: [] };
-        }
-
-        const overrides = new Set(enablement[extName].overrides || []);
+        const overrides = new Set(entry.overrides ?? []);
         overrides.add(path.join(config.homeDir, '*'));
         overrides.add(path.join(realPath, '*'));
 
-        enablement[extName].overrides = Array.from(overrides);
+        entry.overrides = Array.from(overrides);
+        enablement[extName] = entry;
     }
 
-    fs.writeFileSync(enablementFile, JSON.stringify(enablement, null, 2));
+    writePrivateFileAtomic(enablementFile, `${JSON.stringify(enablement, null, 2)}\n`);
 }
 
 /**
@@ -361,23 +616,26 @@ function installDashboard(config: Config): void {
             const env = { ...process.env };
             delete env.NODE_ENV;
 
-            execSync('npm install', {
+            execFileSync('npm', ['ci'], {
                 cwd: targetDashDir,
                 stdio: 'pipe',
-                env
+                env: Object.fromEntries(
+                    Object.entries(env).filter(([key]) => !DLPService.isSensitiveKey(key))
+                )
             });
 
             logger.info('🏗️ Building dashboard...');
-            execSync('npm run build', {
+            execFileSync('npm', ['run', 'build'], {
                 cwd: targetDashDir,
                 stdio: 'pipe',
-                env
+                env: Object.fromEntries(
+                    Object.entries(env).filter(([key]) => !DLPService.isSensitiveKey(key))
+                )
             });
 
             logger.info('✅ Dashboard hydrated successfully.');
-        } catch (e: any) {
-            const out = e.stdout?.toString() || e.stderr?.toString() || e.message;
-            logger.error(`❌ Failed to hydrate dashboard: ${out}`);
+        } catch (error: unknown) {
+            logger.error(`❌ Failed to hydrate dashboard: ${DLPService.scrub(String(error))}`);
         }
     }
 }
@@ -502,11 +760,10 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     const supervisor = new Supervisor(tarsEngine, sessionManager);
 
     // 4. Initialize Multi-Channel Interface
-    const channelManager = new ChannelManager();
+    const channelManager = new ChannelManager({ skipDiscord: options.skipDiscord });
 
     // 5. Inject Interface into Engine
     tarsEngine.setChannelManager(channelManager);
-    supervisor.setChannelManager(channelManager);
     tarsEngine.setSessionManager(sessionManager);
     await tarsEngine.initialize();
 
@@ -613,10 +870,9 @@ export function wireMessageRouting(
         const isTui = message.channelId === 'tui' && tuiChannel;
 
         let responseBuffer = '';
-        let replyCount = 0;
 
         // --- Live status tracking for in-place message editing ---
-        let statusInitialized = false;
+        const liveStatus: LiveStatusState = { initialized: false };
 
         const updateStatus = async (
             turnCount: number,
@@ -624,19 +880,7 @@ export function wireMessageRouting(
             isMilestone: boolean
         ): Promise<void> => {
             const content = formatStatusContent(turnCount, recentTools, sessionManager, config);
-
-            if (!statusInitialized) {
-                await channelManager.notify(content);
-                statusInitialized = true;
-            } else {
-                const edited = await channelManager.editStatus(content);
-                if (!edited) {
-                    logger.warn('[Main] Status edit failed, sending new notification.');
-                    statusInitialized = false;
-                    await channelManager.notify(content);
-                    statusInitialized = true;
-                }
-            }
+            await deliverStatusUpdateBestEffort(channelManager, liveStatus, content);
         };
 
         const flush = async (isDone = false) => {
@@ -644,10 +888,6 @@ export function wireMessageRouting(
             if (!text) return;
 
             let finalContent = text;
-            // Prepend the binding alert to the first message if we just auto-bound
-            if (replyCount === 0 && message.metadata?.wasAutoBound) {
-                finalContent = `🔒 **System Alert:** I have permanently bound my background notification channel to your Discord account.\n\n${finalContent}`;
-            }
 
             if (isDone) {
                 const stats = sessionManager.getStats();
@@ -662,12 +902,11 @@ export function wireMessageRouting(
 
             await message.reply(finalContent);
             responseBuffer = '';
-            replyCount++;
         };
 
         // Clear any previous status message for a fresh start
         channelManager.clearStatus();
-        statusInitialized = false;
+        liveStatus.initialized = false;
 
         // Feature flag: status updates are per-backend
         const statusEnabled = config.isStatusUpdatesEnabled();
@@ -688,7 +927,7 @@ export function wireMessageRouting(
                             // Clear status lines before first streamed text
                             if (!responseBuffer) {
                                 channelManager.clearStatus();
-                                statusInitialized = false;
+                                liveStatus.initialized = false;
                             }
                             tuiChannel!.streamText(event.content);
                             responseBuffer += event.content; // Track for length, not for flushing
@@ -706,7 +945,7 @@ export function wireMessageRouting(
                     } else if (event.type === 'error') {
                         if (isTui) {
                             channelManager.clearStatus();
-                            statusInitialized = false;
+                            liveStatus.initialized = false;
                         }
                         await flush();
                         await message.reply(`❌ **Error:** ${event.error}`);
@@ -714,7 +953,7 @@ export function wireMessageRouting(
                         if (isTui) {
                             // TUI: text was already streamed, just print footer
                             channelManager.clearStatus();
-                            statusInitialized = false;
+                            liveStatus.initialized = false;
 
                             const stats = sessionManager.getStats();
                             if (stats && stats.lastInputTokens > 0) {
@@ -730,7 +969,6 @@ export function wireMessageRouting(
                                 tuiChannel!.streamText('\n\n');
                             }
                             responseBuffer = '';
-                            replyCount++;
                         } else {
                             await flush(true);
                         }

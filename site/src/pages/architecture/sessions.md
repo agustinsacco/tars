@@ -1,63 +1,32 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Session Management
-description: Token tracking, session persistence, and usage statistics.
+title: Sessions
+description: Active history, token-aware compression, persistence, and cleanup.
 section: Architecture
 ---
 
-## Overview
+Tars maintains one active conversation history. Session metadata tracks identity, last activity,
+interactions, and token usage in `~/.tars/data/session.json`; conversation files live under
+`~/.tars/chats/`.
 
-The `SessionManager` class persists conversation session data to disk, tracking token usage across interactions. This enables session resumption and provides visibility into context consumption.
+## Compression
 
-## Session Data
+Before a request or when the configured threshold is reached, Tars can summarize older history to
+fit the selected context window. Compression is:
 
-Each session tracks the following:
+- associated with the explicit active session;
+- based on token usage rather than file length alone;
+- written atomically;
+- abandoned without replacing the original history when summary generation fails.
 
-| Field               | Type       | Description                                  |
-| ------------------- | ---------- | -------------------------------------------- |
-| `sessionId`         | string     | Pi Agent SDK session identifier              |
-| `createdAt`         | ISO string | When the session started                     |
-| `totalInputTokens`  | number     | Current context size (input tokens)          |
-| `totalOutputTokens` | number     | Cumulative output tokens generated           |
-| `totalCachedTokens` | number     | Currently cached tokens                      |
-| `totalNetTokens`    | number     | Cumulative net input tokens (input - cached) |
-| `interactionCount`  | number     | Number of prompts processed                  |
-| `lastInteractionAt` | ISO string | Timestamp of last prompt                     |
-| `lastInputTokens`   | number     | Input tokens from last interaction           |
+Compression is lossy summarization, not durable memory. Store facts or notes explicitly when exact
+future retrieval matters.
 
-## Storage
+## Cleanup
 
-Session data is persisted at:
+The maintenance heartbeat can remove eligible old chat files according to retention limits. It does
+not rotate to a new agent merely because two hours have passed, and scheduled tasks use the active
+supervised execution path.
 
-```
-~/.tars/data/session.json
-```
-
-The file is updated after every interaction via `updateUsage()`.
-
-## Usage Tracking
-
-After each Pi Agent SDK interaction, the Supervisor calls `updateUsage()` with the latest token counts. The manager computes:
-
-```
-netInput = max(0, inputTokens - cachedTokens)
-```
-
-This gives an accurate picture of actual token consumption vs. cache hits.
-
-## Session Lifecycle
-
-1. **Load** — On startup, the manager checks for an existing `session.json` and returns the session ID
-2. **Save** — After creating a new session, the ID and initial state are persisted
-3. **Update** — After each interaction, usage stats are accumulated and saved
-4. **Clear** — When a session is reset, the file is deleted and in-memory state is nulled
-
-## Status Display
-
-Run `tars status` to see current session stats:
-
-```bash
-tars status
-```
-
-This reads `session.json` and displays the session ID, total tokens, interaction count, and uptime.
+Use `/reset` or `/clear` through Discord when you intentionally want to clear the current
+conversation. Back up important state before manual file intervention.

@@ -1,35 +1,20 @@
 ---
 layout: ../../layouts/DocLayout.astro
 title: Personal Assistant
-description: Orchestrate your daily workflows and personal tasks.
-section: Use Cases
+description: Combine owner-authorized Discord access, selected memory, and explicit reminders.
+section: Operational Guides
 ---
 
-By default, Tars acts as a high-fidelity **Personal Assistant**. Since it lives in Discord, your assistant is available from your desktop, tablet, or smartphone without additional configuration.
+Tars can support personal workflows from Discord or a terminal when its tools have appropriate
+access.
 
-### Persistent Memory
+Useful patterns include:
 
-Tars remembers every fact, preference, and instruction you provide. If you specify a preference for a specific tech stack, deployment strategy, or even your local time zone, Tars records these as **Core Facts**. Every future interaction applies this context automatically, so you never have to repeat yourself.
+- store a small set of stable preferences with `manage_facts`;
+- add searchable observations with `manage_notes`;
+- create explicit one-time or recurring reminders with `manage_tasks` in `notify` mode;
+- capture a repeatable local workflow as a reviewed skill.
 
-### Autonomous Task Execution
-
-Unlike traditional chatbots, Tars doesn't wait for you to start the conversation. Its internal heartbeat allows it to manage time-sensitive operations autonomously:
-
-```text
-User: "Remind me in 2 hours to check the staging logs."
-Tars: "✅ Scheduled. I'll message you once the time has elapsed."
-```
-
-Tars manages its own schedule and will proactively message you in Discord when the task is complete.
-
-### Integrated Computing
-
-Tars operates with the same permissions as your local user account. This gives it the power to:
-
-- **Manage Code:** Clone repositories, draft patches, and run build scripts.
-- **System Automation:** Create calendar entries, draft emails, or organize local files.
-- **Incident Analysis:** Monitor logs and provide high-level summaries of system errors.
-
-### Mobile Command Center
-
-Start a complex debugging session on your phone while commuting. Tars can pull the relevant logs, identify the bug, and prepare a fix. By the time you reach your desk, the solution is ready for your final review.
+Tars does not automatically remember every message, connect calendars or email without an installed
+integration, or act while no task is scheduled. Review durable memory periodically and avoid storing
+credentials or sensitive personal records.

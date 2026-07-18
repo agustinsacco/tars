@@ -1,27 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { TarsLogo } from './TarsLogo';
 import { SearchTrigger, SearchModal } from './SearchModal';
-import { Github, Menu, X } from 'lucide-react';
+import { Code2, Menu, X } from 'lucide-react';
+import { dispatchMobileMenu, MOBILE_MENU_EVENT, readMobileMenuState } from '../lib/events';
 
-export function Header() {
+export function Header(): ReactElement {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-    const toggleMenu = () => {
+    const toggleMenu = (): void => {
         const newState = !isMenuOpen;
         setIsMenuOpen(newState);
-        window.dispatchEvent(
-            new CustomEvent('tars:mobile-menu-toggle', { detail: { open: newState } })
-        );
+        dispatchMobileMenu(newState);
     };
 
     useEffect(() => {
-        const handleToggle = (e: any) => {
-            if (e.detail && typeof e.detail.open === 'boolean') {
-                setIsMenuOpen(e.detail.open);
-            }
+        const handleToggle = (event: Event): void => {
+            const open = readMobileMenuState(event);
+            if (open !== null) setIsMenuOpen(open);
         };
-        window.addEventListener('tars:mobile-menu-toggle', handleToggle);
-        return () => window.removeEventListener('tars:mobile-menu-toggle', handleToggle);
+        window.addEventListener(MOBILE_MENU_EVENT, handleToggle);
+        return (): void => window.removeEventListener(MOBILE_MENU_EVENT, handleToggle);
     }, []);
 
     return (
@@ -35,41 +33,44 @@ export function Header() {
                             onClick={toggleMenu}
                             className="p-1 -ml-1 text-zinc-400 hover:text-zinc-200 lg:hidden transition-colors cursor-pointer"
                             aria-label="Toggle Menu"
+                            aria-expanded={isMenuOpen}
+                            aria-controls="docs-sidebar"
                         >
                             {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
                         </button>
 
                         <a
                             href="/"
+                            aria-label="TARS documentation home"
                             className="flex items-center gap-2 md:gap-3 hover:opacity-80 transition-opacity"
                         >
                             <TarsLogo size={28} />
-                            <span className="text-lg md:text-xl font-bold text-zinc-100 tracking-wide font-['Space_Grotesk']">
+                            <span className="font-display text-lg font-bold tracking-wide text-zinc-100 md:text-xl">
                                 TARS
                             </span>
-                            <span className="hidden xs:inline text-[9px] text-zinc-500 bg-zinc-900/80 px-1.5 py-0.5 rounded border border-zinc-800">
+                            <span className="hidden xs:inline rounded border border-zinc-800 bg-zinc-900/80 px-1.5 py-0.5 text-[9px] text-text-secondary">
                                 docs
                             </span>
                         </a>
                     </div>
 
                     {/* Center: Nav (Desktop) */}
-                    <nav className="hidden lg:flex items-center gap-6">
+                    <nav aria-label="Primary" className="hidden lg:flex items-center gap-6">
                         <a
                             href="/getting-started/installation"
-                            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-widest"
+                            className="text-[11px] text-text-secondary hover:text-zinc-300 transition-colors uppercase tracking-widest"
                         >
                             Get Started
                         </a>
                         <a
                             href="/architecture/supervisor"
-                            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-widest"
+                            className="text-[11px] text-text-secondary hover:text-zinc-300 transition-colors uppercase tracking-widest"
                         >
                             Architecture
                         </a>
                         <a
                             href="/extensions/tars-tasks"
-                            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors uppercase tracking-widest"
+                            className="text-[11px] text-text-secondary hover:text-zinc-300 transition-colors uppercase tracking-widest"
                         >
                             Extensions
                         </a>
@@ -84,9 +85,10 @@ export function Header() {
                             href="https://github.com/agustinsacco/tars"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1 text-zinc-500 hover:text-zinc-300 transition-colors"
+                            aria-label="TARS repository on GitHub"
+                            className="p-1 text-text-secondary hover:text-zinc-300 transition-colors"
                         >
-                            <Github className="w-4 h-4" />
+                            <Code2 className="w-4 h-4" />
                         </a>
                     </div>
                 </div>

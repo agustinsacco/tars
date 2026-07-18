@@ -1,7 +1,6 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import ora from 'ora';
-import { execSync, spawnSync } from 'child_process';
 import { refreshExtensions, refreshDashboard } from './refresh.js';
 import fs from 'fs/promises';
 import fsSync from 'fs';
@@ -12,11 +11,64 @@ import { getTarsHome } from '../../utils/paths.js';
 import { SecretsManager } from '../../utils/secrets-manager.js';
 import { migrateLegacyConfig } from '../../utils/migration-manager.js';
 import crypto from 'node:crypto';
+import { z } from 'zod';
+import { RuntimeConfigSchema } from '../../config/schema.js';
+import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
+
+const ExistingSetupConfigSchema = z
+    .object({
+        assistantName: z.string().optional(),
+        contextWindowTokens: z.coerce.number().optional(),
+        discordOwnerId: z.string().nullable().optional(),
+        discordToken: z.string().optional(),
+        heartbeatIntervalSec: z.coerce.number().optional(),
+        piBaseUrl: z.string().optional(),
+        piModel: z.string().optional(),
+        piProvider: z.string().optional(),
+        channels: z.record(z.unknown()).optional()
+    })
+    .passthrough();
+
+type ExistingSetupConfig = z.infer<typeof ExistingSetupConfigSchema>;
+
+function getDiscordConfig(config: ExistingSetupConfig): Record<string, unknown> {
+    const discord = config.channels?.discord;
+    const parsed = z.record(z.unknown()).safeParse(discord);
+    return parsed.success ? parsed.data : {};
+}
+
+export function removeLegacyDiscordToken(
+    discordConfig: Record<string, unknown>
+): Record<string, unknown> {
+    const { token: _legacyToken, ...safeConfig } = discordConfig;
+    return safeConfig;
+}
+
+async function writePrivateJson(filePath: string, value: unknown): Promise<void> {
+    const temporaryPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+        await fs.mkdir(path.dirname(filePath), { recursive: true });
+        await fs.writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
+            encoding: 'utf8',
+            flag: 'wx',
+            mode: 0o600
+        });
+        await fs.rename(temporaryPath, filePath);
+    } catch (error: unknown) {
+        await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
+        throw error;
+    }
+}
 
 /**
  * tars setup - The Onboarding Wizard
  */
-export async function setup() {
+export async function setup(): Promise<void> {
+    const tarsHome = getTarsHome();
+    await withTarsHomeMutationLease(tarsHome, 'configure Tars', () => setupWithLease(tarsHome));
+}
+
+async function setupWithLease(tarsHome: string): Promise<void> {
     console.log(chalk.cyan.bold('\n🤖 Welcome to Tars Setup! (Pi Agent SDK Edition)'));
     console.log(chalk.cyan('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
 
@@ -31,19 +83,18 @@ export async function setup() {
         process.exit(1);
     }
 
-    const tarsHome = getTarsHome();
     spinner.succeed(`Prerequisites met (Node ${nodeVersion})`);
 
     // Run automated migration manager
     await migrateLegacyConfig(tarsHome);
 
     // Load existing config for defaults
-    let existingConfig: any = {};
-    try {
-        const data = await fs.readFile(path.join(tarsHome, 'config.json'), 'utf-8');
-        existingConfig = JSON.parse(data);
-    } catch {
-        /* ignore */
+    let existingConfig: ExistingSetupConfig = {};
+    const existingConfigPath = path.join(tarsHome, 'config.json');
+    if (fsSync.existsSync(existingConfigPath)) {
+        const data = await fs.readFile(existingConfigPath, 'utf-8');
+        const parsed: unknown = JSON.parse(data);
+        existingConfig = ExistingSetupConfigSchema.parse(parsed);
     }
 
     const secretsManager = new SecretsManager(tarsHome);
@@ -141,14 +192,9 @@ export async function setup() {
                 name: 'baseUrl',
                 message: 'Local Endpoint URL:',
                 default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
-                validate: (input) => {
-                    try {
-                        new URL(input);
-                        return true;
-                    } catch {
-                        return 'Invalid URL';
-                    }
-                }
+                validate: (input) =>
+                    RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
+                    'Enter an HTTP or HTTPS URL'
             },
             {
                 type: 'password',
@@ -169,14 +215,9 @@ export async function setup() {
                 name: 'baseUrl',
                 message: 'Custom Endpoint Base URL:',
                 default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
-                validate: (input) => {
-                    try {
-                        new URL(input);
-                        return true;
-                    } catch {
-                        return 'Invalid URL';
-                    }
-                }
+                validate: (input) =>
+                    RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
+                    'Enter an HTTP or HTTPS URL'
             },
             {
                 type: 'password',
@@ -217,8 +258,9 @@ export async function setup() {
             name: 'contextWindowTokens',
             message: 'Context Window Size (in tokens):',
             default: existingConfig.contextWindowTokens || defaultContextWindow,
-            validate: (input: any) =>
-                (Number.isInteger(input) && input > 0) || 'Must be a positive integer'
+            validate: (input: unknown) =>
+                RuntimeConfigSchema.shape.contextWindowTokens.safeParse(input).success ||
+                'Must be an integer from 1 to 10000000'
         }
     ]);
 
@@ -228,7 +270,13 @@ export async function setup() {
     console.log(chalk.bold('\nStep 3: Communication Channel'));
     console.log(chalk.dim('─────────────────────────────'));
 
-    let discordToken = existingConfig.discordToken || existingConfig.channels?.discord?.token || '';
+    const existingDiscord = getDiscordConfig(existingConfig);
+    const preservedDiscord = removeLegacyDiscordToken(existingDiscord);
+    let discordToken =
+        existingConfig.discordToken ||
+        (typeof existingDiscord.token === 'string' ? existingDiscord.token : '') ||
+        secrets.DISCORD_TOKEN ||
+        '';
     let skipDiscord = false;
 
     if (discordToken) {
@@ -277,6 +325,23 @@ export async function setup() {
         }
     }
 
+    secretsManager.set('DISCORD_TOKEN', discordToken);
+    process.env.DISCORD_TOKEN = discordToken;
+
+    const configuredOwnerId =
+        existingConfig.discordOwnerId ||
+        (typeof existingDiscord.ownerId === 'string' ? existingDiscord.ownerId : '');
+    const { discordOwnerId } = await inquirer.prompt<{ discordOwnerId: string }>([
+        {
+            type: 'input',
+            name: 'discordOwnerId',
+            message: 'Discord owner user ID (enable Developer Mode, then Copy User ID):',
+            default: configuredOwnerId,
+            validate: (input: string) =>
+                /^\d{17,20}$/.test(input.trim()) || 'Enter a valid 17-20 digit Discord user ID'
+        }
+    ]);
+
     // ══════════════════════════════════════════════════════════
     // ── Step 4: Identity ──────────────────────────────────────
     // ══════════════════════════════════════════════════════════
@@ -288,7 +353,10 @@ export async function setup() {
             type: 'input',
             name: 'assistantName',
             message: 'Assistant Name (Display identity):',
-            default: existingConfig.assistantName || 'Tars'
+            default: existingConfig.assistantName || 'Tars',
+            validate: (input: unknown) =>
+                RuntimeConfigSchema.shape.assistantName.safeParse(input).success ||
+                'Assistant name must contain 1-100 characters'
         },
         {
             type: 'list',
@@ -312,7 +380,11 @@ export async function setup() {
             when: (answers) => answers.heartbeatMinutes === 'custom',
             validate: (input) => {
                 const n = parseInt(input, 10);
-                return (!isNaN(n) && n > 0) || 'Must be a positive number';
+                return (
+                    (!isNaN(n) &&
+                        RuntimeConfigSchema.shape.heartbeatIntervalSec.safeParse(n * 60).success) ||
+                    'Must be between 1 and 1440 minutes'
+                );
             }
         }
     ]);
@@ -330,26 +402,58 @@ export async function setup() {
     console.log(chalk.bold('\nStep 6: Tars Dashboard'));
     console.log(chalk.dim('──────────────────────'));
 
+    const generatedDashPassword = crypto.randomBytes(24).toString('base64url');
+    const existingDashPassword = secrets.DASH_PASSWORD;
+    const normalizedDashPassword = existingDashPassword?.trim().toLowerCase();
+    const defaultDashPassword =
+        existingDashPassword &&
+        normalizedDashPassword &&
+        normalizedDashPassword.length >= 16 &&
+        !['changeme', 'tars123'].includes(normalizedDashPassword)
+            ? existingDashPassword
+            : generatedDashPassword;
+
     const dashConfig = await inquirer.prompt([
         {
             type: 'confirm',
             name: 'enableDash',
             message: 'Enable Tars Dashboard (Web UI)?',
-            default: true
+            default: secrets.DASH_ENABLED === 'true'
+        },
+        {
+            type: 'input',
+            name: 'dashHost',
+            message: 'Dashboard Host:',
+            default: secrets.DASH_HOST || '127.0.0.1',
+            when: (a) => a.enableDash,
+            validate: (input) => input.trim().length > 0 || 'Host is required'
         },
         {
             type: 'input',
             name: 'dashPort',
             message: 'Dashboard Port:',
-            default: '3000',
-            when: (a) => a.enableDash
+            default: secrets.DASH_PORT || '3000',
+            when: (a) => a.enableDash,
+            validate: (input) => {
+                const value = Number(input);
+                return (
+                    (Number.isInteger(value) && value >= 1 && value <= 65_535) ||
+                    'Port must be an integer between 1 and 65535'
+                );
+            }
         },
         {
             type: 'password',
             name: 'dashPassword',
             message: 'Set Dashboard Password:',
-            default: secrets.DASH_PASSWORD || 'tars123',
-            when: (a) => a.enableDash
+            default: defaultDashPassword,
+            when: (a) => a.enableDash,
+            validate: (input) => {
+                if (['changeme', 'tars123'].includes(input.trim().toLowerCase())) {
+                    return 'Choose a password other than a known default';
+                }
+                return input.trim().length >= 16 || 'Password must contain at least 16 characters';
+            }
         },
         {
             type: 'confirm',
@@ -362,9 +466,12 @@ export async function setup() {
 
     if (dashConfig.enableDash) {
         secretsManager.set('DASH_ENABLED', 'true');
+        secretsManager.set('DASH_HOST', dashConfig.dashHost.trim());
         secretsManager.set('DASH_PORT', dashConfig.dashPort);
         secretsManager.set('DASH_PASSWORD', dashConfig.dashPassword);
         console.log(chalk.green('  ✓ Dashboard configuration saved.'));
+    } else {
+        secretsManager.set('DASH_ENABLED', 'false');
     }
 
     // ══════════════════════════════════════════════════════════
@@ -372,10 +479,6 @@ export async function setup() {
     // ══════════════════════════════════════════════════════════
     console.log(chalk.bold('\nStep 7: Installing'));
     console.log(chalk.dim('──────────────────'));
-
-    // Audit and Heal
-    const auditor = new BrainAuditor(tarsHome);
-    await auditor.audit({ silent: true });
 
     // Provision isolated environment
     const installSpinner = ora('Provisioning environment...').start();
@@ -388,6 +491,10 @@ export async function setup() {
     await fs.mkdir(path.join(tarsHome, 'chats'), { recursive: true });
 
     installSpinner.succeed('Directories created (~/.tars/)');
+
+    // Audit and heal only after the workspace exists so metadata is always created.
+    const auditor = new BrainAuditor(tarsHome);
+    await auditor.audit({ silent: true });
 
     // Legacy Cleanup
     const cleanupSpinner = ora('Checking for legacy components...').start();
@@ -405,30 +512,47 @@ export async function setup() {
             ? identityConfig.customHeartbeat
             : identityConfig.heartbeatMinutes) * 60;
 
-    const configData: any = {
+    const { discordToken: _legacyDiscordToken, ...preservedConfig } = existingConfig;
+    const configData = {
+        ...preservedConfig,
         assistantName: identityConfig.assistantName,
-        discordToken,
-        discordOwnerId: existingConfig.discordOwnerId,
+        discordOwnerId: discordOwnerId.trim(),
         piProvider,
         piModel,
         piBaseUrl,
         heartbeatIntervalSec: intervalSec,
         inferenceBackend: 'tars',
-        contextWindowTokens: limitAnswers.contextWindowTokens
+        contextWindowTokens: limitAnswers.contextWindowTokens,
+        channels: {
+            ...(existingConfig.channels ?? {}),
+            discord: {
+                ...preservedDiscord,
+                enabled: true,
+                ownerId: discordOwnerId.trim()
+            }
+        },
+        primaryChannel: existingConfig.primaryChannel ?? 'discord'
     };
 
-    await fs.writeFile(path.join(tarsHome, 'config.json'), JSON.stringify(configData, null, 2));
+    RuntimeConfigSchema.parse({ ...configData, discordToken });
+    await writePrivateJson(path.join(tarsHome, 'config.json'), configData);
     saveSpinner.succeed('Configuration saved.');
 
     // Hydrate extensions
-    await refreshExtensions(tarsHome);
+    const extensionsRefreshed = await refreshExtensions(tarsHome);
+    if (!extensionsRefreshed) {
+        throw new Error('Extension installation failed. Setup did not complete.');
+    }
 
     // Hydrate Dashboard if enabled
     if (dashConfig.enableDash) {
         const dashDest = path.join(tarsHome, 'apps', 'dashboard');
         const needsInstall = !fsSync.existsSync(dashDest) || dashConfig.updateDash;
         if (needsInstall) {
-            await refreshDashboard(tarsHome);
+            const dashboardRefreshed = await refreshDashboard(tarsHome);
+            if (!dashboardRefreshed) {
+                throw new Error('Dashboard installation failed. Setup did not complete.');
+            }
         } else {
             console.log(chalk.green('  ✓ Dashboard already installed. Skipping.'));
             console.log(chalk.dim('    Run "tars refresh" to force-update the dashboard.'));

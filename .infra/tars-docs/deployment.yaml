@@ -7,7 +7,13 @@ metadata:
         app: tars-docs
 spec:
     replicas: 1
-    revisionHistoryLimit: 1
+    revisionHistoryLimit: 3
+    progressDeadlineSeconds: 180
+    strategy:
+        type: RollingUpdate
+        rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
     selector:
         matchLabels:
             app: tars-docs
@@ -16,12 +22,42 @@ spec:
             labels:
                 app: tars-docs
         spec:
+            securityContext:
+                runAsNonRoot: true
+                runAsUser: 101
+                runAsGroup: 101
+                fsGroup: 101
+                seccompProfile:
+                    type: RuntimeDefault
             containers:
                 - name: tars-docs
                   image: saccodigital/tars-docs:latest
                   imagePullPolicy: Always
                   ports:
-                      - containerPort: 5252
+                      - name: http
+                        containerPort: 5252
+                  readinessProbe:
+                      httpGet:
+                          path: /
+                          port: http
+                      initialDelaySeconds: 2
+                      periodSeconds: 5
+                  livenessProbe:
+                      httpGet:
+                          path: /
+                          port: http
+                      initialDelaySeconds: 10
+                      periodSeconds: 15
+                  securityContext:
+                      allowPrivilegeEscalation: false
+                      readOnlyRootFilesystem: true
+                      capabilities:
+                          drop: [ALL]
+                  volumeMounts:
+                      - name: nginx-cache
+                        mountPath: /var/cache/nginx
+                      - name: runtime
+                        mountPath: /tmp
                   resources:
                       limits:
                           memory: 128Mi
@@ -31,3 +67,8 @@ spec:
                           cpu: 100m
             imagePullSecrets:
                 - name: docker-registry-key
+            volumes:
+                - name: nginx-cache
+                  emptyDir: {}
+                - name: runtime
+                  emptyDir: {}

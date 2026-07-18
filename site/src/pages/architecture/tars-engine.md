@@ -1,44 +1,28 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Tars Engine Core
-description: How Tars integrates with the Pi Agent SDK.
+title: Engine
+description: The Pi SDK adapter for model messages, tools, events, and history.
 section: Architecture
 ---
 
-## Overview
+`TarsEngine` adapts the Pi Agent SDK to the supervisor. It initializes the configured provider,
+loads the active history and system instructions, exposes authorized MCP tools, and streams typed
+events for text, status, tool calls, tool results, images, errors, and usage.
 
-Tars core logic is built on top of the **Pi Agent SDK** (`@earendil-works/pi-agent-core` & `@earendil-works/pi-ai`). This provides native tool execution, built-in context window management, and robust streaming capabilities, completely replacing the deprecated Google companion core libraries.
+## Request flow
 
-## Integration Architecture
+1. The channel manager normalizes an owner-authorized message and validated attachments.
+2. The supervisor acquires the active-run lock.
+3. The session manager performs token-aware preflight compression when required.
+4. The engine sends the request to the configured provider and executes requested tools.
+5. Events stream to the channel and redacted logs.
+6. History and session usage are saved atomically before the lock releases.
 
-The `TarsEngine` class wraps the Pi SDK's `Agent` class to handle:
+## Model selection
 
-- **Session Lifecycle**: Initializing conversation state, loading messages, and managing prompt execution.
-- **Model Inference**: Resolving the target model via `@earendil-works/pi-ai` and local credentials.
-- **Tool Registration**: Converting and exposing local and MCP tools to the agent runner.
+The engine can use supported cloud providers or an OpenAI-compatible base URL. Provider and model
+configuration is validated before startup. A custom endpoint is responsible for correctly
+implementing the expected protocol and context limits.
 
-## Core Dependencies
-
-Tars utilizes the following Pi SDK packages:
-
-| Package                           | Purpose                                                                |
-| --------------------------------- | ---------------------------------------------------------------------- |
-| `@earendil-works/pi-agent-core`   | Core `Agent` class, streaming loop, and tool execution protocol.       |
-| `@earendil-works/pi-ai`           | Model definition, providers configuration, and token count utilities.  |
-| `@earendil-works/pi-coding-agent` | Native tools for workspace interaction (reading, writing, grep, etc.). |
-
-## Extension & MCP Bridge
-
-Because the Pi Agent SDK operates on a native `AgentTool` protocol, Tars implements a custom `McpBridge` (`src/supervisor/mcp-bridge.ts`).
-
-1. **Discovery**: The bridge scans `~/.tars/extensions/` for active MCP configurations.
-2. **Translation**: Converts each MCP server schema into a schema-valid Zod definition and native `AgentTool`.
-3. **Execution**: Intercepts tool calls, forwards them to the underlying MCP server over Stdio, and returns the parsed output to the agent loop.
-
-## Event Stream Mapping
-
-The supervisor listens to the `Agent.subscribe()` stream and maps events into standard `TarsEngineEvent` payloads for consumption by the Discord channel and the Admin Dashboard:
-
-- `assistantMessageEvent` text/thinking chunks are mapped to `text` events.
-- Tool call execution starts and completions are monitored to update the in-progress status displays.
-- Token metrics are extracted at completion and saved to the database.
+Tool output remains untrusted model input. Extension enablement and OS policy—not the model—define
+which capabilities are available.

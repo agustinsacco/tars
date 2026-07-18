@@ -1,18 +1,22 @@
+import { Client } from 'discord.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
 import { ChannelManager } from '../../channels/channel-manager.js';
-import { CommunicationChannel, ChannelMessage } from '../../channels/types.js';
+import type { CommunicationChannel, ChannelMessage } from '../../channels/types.js';
 import { Config } from '../../config/config.js';
 
 // Mock discord.js to prevent actual Discord client initialization
 vi.mock('discord.js', () => ({
-    Client: vi.fn().mockImplementation(() => ({
-        on: vi.fn(),
-        once: vi.fn(),
-        login: vi.fn(),
-        destroy: vi.fn(),
-        users: { fetch: vi.fn() },
-        channels: { cache: new Map(), fetch: vi.fn() }
-    })),
+    Client: vi.fn().mockImplementation(function ClientMock() {
+        return {
+            on: vi.fn(),
+            once: vi.fn(),
+            login: vi.fn(),
+            destroy: vi.fn(),
+            users: { fetch: vi.fn() },
+            channels: { cache: new Map(), fetch: vi.fn() }
+        };
+    }),
     GatewayIntentBits: { Guilds: 1, GuildMessages: 2, MessageContent: 3, DirectMessages: 4 },
     Partials: { Channel: 1, Message: 2, User: 3 },
     ChannelType: { DM: 1, GuildText: 0 }
@@ -38,6 +42,7 @@ vi.mock('../../config/config.js', () => ({
  */
 function createMockChannel(id: string): CommunicationChannel & {
     mockNotify: ReturnType<typeof vi.fn>;
+    mockSendStatus: ReturnType<typeof vi.fn>;
     mockEditStatus: ReturnType<typeof vi.fn>;
     mockClearStatus: ReturnType<typeof vi.fn>;
     mockStart: ReturnType<typeof vi.fn>;
@@ -46,6 +51,7 @@ function createMockChannel(id: string): CommunicationChannel & {
 } {
     let messageHandler: ((msg: ChannelMessage) => Promise<void>) | undefined;
     const mockNotify = vi.fn().mockResolvedValue(undefined);
+    const mockSendStatus = vi.fn().mockResolvedValue(undefined);
     const mockEditStatus = vi.fn().mockResolvedValue(true);
     const mockClearStatus = vi.fn();
     const mockStart = vi.fn().mockResolvedValue(undefined);
@@ -57,12 +63,14 @@ function createMockChannel(id: string): CommunicationChannel & {
         start: mockStart,
         stop: mockStop,
         notify: mockNotify,
+        sendStatus: mockSendStatus,
         editStatus: mockEditStatus,
         clearStatus: mockClearStatus,
         onMessage: (handler) => {
             messageHandler = handler;
         },
         mockNotify,
+        mockSendStatus,
         mockEditStatus,
         mockClearStatus,
         mockStart,
@@ -145,9 +153,39 @@ describe('ChannelManager', () => {
 
             expect(ch1.mockNotify).toHaveBeenCalledWith('fallback notification', undefined);
         });
+
+        it('redacts structured secrets at the outbound channel boundary', async () => {
+            // ARRANGE
+            const channel = createMockChannel('first');
+            manager.registerChannel(channel);
+
+            // ACT
+            await manager.notify(JSON.stringify({ token: 'short-secret', result: 'safe' }));
+
+            // ASSERT
+            expect(channel.mockNotify).toHaveBeenCalledWith(
+                JSON.stringify({ token: '[REDACTED_SECRET]', result: 'safe' }),
+                undefined
+            );
+        });
+
+        it('reports notification failure when no channel can deliver it', async () => {
+            // ACT / ASSERT
+            await expect(manager.notify('important alert')).rejects.toThrow(/No active channels/);
+        });
     });
 
     describe('Status Editing', () => {
+        it('should route a new status to the last active channel', async () => {
+            const tui = createMockChannel('tui');
+            manager.registerChannel(tui);
+
+            await manager.sendStatus('initial status');
+
+            expect(tui.mockSendStatus).toHaveBeenCalledWith('initial status');
+            expect(tui.mockNotify).not.toHaveBeenCalled();
+        });
+
         it('should route editStatus to the last active channel', async () => {
             const tui = createMockChannel('tui');
             manager.registerChannel(tui);
@@ -193,6 +231,18 @@ describe('ChannelManager', () => {
     });
 
     describe('Channel Isolation (Discord Regression)', () => {
+        it('should skip constructing Discord when requested by a foreground client', () => {
+            // ARRANGE
+            vi.mocked(Client).mockClear();
+
+            // ACT
+            const foregroundManager = new ChannelManager({ skipDiscord: true });
+
+            // ASSERT
+            expect(Client).not.toHaveBeenCalled();
+            expect(foregroundManager.getChannel('discord')).toBeUndefined();
+        });
+
         it('should start all registered channels including dynamically added ones', async () => {
             const ch1 = createMockChannel('dynamic-1');
             const ch2 = createMockChannel('dynamic-2');
@@ -204,6 +254,16 @@ describe('ChannelManager', () => {
 
             expect(ch1.mockStart).toHaveBeenCalled();
             expect(ch2.mockStart).toHaveBeenCalled();
+        });
+
+        it('fails startup when every configured channel fails', async () => {
+            // ARRANGE
+            const channel = createMockChannel('revoked');
+            channel.mockStart.mockRejectedValue(new Error('invalid token'));
+            manager.registerChannel(channel);
+
+            // ACT / ASSERT
+            await expect(manager.start()).rejects.toThrow(/No configured communication channel/);
         });
 
         it('should stop all registered channels', async () => {

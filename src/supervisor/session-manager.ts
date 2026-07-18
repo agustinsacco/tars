@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import logger from '../utils/logger.js';
 import { UsageStats } from '../types/index.js';
 
@@ -20,17 +22,41 @@ export interface SessionData {
     compressionCount: number;
 }
 
+export const SessionIdSchema = z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, 'Session ID must be a safe filename token')
+    .refine((value) => value !== '.' && value !== '..', 'Session ID is invalid');
+
+const SessionDataSchema = z.object({
+    sessionId: SessionIdSchema,
+    createdAt: z
+        .string()
+        .datetime()
+        .default(() => new Date().toISOString()),
+    totalInputTokens: z.number().nonnegative().default(0),
+    totalOutputTokens: z.number().nonnegative().default(0),
+    totalCachedTokens: z.number().nonnegative().default(0),
+    interactionCount: z.number().int().nonnegative().default(0),
+    lastInteractionAt: z
+        .string()
+        .datetime()
+        .default(() => new Date().toISOString()),
+    lastInputTokens: z.number().nonnegative().default(0),
+    totalNetTokens: z.number().nonnegative().default(0),
+    lastUserInteractionAt: z.string().datetime().optional(),
+    compressionCount: z.number().int().nonnegative().default(0)
+});
+
 /**
  * Manages Tars session persistence with token tracking
  */
 export class SessionManager {
     private readonly sessionFilePath: string;
     private sessionData: SessionData | null = null;
-    private readonly idleTimeoutMs: number;
-
-    constructor(sessionFilePath: string, idleTimeoutMs: number = 2 * 60 * 60 * 1000) {
+    constructor(sessionFilePath: string) {
         this.sessionFilePath = sessionFilePath;
-        this.idleTimeoutMs = idleTimeoutMs;
     }
 
     /**
@@ -45,20 +71,18 @@ export class SessionManager {
 
         try {
             const raw = await fs.promises.readFile(this.sessionFilePath, 'utf-8');
-            const parsed = JSON.parse(raw);
-
-            // Check if sessionId exists
-            if (!parsed.sessionId) {
+            const rawSession: unknown = JSON.parse(raw);
+            const parsed = z.record(z.unknown()).parse(rawSession);
+            const result = SessionDataSchema.safeParse({
+                ...parsed,
+                totalNetTokens: parsed.totalNetTokens ?? parsed.totalInputTokens ?? 0
+            });
+            if (!result.success) {
+                logger.warn('[SessionManager] Ignoring invalid session metadata');
                 return null;
             }
 
-            this.sessionData = parsed as SessionData;
-            if (this.sessionData.totalNetTokens === undefined) {
-                this.sessionData.totalNetTokens = this.sessionData.totalInputTokens || 0;
-            }
-            if (this.sessionData.compressionCount === undefined) {
-                this.sessionData.compressionCount = 0;
-            }
+            this.sessionData = result.data;
 
             return this.sessionData.sessionId;
         } catch (e) {
@@ -72,13 +96,14 @@ export class SessionManager {
      */
     async save(sessionId: string): Promise<void> {
         try {
+            const validatedSessionId = SessionIdSchema.parse(sessionId);
             // Only save if it's a new session or we don't have session data yet
-            if (this.sessionData && this.sessionData.sessionId === sessionId) {
+            if (this.sessionData && this.sessionData.sessionId === validatedSessionId) {
                 return;
             }
 
             this.sessionData = {
-                sessionId,
+                sessionId: validatedSessionId,
                 createdAt: new Date().toISOString(),
                 totalInputTokens: 0,
                 totalOutputTokens: 0,
@@ -92,7 +117,7 @@ export class SessionManager {
             };
 
             await this.atomicWrite();
-            logger.info(`[SessionManager] New session initialized: ${sessionId}`);
+            logger.info(`[SessionManager] New session initialized: ${validatedSessionId}`);
         } catch (e) {
             logger.error(`[SessionManager] Failed to initialize session: ${e}`);
         }
@@ -130,13 +155,20 @@ export class SessionManager {
      * Update the estimated context window size after a compression/compaction.
      */
     async updateTokensAfterCompression(tokens: number): Promise<void> {
+        await this.updateContextEstimate(tokens);
+        logger.info(`[SessionManager] Updated context token size post-compaction: ${tokens}`);
+    }
+
+    /**
+     * Updates the current context estimate without counting a failed request as usage.
+     */
+    async updateContextEstimate(tokens: number): Promise<void> {
         if (!this.sessionData) return;
-        this.sessionData.lastInputTokens = tokens;
+        this.sessionData.lastInputTokens = Number.isFinite(tokens) ? Math.max(0, tokens) : 0;
         try {
             await this.atomicWrite();
-            logger.info(`[SessionManager] Updated context token size post-compaction: ${tokens}`);
         } catch (e) {
-            logger.error(`[SessionManager] Failed to update post-compaction tokens: ${e}`);
+            logger.error(`[SessionManager] Failed to update context estimate: ${e}`);
         }
     }
 
@@ -155,9 +187,9 @@ export class SessionManager {
             await fs.promises.unlink(this.sessionFilePath);
             this.sessionData = null;
             logger.info('[SessionManager] Session cleared');
-        } catch (e: any) {
-            if (e.code !== 'ENOENT') {
-                logger.error(`[SessionManager] Failed to clear session: ${e}`);
+        } catch (error: unknown) {
+            if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+                logger.error(`[SessionManager] Failed to clear session: ${error}`);
             }
         }
     }
@@ -204,12 +236,15 @@ export class SessionManager {
     private async atomicWrite(): Promise<void> {
         if (!this.sessionData) return;
 
-        const tempPath = `${this.sessionFilePath}.tmp`;
+        const tempPath = `${this.sessionFilePath}.${process.pid}.${randomUUID()}.tmp`;
         const dir = path.dirname(this.sessionFilePath);
 
         try {
             await fs.promises.mkdir(dir, { recursive: true });
-            await fs.promises.writeFile(tempPath, JSON.stringify(this.sessionData, null, 2));
+            await fs.promises.writeFile(tempPath, JSON.stringify(this.sessionData, null, 2), {
+                encoding: 'utf-8',
+                mode: 0o600
+            });
             await fs.promises.rename(tempPath, this.sessionFilePath);
         } catch (e) {
             // Cleanup temp file if it exists
@@ -266,27 +301,41 @@ export class SessionManager {
     }
 
     /**
-     * Garbage-collects old session chat files from the given tmp directory.
-     * Keeps the newest `maxCount` files and deletes anything older than `maxAgeDays`.
+     * Garbage-collects the current flat chats directory while retaining support
+     * for the legacy project/chats layout during migration.
      */
     async garbageCollect(
         tmpDir: string,
         maxAgeDays: number = 3,
-        maxCount: number = 50
+        maxCount: number = 50,
+        protectedSessionIds: readonly string[] = []
     ): Promise<number> {
         let deleted = 0;
+        const protectedNames = new Set(
+            protectedSessionIds.flatMap((sessionId) => {
+                const parsed = SessionIdSchema.safeParse(sessionId);
+                if (!parsed.success) return [];
+                return [`${parsed.data}.json`, `${parsed.data}.jsonl`];
+            })
+        );
         try {
-            // Find all chats directories recursively
             const entries = await fs.promises.readdir(tmpDir, { withFileTypes: true });
-            for (const entry of entries) {
-                if (!entry.isDirectory()) continue;
-                const chatsDir = path.join(tmpDir, entry.name, 'chats');
-                try {
-                    await fs.promises.access(chatsDir);
-                } catch {
-                    continue;
-                }
+            const containsCurrentChats = entries.some(
+                (entry) => entry.isFile() && entry.name.endsWith('.json')
+            );
+            const chatsDirectories = containsCurrentChats ? [tmpDir] : [];
 
+            for (const entry of entries.filter((candidate) => candidate.isDirectory())) {
+                const legacyChatsDir = path.join(tmpDir, entry.name, 'chats');
+                try {
+                    await fs.promises.access(legacyChatsDir);
+                    chatsDirectories.push(legacyChatsDir);
+                } catch {
+                    // Not a legacy project directory.
+                }
+            }
+
+            for (const chatsDir of chatsDirectories) {
                 const files = await fs.promises.readdir(chatsDir);
                 const jsonFiles = files.filter((f) => f.endsWith('.json'));
 
@@ -305,6 +354,7 @@ export class SessionManager {
 
                 for (let i = 0; i < fileStats.length; i++) {
                     const file = fileStats[i];
+                    if (protectedNames.has(path.basename(file.path))) continue;
                     const isOverCount = i >= maxCount;
                     const isOverAge = now - file.mtime > maxAgeMs;
 
@@ -322,9 +372,14 @@ export class SessionManager {
             if (deleted > 0) {
                 logger.info(`[SessionManager] Garbage collected ${deleted} old session files`);
             }
-        } catch (e: any) {
-            if (e.code !== 'ENOENT') {
-                logger.warn(`[SessionManager] GC failed: ${e.message}`);
+        } catch (error: unknown) {
+            const code =
+                typeof error === 'object' && error !== null && 'code' in error
+                    ? Reflect.get(error, 'code')
+                    : undefined;
+            if (code !== 'ENOENT') {
+                const message = error instanceof Error ? error.message : String(error);
+                logger.warn(`[SessionManager] GC failed: ${message}`);
             }
         }
         return deleted;

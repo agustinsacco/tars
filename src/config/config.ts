@@ -1,229 +1,227 @@
-import path from 'path';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
+import path from 'path';
+
 import dotenv from 'dotenv';
+import { z } from 'zod';
+
 import logger from '../utils/logger.js';
-import { SecretsManager } from '../utils/secrets-manager.js';
 import { getTarsHome } from '../utils/paths.js';
+import { SecretsManager } from '../utils/secrets-manager.js';
+import {
+    ChannelConfigSchema,
+    ConfigFileSchema,
+    RuntimeConfigSchema,
+    type RuntimeConfig
+} from './schema.js';
 
 dotenv.config();
 
-// Centralized Compression Thresholds
 export const COMPRESSION_THRESHOLD = 0.6;
 export const PREFLIGHT_COMPRESSION_THRESHOLD = 0.75;
 
-export interface ChannelConfig {
-    enabled: boolean;
-    token?: string;
-    ownerId?: string;
+export type ChannelConfig = z.infer<typeof ChannelConfigSchema>;
+
+function getRecord(value: unknown): Record<string, unknown> {
+    const result = ConfigFileSchema.safeParse(value);
+    return result.success ? result.data : {};
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+function getNonEmptyEnvironmentValue(value: string | undefined): string | undefined {
+    return value?.trim() ? value : undefined;
+}
+
+function readConfigFile(configFilePath: string): Record<string, unknown> {
+    if (!fs.existsSync(configFilePath)) return {};
+    const parsed: unknown = JSON.parse(fs.readFileSync(configFilePath, 'utf-8'));
+    return ConfigFileSchema.parse(parsed);
+}
+
+function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfig {
+    const statusUpdates = getRecord(jsonConfig.statusUpdates);
+    const channels = getRecord(jsonConfig.channels);
+    const discord = getRecord(channels.discord);
+
+    return RuntimeConfigSchema.parse({
+        assistantName: process.env.ASSISTANT_NAME ?? jsonConfig.assistantName,
+        instanceName: process.env.TARS_INSTANCE_NAME ?? jsonConfig.instanceName,
+        instanceRole: process.env.TARS_INSTANCE_ROLE ?? jsonConfig.instanceRole,
+        geminiModel: process.env.GEMINI_MODEL ?? jsonConfig.geminiModel,
+        piProvider: process.env.PI_PROVIDER ?? jsonConfig.piProvider,
+        piModel: process.env.PI_MODEL ?? jsonConfig.piModel,
+        piBaseUrl: process.env.PI_BASE_URL ?? jsonConfig.piBaseUrl,
+        inferenceBackend: process.env.INFERENCE_BACKEND ?? jsonConfig.inferenceBackend,
+        localInferenceUrl: process.env.LOCAL_INFERENCE_URL ?? jsonConfig.localInferenceUrl,
+        statusUpdates: {
+            tars:
+                process.env.STATUS_UPDATES_TARS ??
+                process.env.STATUS_UPDATES_GEMINI ??
+                statusUpdates.tars ??
+                statusUpdates.gemini,
+            llamacpp: process.env.STATUS_UPDATES_LLAMACPP ?? statusUpdates.llamacpp
+        },
+        heartbeatIntervalSec:
+            getNonEmptyEnvironmentValue(process.env.HEARTBEAT_INTERVAL_SEC) ??
+            jsonConfig.heartbeatIntervalSec,
+        contextWindowTokens:
+            getNonEmptyEnvironmentValue(process.env.CONTEXT_WINDOW_TOKENS) ??
+            jsonConfig.contextWindowTokens,
+        compressionThreshold:
+            getNonEmptyEnvironmentValue(process.env.COMPRESSION_THRESHOLD) ??
+            jsonConfig.compressionThreshold,
+        preflightCompressionThreshold:
+            getNonEmptyEnvironmentValue(process.env.PREFLIGHT_COMPRESSION_THRESHOLD) ??
+            jsonConfig.preflightCompressionThreshold,
+        maxRPM:
+            getNonEmptyEnvironmentValue(process.env.TARS_MAX_RPM) ??
+            getNonEmptyEnvironmentValue(process.env.GEMINI_MAX_RPM) ??
+            jsonConfig.maxRPM,
+        maxTPM:
+            getNonEmptyEnvironmentValue(process.env.TARS_MAX_TPM) ??
+            getNonEmptyEnvironmentValue(process.env.GEMINI_MAX_TPM) ??
+            jsonConfig.maxTPM,
+        channels,
+        primaryChannel: jsonConfig.primaryChannel,
+        discordToken: process.env.DISCORD_TOKEN ?? jsonConfig.discordToken ?? discord.token ?? '',
+        discordOwnerId:
+            process.env.DISCORD_OWNER_ID ?? jsonConfig.discordOwnerId ?? discord.ownerId ?? null
+    });
 }
 
 export class Config {
     private static instance: Config;
 
-    // Paths
     public readonly homeDir: string;
     public readonly taskFilePath: string;
     public readonly sessionFilePath: string;
     public readonly configFilePath: string;
     public readonly memoryDbPath: string;
-
-    // Discord (Legacy support)
     public discordToken: string;
     public discordOwnerId: string | null;
-
-    // Multi-Channel
-    public readonly channels: Record<string, ChannelConfig> = {};
-    public primaryChannel: string = 'discord';
-
-    // Gemini (Legacy fallback/compatibility)
+    public readonly channels: Record<string, ChannelConfig>;
+    public primaryChannel: string;
     public readonly geminiModel: string;
     public readonly assistantName: string;
     public readonly instanceName: string;
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
-
-    // Pi Agent SDK Configuration
     public readonly piProvider: string;
     public readonly piModel: string;
     public readonly piBaseUrl: string;
-
-    // Inference Backend
     public readonly inferenceBackend: 'tars' | 'llamacpp';
     public readonly localInferenceUrl: string;
-
-    // Feature Flags — per-backend toggles for optional features
-    public readonly statusUpdates: {
-        tars: boolean;
-        llamacpp: boolean;
-    };
-
-    // Context & Compression
+    public readonly statusUpdates: Readonly<{ tars: boolean; llamacpp: boolean }>;
     public readonly contextWindowTokens: number;
     public readonly compressionThreshold: number;
     public readonly preflightCompressionThreshold: number;
-
-    // Rate Limiting
     public readonly maxRPM: number;
     public readonly maxTPM: number;
-
-    // System Prompt
     public readonly systemPromptPath: string;
 
     private constructor() {
-        // 1. Establish Home Directory
         this.homeDir = getTarsHome();
         this.configFilePath = path.join(this.homeDir, 'config.json');
 
-        // 1.5 Load Secrets into environment
-        const secretsManager = new SecretsManager(this.homeDir);
-        const secrets = secretsManager.load();
+        const secrets = new SecretsManager(this.homeDir).load();
         for (const [key, value] of Object.entries(secrets)) {
-            process.env[key] = value;
+            if (process.env[key] === undefined) process.env[key] = value;
         }
 
-        // 2. Load JSON Config if exists
-        let jsonConfig: any = {};
+        let jsonConfig: Record<string, unknown> = {};
         try {
-            if (fs.existsSync(this.configFilePath)) {
-                jsonConfig = JSON.parse(fs.readFileSync(this.configFilePath, 'utf-8'));
-            }
-        } catch (error) {
-            logger.warn(`Could not read config file: ${this.configFilePath}`);
+            jsonConfig = readConfigFile(this.configFilePath);
+        } catch (error: unknown) {
+            throw new Error(
+                `Invalid Tars configuration at ${this.configFilePath}: ${getErrorMessage(error)}`
+            );
         }
 
-        // 3. Set values (Env vars override JSON config)
-        this.assistantName = process.env.ASSISTANT_NAME || jsonConfig.assistantName || 'Tars';
-        this.instanceName = process.env.TARS_INSTANCE_NAME || 'tars-supervisor';
-        this.instanceRole = process.env.TARS_INSTANCE_ROLE || 'General purpose';
-        this.geminiModel = process.env.GEMINI_MODEL || jsonConfig.geminiModel || 'auto';
-        this.piProvider = process.env.PI_PROVIDER || jsonConfig.piProvider || 'google';
-        this.piModel = process.env.PI_MODEL || jsonConfig.piModel || 'gemini-2.5-flash';
-        this.piBaseUrl = process.env.PI_BASE_URL || jsonConfig.piBaseUrl || '';
-        const rawBackend = (
-            process.env.INFERENCE_BACKEND ||
-            jsonConfig.inferenceBackend ||
-            'tars'
-        ).toLowerCase();
-        this.inferenceBackend =
-            rawBackend === 'pi' || rawBackend === 'gemini' || rawBackend === 'tars'
-                ? 'tars'
-                : 'llamacpp';
-        this.localInferenceUrl =
-            process.env.LOCAL_INFERENCE_URL ||
-            jsonConfig.localInferenceUrl ||
-            'http://localhost:8080';
+        let config: RuntimeConfig;
+        try {
+            config = resolveRuntimeConfig(jsonConfig);
+        } catch (error: unknown) {
+            throw new Error(`Invalid Tars configuration: ${getErrorMessage(error)}`);
+        }
 
-        // Feature flags: per-backend status update toggles (default: enabled)
-        const parseBool = (val: string | boolean | undefined): boolean => {
-            if (typeof val === 'boolean') return val;
-            if (val === 'true' || val === '1') return true;
-            if (val === 'false' || val === '0') return false;
-            return true; // default on
-        };
-        const suJson = jsonConfig.statusUpdates || {};
-        this.statusUpdates = {
-            tars: parseBool(
-                process.env.STATUS_UPDATES_TARS ??
-                    process.env.STATUS_UPDATES_GEMINI ??
-                    suJson.tars ??
-                    suJson.gemini
-            ),
-            llamacpp: parseBool(process.env.STATUS_UPDATES_LLAMACPP ?? suJson.llamacpp)
-        };
+        this.assistantName = config.assistantName;
+        this.instanceName = config.instanceName;
+        this.instanceRole = config.instanceRole;
+        this.geminiModel = config.geminiModel;
+        this.piProvider = config.piProvider;
+        this.piModel = config.piModel;
+        this.piBaseUrl = config.piBaseUrl;
+        this.inferenceBackend = config.inferenceBackend;
+        this.localInferenceUrl = config.localInferenceUrl;
+        this.statusUpdates = config.statusUpdates;
+        this.heartbeatIntervalMs = config.heartbeatIntervalSec * 1_000;
+        this.contextWindowTokens = config.contextWindowTokens;
+        this.compressionThreshold = config.compressionThreshold;
+        this.preflightCompressionThreshold = config.preflightCompressionThreshold;
+        this.maxRPM = config.maxRPM;
+        this.maxTPM = config.maxTPM;
+        this.channels = config.channels;
+        this.primaryChannel = config.primaryChannel;
+        this.discordToken = config.discordToken;
+        this.discordOwnerId = config.discordOwnerId;
 
-        const hbSec =
-            process.env.HEARTBEAT_INTERVAL_SEC || jsonConfig.heartbeatIntervalSec || '300';
-        this.heartbeatIntervalMs = parseInt(String(hbSec), 10) * 1000;
-
-        this.contextWindowTokens = parseInt(
-            String(process.env.CONTEXT_WINDOW_TOKENS || jsonConfig.contextWindowTokens || '128000'),
-            10
-        );
-
-        this.compressionThreshold = parseFloat(
-            String(process.env.COMPRESSION_THRESHOLD || jsonConfig.compressionThreshold || '0.60')
-        );
-
-        this.preflightCompressionThreshold = parseFloat(
-            String(
-                process.env.PREFLIGHT_COMPRESSION_THRESHOLD ||
-                    jsonConfig.preflightCompressionThreshold ||
-                    '0.75'
-            )
-        );
-
-        this.maxRPM = parseInt(String(process.env.GEMINI_MAX_RPM || jsonConfig.maxRPM || '14'), 10);
-        this.maxTPM = parseInt(
-            String(process.env.GEMINI_MAX_TPM || jsonConfig.maxTPM || '900000'),
-            10
-        );
-
-        // 4. Initialize Channels
-        this.channels = jsonConfig.channels || {};
-        this.primaryChannel = jsonConfig.primaryChannel || 'discord';
-
-        // 5. Legacy Mapping & Env Overrides
-        this.discordToken = process.env.DISCORD_TOKEN || jsonConfig.discordToken || '';
-        this.discordOwnerId = process.env.DISCORD_OWNER_ID || jsonConfig.discordOwnerId || null;
-
-        // Sync legacy to structured config if missing
         if (this.discordToken && !this.channels.discord) {
             this.channels.discord = {
                 enabled: true,
-                token: this.discordToken,
                 ownerId: this.discordOwnerId || undefined
             };
         }
 
-        // 6. Derived Paths
         this.taskFilePath = path.join(this.homeDir, 'data', 'tasks.json');
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
         this.systemPromptPath = path.join(this.homeDir, 'system.md');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
 
-        if (!this.discordToken && !Object.values(this.channels).some((c) => c.enabled)) {
+        if (
+            !this.discordToken &&
+            !Object.values(this.channels).some((channel) => channel.enabled)
+        ) {
             logger.warn('⚠️ No active communication channels found. Please run `tars setup`.');
         }
     }
 
     public static getInstance(): Config {
-        if (!Config.instance) {
-            Config.instance = new Config();
-        }
+        if (!Config.instance) Config.instance = new Config();
         return Config.instance;
     }
 
-    /**
-     * Check if a feature flag is enabled for the current inference backend.
-     */
     public isStatusUpdatesEnabled(): boolean {
         return this.statusUpdates[this.inferenceBackend] ?? false;
     }
 
-    /**
-     * Persists runtime changes back to config.json
-     */
     public saveSettings(): void {
         try {
-            let currentConfig: any = {};
-            if (fs.existsSync(this.configFilePath)) {
-                currentConfig = JSON.parse(fs.readFileSync(this.configFilePath, 'utf-8'));
-            }
-
-            // Sync legacy discordOwnerId into structured config
+            const currentConfig = readConfigFile(this.configFilePath);
             if (this.channels.discord && this.discordOwnerId) {
                 this.channels.discord.ownerId = this.discordOwnerId;
             }
 
-            // Update fields
-            currentConfig.discordOwnerId = this.discordOwnerId;
-            currentConfig.channels = this.channels;
-            currentConfig.primaryChannel = this.primaryChannel;
-
-            fs.writeFileSync(this.configFilePath, JSON.stringify(currentConfig, null, 2));
+            const updatedConfig = {
+                ...currentConfig,
+                discordOwnerId: this.discordOwnerId,
+                channels: this.channels,
+                primaryChannel: this.primaryChannel
+            };
+            const tempPath = `${this.configFilePath}.${process.pid}.${randomUUID()}.tmp`;
+            fs.mkdirSync(path.dirname(this.configFilePath), { recursive: true });
+            fs.writeFileSync(tempPath, JSON.stringify(updatedConfig, null, 2), {
+                encoding: 'utf-8',
+                mode: 0o600
+            });
+            fs.renameSync(tempPath, this.configFilePath);
             logger.info('💾 Config updated successfully.');
-        } catch (error: any) {
-            logger.error(`❌ Failed to save config: ${error.message}`);
+        } catch (error: unknown) {
+            const message = getErrorMessage(error);
+            logger.error(`❌ Failed to save config: ${message}`);
+            throw new Error(`Failed to save Tars configuration: ${message}`);
         }
     }
 }

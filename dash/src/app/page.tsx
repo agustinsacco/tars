@@ -1,30 +1,55 @@
 'use client';
+import { motion } from 'framer-motion';
+import { Box, RefreshCcw, Shield } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect, useState, type ReactElement } from 'react';
+
 import { MetricsPanel, LogViewer } from '@/components/MetricsPanel';
 import { FileExplorer } from '@/components/FileExplorer';
-import {
-    IntelligencePanel,
-    SessionIntelligence,
-    CognitiveBuffer,
-    JobQueue
-} from '@/components/IntelligencePanel';
+import { SessionIntelligence, CognitiveBuffer, JobQueue } from '@/components/IntelligencePanel';
 import { SystemActions } from '@/components/SystemActions';
 import { SocketProvider, useSocket } from '@/context/SocketContext';
-import { Shield, Box, RefreshCcw } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
 
-function DashboardContent() {
-    const { socket, subscribe, unsubscribe } = useSocket();
-    const [intelData, setIntelligenceData] = useState<any>(null);
+type IntelligenceData = Record<string, unknown>;
+
+interface IntelligenceUpdate {
+    readonly type: string;
+    readonly data: unknown;
+}
+
+function isRecord(value: unknown): value is IntelligenceData {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isIntelligenceUpdate(value: unknown): value is IntelligenceUpdate {
+    return isRecord(value) && typeof value.type === 'string' && 'data' in value;
+}
+
+function getSessionLabel(data: IntelligenceData | null, isConnected: boolean): string {
+    if (!isConnected) return 'Disconnected';
+    if (!data || !isRecord(data.session)) return 'Awaiting session';
+
+    const sessionId = data.session.sessionId;
+    return typeof sessionId === 'string' && sessionId.trim() ? sessionId : 'No active session';
+}
+
+function DashboardContent(): ReactElement {
+    const { isConnected, socket, subscribe, unsubscribe } = useSocket();
+    const [intelData, setIntelligenceData] = useState<IntelligenceData | null>(null);
 
     useEffect(() => {
         if (!socket) return;
         subscribe('intelligence');
 
-        const handleInit = (initData: any) => setIntelligenceData(initData);
-        const handleUpdate = ({ type, data }: any) => {
-            setIntelligenceData((prev: any) => ({ ...prev, [type]: data }));
+        const handleInit = (initData: unknown): void => {
+            if (isRecord(initData)) setIntelligenceData(initData);
+        };
+        const handleUpdate = (update: unknown): void => {
+            if (!isIntelligenceUpdate(update)) return;
+            setIntelligenceData((previous) => ({
+                ...(previous ?? {}),
+                [update.type]: update.data
+            }));
         };
 
         socket.on('intelligence_init', handleInit);
@@ -37,9 +62,10 @@ function DashboardContent() {
         };
     }, [socket, subscribe, unsubscribe]);
 
-    const handleFullRefresh = () => {
+    const handleFullRefresh = (): void => {
         window.location.reload();
     };
+    const sessionLabel = getSessionLabel(intelData, isConnected);
 
     return (
         <main className="min-h-screen bg-background text-white p-4 md:p-8 selection:bg-accent-primary selection:text-white overflow-x-hidden font-mono">
@@ -63,9 +89,19 @@ function DashboardContent() {
                         <h1 className="text-sm md:text-lg font-black tracking-widest text-white uppercase flex items-center gap-2">
                             Tars <span className="text-accent-primary">Dash</span>
                         </h1>
-                        <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-bold text-accent-secondary">
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent-secondary animate-pulse shadow-[0_0_8px_#10B981]"></span>
-                            OPERATIONAL
+                        <div
+                            className={`flex items-center gap-2 text-[9px] md:text-[10px] font-bold ${
+                                isConnected ? 'text-accent-secondary' : 'text-accent-danger'
+                            }`}
+                        >
+                            <span
+                                className={`h-1.5 w-1.5 rounded-full ${
+                                    isConnected
+                                        ? 'animate-pulse bg-accent-secondary shadow-[0_0_8px_#10B981]'
+                                        : 'bg-accent-danger'
+                                }`}
+                            />
+                            {isConnected ? 'CONNECTED' : 'OFFLINE'}
                         </div>
                     </div>
                 </div>
@@ -73,13 +109,14 @@ function DashboardContent() {
                 <div className="flex items-center gap-2 md:gap-6">
                     <button
                         onClick={handleFullRefresh}
+                        aria-label="Reload dashboard data"
                         className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 p-2 px-3 rounded-xl transition-all group"
                     >
                         <RefreshCcw
                             size={14}
                             className="text-accent-primary group-active:rotate-180 transition-transform duration-500"
                         />
-                        <span className="hidden xs:block text-[10px] font-black uppercase tracking-widest">
+                        <span className="hidden sm:block text-[10px] font-black uppercase tracking-widest">
                             Full Refresh
                         </span>
                     </button>
@@ -88,8 +125,11 @@ function DashboardContent() {
                         <span className="opacity-40 uppercase text-[8px] font-bold tracking-tighter">
                             Current Session
                         </span>
-                        <span className="text-[10px] md:text-xs font-black text-white">
-                            ADMIN@SACCO_LABS
+                        <span
+                            className="max-w-48 truncate text-[10px] font-black text-white md:text-xs"
+                            title={sessionLabel}
+                        >
+                            {sessionLabel}
                         </span>
                     </div>
                     <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl border border-white/10 flex items-center justify-center bg-white/5 shadow-inner">
@@ -148,16 +188,20 @@ function DashboardContent() {
 
                 <div className="flex flex-wrap justify-center items-center gap-x-10 gap-y-4 px-4">
                     <div className="flex items-center gap-2">
-                        <span className="opacity-40">Lat:</span>
-                        <span className="text-accent-secondary">12ms</span>
+                        <span className="opacity-40">Status:</span>
+                        <span
+                            className={isConnected ? 'text-accent-secondary' : 'text-accent-danger'}
+                        >
+                            {isConnected ? 'Connected' : 'Offline'}
+                        </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="opacity-40">Feed:</span>
-                        <span className="text-white/60">Live_Socket</span>
+                        <span className="text-white/60">Socket.IO</span>
                     </div>
-                    <div className="hidden xs:flex items-center gap-2">
-                        <span className="opacity-40">Sec:</span>
-                        <span className="text-accent-primary">Local_Node</span>
+                    <div className="hidden sm:flex items-center gap-2">
+                        <span className="opacity-40">Scope:</span>
+                        <span className="text-accent-primary">Tars_Home</span>
                     </div>
                 </div>
             </footer>
@@ -165,7 +209,7 @@ function DashboardContent() {
     );
 }
 
-export default function Home() {
+export default function Home(): ReactElement {
     return (
         <SocketProvider>
             <DashboardContent />

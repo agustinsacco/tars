@@ -327,11 +327,22 @@ export class TuiChannel implements CommunicationChannel {
         this.tui?.stop();
     }
 
-    /**
-     * Send a proactive notification to the terminal.
-     * Used for status updates (first send) and background task notifications.
-     */
+    /** Send a durable proactive notification to the terminal. */
     async notify(content: string): Promise<void> {
+        if (!content.trim()) return;
+
+        if (!this.tui) {
+            const formatted = TuiRenderer.formatMarkdown(content);
+            this.write(formatted + '\n');
+            return;
+        }
+
+        this.chatContainer.addChild(new Markdown(content, 1, 0, TuiRenderer.markdownTheme));
+        this.tui.requestRender();
+    }
+
+    /** Send and track a transient notification for in-place status editing. */
+    async sendStatus(content: string): Promise<void> {
         if (!content.trim()) return;
 
         if (!this.tui) {

@@ -1,70 +1,36 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Secrets Management
-description: Securely storing and managing platform credentials.
-section: CLI Reference
+title: Secrets
+description: Store credential values locally without putting them in config.json.
+section: CLI
 ---
-
-## Overview
-
-Tars provides a built-in secrets manager for storing sensitive values like API keys and tokens. Secrets are stored locally with restricted file permissions.
 
 ## Commands
 
-### Set a Secret
-
 ```bash
-tars secret set GITHUB_TOKEN ghp_abc123def456
-```
-
-Stores the key-value pair in `~/.tars/.env`. The supervisor must be restarted to pick up new secrets.
-
-### List Secrets
-
-```bash
+read -rs TARS_SECRET_VALUE
+printf '%s' "$TARS_SECRET_VALUE" | tars secret set OPENAI_API_KEY
+unset TARS_SECRET_VALUE
 tars secret list
+tars secret remove OPENAI_API_KEY
 ```
 
-Displays all stored secret **keys only** — values are never shown:
+Secrets are stored in `~/.tars/.env` with restricted permissions. `list` prints key names, never
+values. Passing the value through standard input keeps it out of shell history, process arguments,
+and tool logs. Restart the supervisor after a change.
 
-```
-🔒 Stored Secrets (Keys only)
-──────────────────────────
-- DISCORD_TOKEN
-- GITHUB_TOKEN
-- OPENAI_API_KEY
-```
+Configuration precedence is:
 
-### Remove a Secret
+1. environment already exported to the process;
+2. `~/.tars/.env`;
+3. `~/.tars/config.json`;
+4. validated defaults.
 
-```bash
-tars secret remove GITHUB_TOKEN
-```
+Loading `.env` does not overwrite an already exported value.
 
-Deletes the key-value pair from the `.env` file.
+Never put credentials in `config.json`, prompts, memory, skill files, logs, or source control. MCP
+extensions receive only the minimal runtime environment plus variables explicitly listed in their
+manifest or enablement `envAllowlist`.
 
-## Security
-
-### File Permissions
-
-The `.env` file is written with **`0o600` permissions** (owner read/write only). This prevents other users on the system from reading your secrets.
-
-### Storage Format
-
-Standard dotenv format with escaped quotes:
-
-```
-GITHUB_TOKEN="ghp_abc123def456"
-DISCORD_TOKEN="MTI..."
-```
-
-### Environment Loading
-
-At supervisor startup:
-
-1. `SecretsManager.load()` reads `~/.tars/.env`
-2. All key-value pairs are injected into `process.env`
-3. The Tars supervisor passes these variables to the Pi Agent SDK and custom MCP servers during startup
-4. Tars (and its extensions) can access secrets via `process.env.KEY_NAME`
-
-This means secrets are available to both Tars and any MCP extensions it runs.
+Secret redaction in logs and events is a defense-in-depth measure, not comprehensive DLP. Avoid
+passing a secret to a model or tool in the first place.

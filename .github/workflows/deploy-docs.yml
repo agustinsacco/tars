@@ -2,50 +2,82 @@ name: Deploy Documentation
 
 on:
     push:
-        branches:
-            - main
+        branches: [main]
         paths:
             - 'site/**'
+            - '.infra/tars-docs/**'
             - '.github/workflows/deploy-docs.yml'
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: tars-documentation-production
+    cancel-in-progress: true
+
+env:
+    IMAGE_NAME: saccodigital/tars-docs
+    KUBECTL_VERSION: v1.30.3
 
 jobs:
     build-and-deploy:
+        name: Build immutable image and deploy
         runs-on: ubuntu-latest
+        timeout-minutes: 20
+        environment: documentation-production
         steps:
-            - name: Checkout Code
-              uses: actions/checkout@v4
+            - name: Checkout
+              uses: actions/checkout@v6
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
+              uses: docker/setup-buildx-action@v4
 
-            - name: Login to Docker Hub
-              uses: docker/login-action@v3
+            - name: Log in to Docker Hub
+              uses: docker/login-action@v4
               with:
                   username: ${{ secrets.DOCKER_HUB_USER }}
                   password: ${{ secrets.DOCKER_HUB_PASSWORD }}
 
-            - name: Build and Push Docker Image
-              uses: docker/build-push-action@v5
+            - name: Build and push
+              id: build
+              uses: docker/build-push-action@v7
               with:
                   context: ./site
                   push: true
                   tags: |
-                      saccodigital/tars-docs:latest
-                      saccodigital/tars-docs:${{ github.sha }}
+                      ${{ env.IMAGE_NAME }}:${{ github.sha }}
+                      ${{ env.IMAGE_NAME }}:latest
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
 
-            - name: Connect to Tailscale
-              uses: tailscale/github-action@v2
+            - name: Connect to deployment network
+              uses: tailscale/github-action@v4
               with:
                   authkey: ${{ secrets.TS_AUTH_KEY }}
                   tags: tag:ci
 
-            - name: Setup Kubectl
-              uses: ./.github/actions/kubectl
-              env:
-                  KUBE_CONFIG: ${{ secrets.ULTRON_KUBE_CONFIG }}
+            - name: Install kubectl
+              uses: azure/setup-kubectl@v5
+              with:
+                  version: ${{ env.KUBECTL_VERSION }}
 
-            - name: Deploy to K3s
+            - name: Configure Kubernetes credentials
+              env:
+                  KUBE_CONFIG_BASE64: ${{ secrets.ULTRON_KUBE_CONFIG }}
+              run: |
+                  install -d -m 700 "$RUNNER_TEMP/tars-kube"
+                  printf '%s' "$KUBE_CONFIG_BASE64" | base64 --decode > "$RUNNER_TEMP/tars-kube/config"
+                  chmod 600 "$RUNNER_TEMP/tars-kube/config"
+                  echo "KUBECONFIG=$RUNNER_TEMP/tars-kube/config" >> "$GITHUB_ENV"
+
+            - name: Apply and verify deployment
+              env:
+                  IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
               run: |
                   kubectl create namespace tars --dry-run=client -o yaml | kubectl apply -f -
-                  kubectl apply -k .infra/tars-docs
-                  kubectl rollout restart deployment/tars-docs -n tars
+                  kubectl kustomize .infra/tars-docs > "$RUNNER_TEMP/tars-docs.yaml"
+                  sed -i "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}@${IMAGE_DIGEST}#" "$RUNNER_TEMP/tars-docs.yaml"
+                  grep -Fq "image: ${IMAGE_NAME}@${IMAGE_DIGEST}" "$RUNNER_TEMP/tars-docs.yaml"
+                  kubectl apply -f "$RUNNER_TEMP/tars-docs.yaml"
+                  kubectl rollout status deployment/tars-docs -n tars --timeout=180s

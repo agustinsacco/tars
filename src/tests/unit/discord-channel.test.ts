@@ -1,186 +1,329 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { DiscordChannel } from '../../channels/discord/discord-channel.js';
-import { Config } from '../../config/config.js';
-import { Message, Client, ChannelType } from 'discord.js';
+import type { Message } from 'discord.js';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
-// Mock discord.js
-vi.mock('discord.js', () => {
-    return {
-        Client: vi.fn().mockImplementation(() => {
-            return {
-                on: vi.fn(),
-                once: vi.fn(),
-                login: vi.fn(),
-                destroy: vi.fn(),
-                users: { fetch: vi.fn() },
-                channels: {
-                    cache: new Map(),
-                    fetch: vi.fn()
-                }
-            };
-        }),
-        GatewayIntentBits: {
-            Guilds: 1,
-            GuildMessages: 2,
-            MessageContent: 3,
-            DirectMessages: 4
-        },
-        Partials: {
-            Channel: 1,
-            Message: 2,
-            User: 3
-        },
-        ChannelType: {
-            DM: 1,
-            GuildText: 0
+import { DiscordChannel } from '../../channels/discord/discord-channel.js';
+import type { ChannelMessage } from '../../channels/types.js';
+import { Config } from '../../config/config.js';
+
+const discordMocks = vi.hoisted(() => {
+    const client = {
+        on: vi.fn(),
+        once: vi.fn(),
+        login: vi.fn(),
+        destroy: vi.fn(),
+        user: null as { id: string } | null,
+        users: { fetch: vi.fn() },
+        channels: {
+            cache: new Map<string, unknown>(),
+            fetch: vi.fn()
         }
+    };
+
+    return {
+        client,
+        Client: vi.fn(function ClientMock() {
+            return client;
+        })
     };
 });
 
-describe('DiscordChannel', () => {
-    let discordChannel: any; // using any to access private methods for testing
-    let mockClient: any;
+vi.mock('discord.js', () => ({
+    Client: discordMocks.Client,
+    GatewayIntentBits: {
+        Guilds: 1,
+        GuildMessages: 2,
+        MessageContent: 3,
+        DirectMessages: 4
+    },
+    Partials: {
+        Channel: 1,
+        Message: 2,
+        User: 3
+    }
+}));
+
+interface TestConfig {
+    readonly discordToken: string;
+    readonly assistantName: string;
+    discordOwnerId: string | null;
+    readonly homeDir: string;
+    readonly channels: {
+        discord: {
+            enabled: boolean;
+            ownerId?: string;
+        };
+    };
+    readonly saveSettings: ReturnType<typeof vi.fn>;
+}
+
+interface DiscordChannelHarness {
+    readonly client: typeof discordMocks.client;
+    readonly processedMessages: Set<string>;
+    handleIncomingMessage(message: Message): Promise<void>;
+}
+
+interface MessageOptions {
+    readonly id?: string;
+    readonly content?: string;
+    readonly authorId?: string;
+    readonly username?: string;
+    readonly guildId?: string | null;
+    readonly channelId?: string;
+    readonly bot?: boolean;
+}
+
+function createMessage(options: MessageOptions = {}): Message {
+    const username = options.username ?? 'test-user';
+
+    return {
+        id: options.id ?? 'message-id',
+        content: options.content ?? 'Hello Tars',
+        author: {
+            id: options.authorId ?? 'owner-id',
+            username,
+            tag: `${username}#0001`,
+            bot: options.bot ?? false
+        },
+        guildId: options.guildId ?? null,
+        channelId: options.channelId ?? 'dm-channel',
+        attachments: new Map(),
+        mentions: { has: vi.fn(() => false) },
+        reply: vi.fn(),
+        channel: { sendTyping: vi.fn().mockResolvedValue(undefined) }
+    } as unknown as Message;
+}
+
+function asHarness(channel: DiscordChannel): DiscordChannelHarness {
+    return channel as unknown as DiscordChannelHarness;
+}
+
+describe('DiscordChannel trust boundary', () => {
+    let config: TestConfig;
+    let channel: DiscordChannel;
+    let harness: DiscordChannelHarness;
+    let handler: Mock<(message: ChannelMessage) => Promise<void>>;
 
     beforeEach(() => {
-        vi.clearAllMocks();
-        // Setup minimal config instance config
-        const configProto = {
+        vi.useFakeTimers();
+        discordMocks.Client.mockImplementation(function ClientMock() {
+            return discordMocks.client;
+        });
+        discordMocks.client.channels.cache.clear();
+        discordMocks.client.user = null;
+
+        config = {
             discordToken: 'test-token',
             assistantName: 'Tars',
             discordOwnerId: 'owner-id',
             homeDir: '/tmp/tars-test',
-            channels: { discord: {} },
+            channels: { discord: { enabled: true, ownerId: 'owner-id' } },
             saveSettings: vi.fn()
         };
-        vi.spyOn(Config, 'getInstance').mockReturnValue(configProto as any);
+        vi.spyOn(Config, 'getInstance').mockReturnValue(config as unknown as Config);
 
-        discordChannel = new DiscordChannel();
-        mockClient = discordChannel.client;
+        channel = new DiscordChannel();
+        harness = asHarness(channel);
+        handler = vi.fn(async (_message: ChannelMessage): Promise<void> => undefined);
+        channel.onMessage(handler);
     });
 
     afterEach(() => {
-        vi.clearAllMocks();
+        vi.clearAllTimers();
+        vi.useRealTimers();
+        vi.resetAllMocks();
+        vi.restoreAllMocks();
     });
 
-    describe('Message Deduplication', () => {
-        it('should process a message only once if deduplicated (cache timeout)', async () => {
-            let processedCount = 0;
+    it('processes a direct message from the configured owner only once', async () => {
+        // ARRANGE
+        const message = createMessage({ id: 'owner-message' });
 
-            // Register a mock handler
-            discordChannel.onMessage(async (msg: any) => {
-                processedCount++;
-            });
+        // ACT
+        await harness.handleIncomingMessage(message);
+        await harness.handleIncomingMessage(message);
 
-            // Create a mock discord.js Message object
-            const mockMessage = {
-                id: 'msg-123',
-                content: 'Hello World',
-                author: { id: 'user-1', tag: 'user#0001', bot: false },
-                guildId: null,
-                channelId: 'dm-1',
-                attachments: new Map(),
-                reply: vi.fn(),
-                channel: {
-                    sendTyping: vi.fn().mockResolvedValue({})
-                }
-            };
-
-            // Call the incoming handler twice with the same message
-            await discordChannel.handleIncomingMessage(mockMessage as any);
-            await discordChannel.handleIncomingMessage(mockMessage as any);
-
-            // Assert it only hit the handler once
-            expect(processedCount).toBe(1);
-        });
-
-        it('should correctly deduplicate across raw event and standard messageCreate', async () => {
-            // Retrieve the event listeners bound in the constructor
-            const messageCreateHandler = mockClient.on.mock.calls.find(
-                (c: any) => c[0] === 'messageCreate'
-            )[1];
-
-            const rawHandler = mockClient.on.mock.calls.find((c: any) => c[0] === 'raw')[1];
-
-            let processedCount = 0;
-            discordChannel.onMessage(async (msg: any) => {
-                processedCount++;
-            });
-
-            const mockMessage = {
-                id: 'msg-race',
-                content: 'Race condition test',
-                author: { id: 'user-1', username: 'user', bot: false },
-                guildId: null, // Ensure DM
-                channelId: 'dm-1',
-                attachments: new Map()
-            };
-
-            // Mock the hydration process fetching
-            mockClient.channels.cache.has = vi.fn().mockReturnValue(false); // Uncached channel
-            mockClient.channels.fetch.mockResolvedValue({
-                isTextBased: () => true,
-                messages: {
-                    fetch: vi.fn().mockResolvedValue(mockMessage)
-                }
-            });
-
-            // Simulate the Discord WebSocket receiving packet first (raw event)
-            const packet = {
-                t: 'MESSAGE_CREATE',
-                d: {
-                    id: 'msg-race',
-                    author: { username: 'user' },
-                    channel_id: 'dm-1'
-                }
-            };
-
-            // Fire both handlers as if discord.js triggered them at the same exact moment
-            await Promise.all([rawHandler(packet), messageCreateHandler(mockMessage)]);
-
-            // Deduplication logic prevents it from hitting the supervisor twice
-            expect(processedCount).toBe(1);
-        });
+        // ASSERT
+        expect(handler).toHaveBeenCalledOnce();
     });
 
-    describe('Routing & Notifications', () => {
-        it('should track last active user/channel and direct notifications to them', async () => {
-            discordChannel.onMessage(async () => {});
+    it('honors an explicit Discord channel disable even when a token exists', () => {
+        // ARRANGE
+        config.channels.discord.enabled = false;
 
-            const mockMessage = {
-                id: 'msg-active',
-                content: 'Test message',
-                author: { id: 'user-active-123', username: 'active_user', bot: false },
-                guildId: null,
-                channelId: 'channel-active-456',
-                attachments: new Map(),
-                reply: vi.fn(),
-                channel: {
-                    sendTyping: vi.fn().mockResolvedValue({})
-                }
-            };
+        // ACT / ASSERT
+        expect(channel.isEnabled).toBe(false);
+    });
 
-            // Handle incoming message to set lastActiveUser
-            await discordChannel.handleIncomingMessage(mockMessage as any);
+    it('uses the resolved owner ID when legacy and structured fields are stale', async () => {
+        // ARRANGE
+        config.channels.discord.ownerId = 'stale-owner-id';
+        const message = createMessage({ id: 'resolved-owner-message' });
 
-            // Mock fetch channel and send
-            const mockSend = vi
-                .fn()
-                .mockResolvedValue({ id: 'sent-msg-1', channelId: 'channel-active-456' });
-            mockClient.channels.fetch.mockResolvedValue({
-                isTextBased: () => true,
-                send: mockSend
-            });
+        // ACT
+        await harness.handleIncomingMessage(message);
 
-            // Send notification
-            await discordChannel.notify('Hello to last active!');
+        // ASSERT
+        expect(handler).toHaveBeenCalledOnce();
+    });
 
-            // Verify it was routed to the last active channel
-            expect(mockClient.channels.fetch).toHaveBeenCalledWith('channel-active-456');
-            expect(mockSend).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    content: expect.stringContaining('Hello to last active!')
-                })
-            );
+    it('ignores an unauthorized direct message without mutating routing or dedupe state', async () => {
+        // ARRANGE
+        const message = createMessage({ id: 'intruder-dm', authorId: 'intruder-id' });
+
+        // ACT
+        await harness.handleIncomingMessage(message);
+
+        // ASSERT
+        expect(handler).not.toHaveBeenCalled();
+        expect(config.saveSettings).not.toHaveBeenCalled();
+        expect(harness.processedMessages.has('intruder-dm')).toBe(false);
+    });
+
+    it('ignores an addressed guild message from an unauthorized user', async () => {
+        // ARRANGE
+        const message = createMessage({
+            id: 'intruder-guild',
+            content: '!tars mutate state',
+            authorId: 'intruder-id',
+            guildId: 'guild-id',
+            channelId: 'guild-channel'
         });
+
+        // ACT
+        await harness.handleIncomingMessage(message);
+
+        // ASSERT
+        expect(handler).not.toHaveBeenCalled();
+        expect(harness.processedMessages.has('intruder-guild')).toBe(false);
+    });
+
+    it('does not treat ordinary guild chatter as owner activity', async () => {
+        // ARRANGE
+        const message = createMessage({
+            id: 'guild-chatter',
+            content: 'A conversation between humans',
+            guildId: 'guild-id',
+            channelId: 'guild-channel'
+        });
+
+        // ACT
+        await harness.handleIncomingMessage(message);
+
+        // ASSERT
+        expect(handler).not.toHaveBeenCalled();
+        expect(harness.processedMessages.has('guild-chatter')).toBe(false);
+    });
+
+    it('never lets the first direct message claim an unconfigured instance', async () => {
+        // ARRANGE
+        config.discordOwnerId = null;
+        config.channels.discord.ownerId = undefined;
+        const message = createMessage({
+            id: 'first-message',
+            authorId: 'first-user',
+            channelId: 'first-channel'
+        });
+
+        // ACT
+        await harness.handleIncomingMessage(message);
+
+        // ASSERT
+        expect(config.discordOwnerId).toBeNull();
+        expect(config.channels.discord.ownerId).toBeUndefined();
+        expect(config.saveSettings).not.toHaveBeenCalled();
+        expect(handler).not.toHaveBeenCalled();
+        expect(harness.processedMessages.has('first-message')).toBe(false);
+    });
+
+    it('also rejects guild messages while ownership is unconfigured', async () => {
+        // ARRANGE
+        config.discordOwnerId = null;
+        config.channels.discord.ownerId = undefined;
+        const guildMessage = createMessage({
+            id: 'guild-binding-attempt',
+            content: '!tars bind me',
+            authorId: 'guild-user',
+            guildId: 'guild-id',
+            channelId: 'guild-channel'
+        });
+
+        // ACT
+        await harness.handleIncomingMessage(guildMessage);
+
+        // ASSERT
+        expect(config.discordOwnerId).toBeNull();
+        expect(config.saveSettings).not.toHaveBeenCalled();
+        expect(handler).not.toHaveBeenCalled();
+        expect(harness.processedMessages.has('guild-binding-attempt')).toBe(false);
+    });
+
+    it('always sends proactive notifications by DM to the configured owner', async () => {
+        // ARRANGE
+        await harness.handleIncomingMessage(
+            createMessage({
+                id: 'owner-activity',
+                content: '!tars status',
+                guildId: 'guild-id',
+                channelId: 'shared-guild-channel'
+            })
+        );
+        const send = vi.fn().mockResolvedValue({
+            id: 'sent-message',
+            channelId: 'owner-dm-channel'
+        });
+        discordMocks.client.users.fetch.mockResolvedValue({ send });
+
+        // ACT
+        await channel.notify('Owner-only notification');
+
+        // ASSERT
+        expect(discordMocks.client.users.fetch).toHaveBeenCalledWith('owner-id');
+        expect(discordMocks.client.channels.fetch).not.toHaveBeenCalled();
+        expect(send).toHaveBeenCalledWith(
+            expect.objectContaining({ content: expect.stringContaining('Owner-only notification') })
+        );
+    });
+
+    it('does not replace the editable status target with an ordinary notification', async () => {
+        // ARRANGE
+        const send = vi
+            .fn()
+            .mockResolvedValueOnce({ id: 'status-message', channelId: 'owner-dm-channel' })
+            .mockResolvedValueOnce({ id: 'durable-message', channelId: 'owner-dm-channel' });
+        const edit = vi.fn().mockResolvedValue(undefined);
+        const fetchMessage = vi.fn().mockResolvedValue({ edit });
+        discordMocks.client.users.fetch.mockResolvedValue({ send });
+        discordMocks.client.channels.fetch.mockResolvedValue({
+            isTextBased: () => true,
+            messages: { fetch: fetchMessage }
+        });
+
+        // ACT
+        await channel.sendStatus('Working');
+        await channel.notify('Important tool notification');
+        const edited = await channel.editStatus('Still working');
+
+        // ASSERT
+        expect(edited).toBe(true);
+        expect(fetchMessage).toHaveBeenCalledWith('status-message');
+        expect(fetchMessage).not.toHaveBeenCalledWith('durable-message');
+        expect(edit).toHaveBeenCalledWith(expect.stringContaining('Still working'));
+    });
+
+    it('reports notification failure when no owner is configured', async () => {
+        // ARRANGE
+        config.discordOwnerId = null;
+        config.channels.discord.ownerId = undefined;
+
+        // ACT / ASSERT
+        await expect(channel.notify('Important update')).rejects.toThrow(/owner ID/);
+    });
+
+    it('reports Discord API delivery failures to the caller', async () => {
+        // ARRANGE
+        discordMocks.client.users.fetch.mockRejectedValue(new Error('API unavailable'));
+
+        // ACT / ASSERT
+        await expect(channel.notify('Important update')).rejects.toThrow(/API unavailable/);
     });
 });

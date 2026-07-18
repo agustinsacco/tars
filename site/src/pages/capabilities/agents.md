@@ -1,39 +1,32 @@
 ---
 layout: ../../layouts/DocLayout.astro
-title: Multi-Agent Orchestration
-description: delegating complex tasks to specialized sub-agents.
+title: Execution Model
+description: One active agent coordinated by a deterministic supervisor.
 section: Capabilities
 ---
 
-## Overview
+Tars currently runs one active agent. The supervisor serializes inbound work, preserves the active
+session, invokes the configured model, and routes tool and text events back to the originating
+channel.
 
-Tars utilizes a **Supervisor-Orchestrator** model to handle complex, multi-step engineering tasks. While the Supervisor manages the primary conversation and system state, it can delegate specialized technical work to **Sub-agents**.
+## What the supervisor coordinates
 
-## How Sub-agents Work
+- Discord or terminal messages;
+- one active conversation history;
+- model streaming and tool calls;
+- explicit scheduled tasks;
+- memory refresh after fact mutations;
+- background maintenance and cleanup.
 
-1.  **Context Injection**: The Supervisor identifies a high-complexity task (e.g., "Build a React dashboard").
-2.  **Specialized Persona**: It invokes a sub-agent with a dedicated system prompt tailored for that specific domain.
-3.  **Autonomous Execution**: The sub-agent runs in an ephemeral, isolated session. It has access to the same toolset as the Supervisor but focuses entirely on the technical objective.
-4.  **Handoff**: Once the task is complete, the sub-agent's findings or artifacts are returned to the Supervisor, who then presents them to the user.
+Scheduled tasks use the same supervised execution path. They are not delegated to independent
+workers or isolated sessions.
 
-## Built-in Agents
+## No sub-agent orchestration
 
-### Scaffolder Agent
+Tars does not currently spawn specialist agents, route work among roles, or provide a multi-agent
+task graph. `TARS_INSTANCE_ROLE` is operator metadata for a named process; it does not create a
+specialized agent architecture.
 
-The `scaffolder` is a specialized agent for structural project setup. It is capable of:
-
-- Initializing project boilerplates (Next.js, Vite, Node.js).
-- Configuring complex `tsconfig.json` or `eslint` setups.
-- Creating standardized directory structures for new features.
-
-## Creation & Management
-
-Sub-agents are managed dynamically by the supervisor and the Pi Agent SDK runtime. Each sub-agent runs with system instructions tailored for that specific persona.
-
-Tars can create new sub-agents at runtime if it identifies a repeating persona that would benefit from specialized isolation.
-
-## Benefits
-
-- **Reduced Hallucinations**: By focusing the context on a specific domain, sub-agents are less likely to conflate unrelated information.
-- **Context Hygiene**: Sub-agent interactions don't bloat the main user conversation, keeping the response speed high.
-- **Parallelism**: In future updates, Tars will support spawning multiple sub-agents to work on different parts of a project simultaneously.
+If a workflow needs separation, use explicit tools, narrow skills, separate OS accounts, or an
+external job system. Do not assume model-written delegation provides a security or concurrency
+boundary.
