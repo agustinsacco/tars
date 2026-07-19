@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.42.1](https://github.com/agustinsacco/tars/compare/v1.42.0...v1.42.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* harden validation and quality checks ([#163](https://github.com/agustinsacco/tars/issues/163)) ([a51f688](https://github.com/agustinsacco/tars/commit/a51f688cc6d9e257addcdb2a180ac72f7cebcfe6))
+
 ## [1.42.0](https://github.com/agustinsacco/tars/compare/v1.41.1...v1.42.0) (2026-07-18)
 
 
