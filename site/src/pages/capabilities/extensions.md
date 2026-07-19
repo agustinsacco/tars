@@ -33,10 +33,14 @@ Entries can be booleans or objects:
 For legacy object entries, a missing `enabled` property means enabled.
 
 Custom extensions must explicitly declare an environment policy for every server. Use
-`"envAllowlist": []` when no host variables are needed, or list only the required names. Tars blocks
-updates while an enabled legacy extension lacks this acknowledgment, so tools cannot disappear only
-after the production restart. External working directories are no longer accepted; keep `cwd`
-inside the extension directory.
+`"envAllowlist": []` when no host variables are needed, or list only the required names. Audit and
+migrate older entries through `tars extensions audit` and `tars extensions migrate`. Tars pauses an
+update before installation when the target release reports a blocker. External working directories
+are not accepted; keep `cwd` inside the extension directory.
+
+An interactive `tars restart` launches the migration when necessary and continues only after the
+policies pass. See [Extension Policy Audit](/cli/extensions) for choices, backups, non-interactive
+behavior, and source-scan limitations.
 
 Bundled extensions are installed as managed copies. Bootstrap converts legacy bundled-extension
 symlinks to managed copies; `TARS_DEV_EXTENSION_LINKS=true` is an explicit source-development mode,

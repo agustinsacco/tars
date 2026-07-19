@@ -11,6 +11,7 @@ import { z } from 'zod';
 
 import logger from '../utils/logger.js';
 import { DLPService } from '../utils/dlp-service.js';
+import { scanExtensionEnvironmentReferences } from '../utils/mcp-environment-audit.js';
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
@@ -98,9 +99,13 @@ export interface McpExtension {
 }
 
 export interface McpPolicyViolation {
+    readonly code: 'external-working-directory' | 'missing-environment-policy';
     readonly extension: string;
+    readonly manifestPath: string;
     readonly reason: string;
     readonly server: string;
+    readonly suggestedEnvironmentVariables: readonly string[];
+    readonly suggestionScanTruncated: boolean;
 }
 
 function formatError(error: unknown): string {
@@ -184,16 +189,28 @@ export function findMcpPolicyViolations(homeDir: string): McpPolicyViolation[] {
 
         const rawManifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
         const manifest = ExtensionManifestSchema.parse(rawManifest);
+        const explicitEnvironmentNames = Object.values(manifest.mcpServers).flatMap((server) =>
+            Object.keys(server.env ?? {})
+        );
+        let environmentScan: ReturnType<typeof scanExtensionEnvironmentReferences> | undefined;
         for (const [serverName, server] of Object.entries(manifest.mcpServers)) {
             if (
                 entry.envAllowlist === undefined &&
                 manifest.envAllowlist === undefined &&
                 server.envAllowlist === undefined
             ) {
+                environmentScan ??= scanExtensionEnvironmentReferences(
+                    extensionPath,
+                    explicitEnvironmentNames
+                );
                 violations.push({
+                    code: 'missing-environment-policy',
                     extension: directoryName,
+                    manifestPath,
                     server: serverName,
-                    reason: 'missing an explicit envAllowlist (use [] when no inherited variables are required)'
+                    reason: 'missing an explicit envAllowlist',
+                    suggestedEnvironmentVariables: environmentScan.names,
+                    suggestionScanTruncated: environmentScan.truncated
                 });
             }
 
@@ -203,26 +220,19 @@ export function findMcpPolicyViolations(homeDir: string): McpPolicyViolation[] {
                 const candidate = fs.realpathSync(path.resolve(realExtensionPath, requestedPath));
                 if (!isWithinDirectory(realExtensionPath, candidate)) {
                     violations.push({
+                        code: 'external-working-directory',
                         extension: directoryName,
+                        manifestPath,
                         server: serverName,
-                        reason: 'configures a cwd outside its extension directory'
+                        reason: 'configures a cwd outside its extension directory',
+                        suggestedEnvironmentVariables: [],
+                        suggestionScanTruncated: false
                     });
                 }
             }
         }
     }
     return violations;
-}
-
-export function assertMcpPoliciesReadyForUpdate(homeDir: string): void {
-    const violations = findMcpPolicyViolations(homeDir);
-    if (violations.length === 0) return;
-    const details = violations
-        .map(({ extension, server, reason }) => `${extension}/${server}: ${reason}`)
-        .join('; ');
-    throw new Error(
-        `Update blocked until custom MCP policies are migrated: ${details}. Review extension-enablement.json and tars-extension.json, then retry.`
-    );
 }
 
 export class McpBridge {

@@ -14,6 +14,7 @@ compiled supervisor directly or use `npm run start` to control an installed inst
 tars status
 tars logs
 tars quota
+tars extensions audit
 ```
 
 `status` reports the PM2 process and active session. Use logs for heartbeat, cron, extension, and
@@ -66,6 +67,15 @@ reason and ask the operator to run:
 
 ```bash
 tars restart
+```
+
+Restart automatically opens the guided extension-policy migration when an enabled custom MCP
+server still uses a legacy environment policy. The operator must make those trust decisions in an
+interactive shell. For a standalone review or migration, use:
+
+```bash
+tars extensions audit
+tars extensions migrate
 ```
 
 Stop the daemon before using `tars chat --no-discord` for foreground troubleshooting. The CLI

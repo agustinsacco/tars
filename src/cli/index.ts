@@ -12,6 +12,7 @@ import { discord } from './commands/discord.js';
 import { secret } from './commands/secret.js';
 import { quota } from './commands/quota.js';
 import { uninstall } from './commands/uninstall.js';
+import { extensions } from './commands/extensions.js';
 
 import { versionString } from '../utils/version.js';
 
@@ -68,6 +69,14 @@ program
             extensions: !options.dashboardOnly
         });
         if (!refreshed) process.exitCode = 1;
+    });
+
+program
+    .command('extensions')
+    .description('Audit or migrate custom MCP extension security policies')
+    .argument('<action>', 'Action to perform (audit or migrate)')
+    .action(async (action: unknown) => {
+        if (!(await extensions(action))) process.exitCode = 1;
     });
 
 program

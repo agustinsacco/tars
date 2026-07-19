@@ -65,6 +65,12 @@ export const NAV_SECTIONS = [
                 summary: 'Store provider and channel credentials with the Tars CLI.'
             },
             {
+                title: 'Extension Policy Audit',
+                href: '/cli/extensions',
+                summary: 'Audit and migrate custom MCP extension security policies.',
+                keywords: ['MCP', 'envAllowlist', 'update', 'restart', 'migration']
+            },
+            {
                 title: 'Backup and Restore',
                 href: '/cli/portability',
                 summary: 'Export, import, and refresh a Tars installation safely.'

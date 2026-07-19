@@ -35,3 +35,7 @@ MCP extensions live under `~/.tars/extensions/` and must be listed in
 `extension-enablement.json`. Review the executable code, restrict its environment allowlist, and set
 bounded startup and tool timeouts before enabling it. Restart Tars after manifest or enablement
 changes.
+
+Use `tars extensions audit` for a read-only policy check and `tars extensions migrate` for guided
+legacy-policy migration. Restart loads the reviewed policy and opens the migration automatically
+when an interactive decision is still required.

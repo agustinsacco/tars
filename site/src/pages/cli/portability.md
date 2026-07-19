@@ -42,4 +42,10 @@ Do not manually extract an untrusted archive into `~/.tars/`.
 
 Install the same or newer Tars version on the destination, copy the archive over a protected
 channel, import it, then re-enter excluded secrets with `tars secret set`. Review extension paths and
-enablement before starting the supervisor.
+enablement before starting the supervisor:
+
+```bash
+tars extensions audit
+tars extensions migrate
+tars start
+```

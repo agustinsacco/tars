@@ -8,15 +8,31 @@ import ora from 'ora';
 import { z } from 'zod';
 import { restartActiveTarsProcessesByHome } from '../../utils/pm2-processes.js';
 import { getTarsHome } from '../../utils/paths.js';
-import { assertMcpPoliciesReadyForUpdate } from '../../supervisor/mcp-bridge.js';
+import { findMcpPolicyViolations, type McpPolicyViolation } from '../../supervisor/mcp-bridge.js';
 import { pkg } from '../../utils/version.js';
 import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
+import { printMcpPolicyAudit } from './extensions.js';
 import { refresh } from './refresh.js';
 
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/);
 const packageSchema = z.object({ version: versionSchema }).passthrough();
 const sensitiveEnvironmentKeyPattern = /(api_?key|credential|password|private_?key|secret|token)/i;
 const packageManagerCredentialKeys = new Set(['NODE_AUTH_TOKEN', 'NPM_TOKEN']);
+const TARGET_PREFLIGHT_TIMEOUT_MS = 60_000;
+const TargetPreflightResultSchema = z.object({
+    contractVersion: z.literal(1),
+    blockers: z.array(
+        z.object({
+            code: z.enum(['external-working-directory', 'missing-environment-policy']),
+            extension: z.string(),
+            manifestPath: z.string(),
+            reason: z.string(),
+            server: z.string(),
+            suggestedEnvironmentVariables: z.array(z.string()),
+            suggestionScanTruncated: z.boolean()
+        })
+    )
+});
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -29,6 +45,16 @@ function createUpdateEnvironment(): NodeJS.ProcessEnv {
             return !sensitiveEnvironmentKeyPattern.test(key);
         })
     );
+}
+
+function createPreflightEnvironment(): NodeJS.ProcessEnv {
+    const inheritedNames = ['HOME', 'PATH', 'SystemRoot', 'TMPDIR', 'WINDIR'];
+    const environment: NodeJS.ProcessEnv = { NODE_NO_WARNINGS: '1' };
+    for (const name of inheritedNames) {
+        const value = process.env[name];
+        if (value !== undefined) environment[name] = value;
+    }
+    return environment;
 }
 
 function npmOutput(args: string[]): string {
@@ -88,6 +114,33 @@ async function stageLatestPackage(version: string): Promise<string> {
     }
 }
 
+function getStagedPackageRoot(stagingRoot: string): string {
+    return path.join(stagingRoot, 'node_modules', '@saccolabs', 'tars');
+}
+
+async function runTargetUpdatePreflight(
+    stagingRoot: string,
+    tarsHome: string
+): Promise<McpPolicyViolation[]> {
+    const targetModulePath = path.join(
+        getStagedPackageRoot(stagingRoot),
+        'dist',
+        'cli',
+        'update-preflight.js'
+    );
+    if (!fs.existsSync(targetModulePath)) return findMcpPolicyViolations(tarsHome);
+
+    const output = execFileSync(process.execPath, [targetModulePath, tarsHome], {
+        encoding: 'utf8',
+        env: createPreflightEnvironment(),
+        maxBuffer: 5 * 1024 * 1024,
+        timeout: TARGET_PREFLIGHT_TIMEOUT_MS,
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+    const rawResult: unknown = JSON.parse(output);
+    return TargetPreflightResultSchema.parse(rawResult).blockers;
+}
+
 export async function update(): Promise<boolean> {
     const tarsHome = getTarsHome();
     return withTarsHomeMutationLease(tarsHome, 'update Tars', () => updateWithLease(tarsHome));
@@ -123,8 +176,19 @@ async function updateWithLease(tarsHome: string): Promise<boolean> {
     let componentRefreshComplete = false;
 
     try {
-        assertMcpPoliciesReadyForUpdate(tarsHome);
         stagingRoot = await stageLatestPackage(latest);
+        const policyViolations = await runTargetUpdatePreflight(stagingRoot, tarsHome);
+        if (policyViolations.length > 0) {
+            upgradeSpinner.warn(
+                chalk.yellow(
+                    `Update paused: ${policyViolations.length} custom MCP server polic${policyViolations.length === 1 ? 'y needs' : 'ies need'} review.`
+                )
+            );
+            printMcpPolicyAudit(tarsHome, policyViolations);
+            console.log(chalk.yellow('\nNo packages or configuration were changed.'));
+            console.log(chalk.cyan('Run `tars extensions migrate`, then retry `tars update`.'));
+            return false;
+        }
         upgradeSpinner.text = '📦 Installing the validated update...';
         globalUpgradeAttempted = true;
         execFileSync(
