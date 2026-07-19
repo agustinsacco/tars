@@ -40,6 +40,7 @@ Prerequisites:
 ```bash
 npm install -g @saccolabs/tars
 tars setup
+tars extensions audit
 tars start
 tars status
 ```
@@ -57,13 +58,16 @@ writes, or memory index operations; those commands refuse a live lease.
 | ---------------------------------- | ---------------------------------------------------------- |
 | `tars setup`                       | Create or update the local configuration.                  |
 | `tars start` / `tars stop`         | Start or stop PM2 processes for the configured Tars home.  |
-| `tars restart`                     | Restart active processes without installing an update.     |
+| `tars restart`                     | Review policies if needed, then restart active processes.  |
 | `tars status`                      | Show process and active-session metrics.                   |
 | `tars logs`                        | Follow logs for the configured supervisor.                 |
 | `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.       |
 | `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`. |
+| `tars extensions audit`            | Inspect custom MCP environment and working-dir policies.   |
+| `tars extensions migrate`          | Interactively migrate legacy custom extension policies.    |
 | `tars memory search QUERY`         | Search the local knowledge index.                          |
 | `tars export` / `tars import FILE` | Back up or restore the Tars workspace.                     |
+| `tars update`                      | Stage, validate, install, and restart an available update. |
 | `tars refresh`                     | Rebuild packaged dashboard and extensions transactionally. |
 
 Run `tars --help` for the complete command reference.
@@ -76,6 +80,12 @@ read -rs TARS_SECRET_VALUE
 printf '%s' "$TARS_SECRET_VALUE" | tars secret set KEY
 unset TARS_SECRET_VALUE
 ```
+
+Custom extensions must explicitly list the host environment-variable names they receive. Audit
+them with `tars extensions audit`; use the guided `tars extensions migrate` flow for older entries.
+The migration scans extension source for likely names but requires an operator decision and never
+prints or copies secret values. `tars restart` launches the same review when required and continues
+the restart only after every blocking policy is resolved.
 
 ## Runtime layout
 

@@ -14,6 +14,7 @@ import crypto from 'node:crypto';
 import { z } from 'zod';
 import { RuntimeConfigSchema } from '../../config/schema.js';
 import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
+import { migrateMcpPoliciesInteractively } from './extensions.js';
 
 const ExistingSetupConfigSchema = z
     .object({
@@ -536,6 +537,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     if (!extensionsRefreshed) {
         throw new Error('Extension installation failed. Setup did not complete.');
     }
+    const extensionPolicyMigration = await migrateMcpPoliciesInteractively(tarsHome);
 
     // Hydrate Dashboard if enabled
     if (dashConfig.enableDash) {
@@ -553,7 +555,13 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     }
 
     // Done
-    console.log(chalk.green.bold('\n✅ Tars is ready!'));
+    if (extensionPolicyMigration.ready) {
+        console.log(chalk.green.bold('\n✅ Tars is ready!'));
+    } else {
+        console.log(
+            chalk.yellow.bold('\n⚠️ Core setup is complete; custom extensions need review.')
+        );
+    }
     console.log(chalk.dim(`\n  Provider:       ${piProvider}`));
     console.log(chalk.dim(`  Model:          ${piModel}`));
     if (piBaseUrl) {
@@ -562,4 +570,11 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     console.log(`\n  Start Tars:     ${chalk.cyan('tars start')}`);
     console.log(`  Check status:   ${chalk.cyan('tars status')}`);
     console.log(`  View logs:      ${chalk.cyan('tars logs')}`);
+    if (!extensionPolicyMigration.ready) {
+        console.log(
+            chalk.yellow(
+                `\n  Custom extensions remain disabled. Run: ${chalk.cyan('tars extensions migrate')}`
+            )
+        );
+    }
 }

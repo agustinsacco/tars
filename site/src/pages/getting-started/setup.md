@@ -38,9 +38,22 @@ start with a missing, known-default, or shorter-than-16-character password.
 
 Keep it on loopback and use an authenticated tunnel for remote access.
 
+## Extensions
+
+Setup refreshes the bundled extensions and audits enabled custom MCP policies. If an older custom
+extension lacks an explicit environment allowlist, setup opens the guided migration. Review every
+suggested variable name; suggestions come from extension source and are not automatically trusted.
+
+You can repeat the read-only check at any time:
+
+```bash
+tars extensions audit
+```
+
 ## Verify
 
 ```bash
+tars extensions audit
 tars start
 tars status
 tars logs

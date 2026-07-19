@@ -26,6 +26,7 @@ does not require Docker for its application runtime.
 
 ```bash
 tars setup
+tars extensions audit
 tars start
 tars status
 ```
@@ -44,5 +45,10 @@ This foreground mode does not connect Discord or start the dashboard, heartbeat,
 
 ## Upgrade
 
-Use `tars update` to install an available package update. Use `tars refresh` only to rebuild the
-dashboard and built-in extensions from the package already installed.
+Use `tars update` to stage, preflight, and install an available package update. Do not stop Tars
+first; active processes are restarted after a successful update. If preflight pauses for a custom
+extension policy, run `tars extensions migrate` and retry. No package or configuration is changed by
+a paused preflight.
+
+Use `tars refresh` only to rebuild the dashboard and built-in extensions from the package already
+installed.

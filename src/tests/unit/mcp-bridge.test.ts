@@ -60,11 +60,7 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
     getDefaultEnvironment: mcpMocks.getDefaultEnvironment
 }));
 
-import {
-    assertMcpPoliciesReadyForUpdate,
-    findMcpPolicyViolations,
-    McpBridge
-} from '../../supervisor/mcp-bridge.js';
+import { findMcpPolicyViolations, McpBridge } from '../../supervisor/mcp-bridge.js';
 
 function createClient(tools: MockMcpTool[] = []): MockMcpClient {
     return {
@@ -206,6 +202,10 @@ describe('McpBridge trust boundary', () => {
                 primary: { command: 'node', args: ['${extensionPath}/server.js'] }
             }
         });
+        fs.writeFileSync(
+            path.join(homeDir, 'extensions', 'legacy-custom', 'server.js'),
+            'const token = process.env.LEGACY_CUSTOM_TOKEN;\n'
+        );
         writeEnablement(homeDir, { 'legacy-custom': true });
 
         // ACT
@@ -215,9 +215,13 @@ describe('McpBridge trust boundary', () => {
         expect(tools).toEqual([]);
         expect(mcpMocks.StdioClientTransport).not.toHaveBeenCalled();
         expect(findMcpPolicyViolations(homeDir)).toEqual([
-            expect.objectContaining({ extension: 'legacy-custom', server: 'primary' })
+            expect.objectContaining({
+                code: 'missing-environment-policy',
+                extension: 'legacy-custom',
+                server: 'primary',
+                suggestedEnvironmentVariables: ['LEGACY_CUSTOM_TOKEN']
+            })
         ]);
-        expect(() => assertMcpPoliciesReadyForUpdate(homeDir)).toThrow(/Update blocked/);
     });
 
     it('passes only safe, explicit, and allowlisted environment variables to a server', async () => {

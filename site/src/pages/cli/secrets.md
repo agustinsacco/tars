@@ -32,5 +32,9 @@ Never put credentials in `config.json`, prompts, memory, skill files, logs, or s
 extensions receive only the minimal runtime environment plus variables explicitly listed in their
 manifest or enablement `envAllowlist`.
 
+Run `tars extensions audit` after adding an extension or changing its credentials. The audit and
+guided migration handle variable names only; they never display credential values. See
+[Extension Policy Audit](/cli/extensions).
+
 Secret redaction in logs and events is a defense-in-depth measure, not comprehensive DLP. Avoid
 passing a secret to a model or tool in the first place.

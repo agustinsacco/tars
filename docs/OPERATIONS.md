@@ -59,6 +59,12 @@ Refresh builds in staging and replaces installed dashboard or extension assets o
 successful build. A failed replacement rolls back. It does not update the npm package version;
 `tars update` handles package updates.
 
+Do not stop Tars before an ordinary update. The updater stages the target package, runs its
+configuration preflight, installs only after validation succeeds, refreshes packaged components,
+and restarts processes that were active when the update began. If preflight finds a required
+migration, the update is paused before installation and reports that no package or configuration
+was changed.
+
 ## Dashboard
 
 The optional dashboard is disabled by default. Setup generates a strong password when the dashboard
@@ -72,6 +78,31 @@ reduce risk but do not make the dashboard safe for an untrusted network.
 
 ## Extensions
 
+Audit custom extension policies without changing state:
+
+```bash
+tars extensions audit
+```
+
+Migrate legacy policies interactively:
+
+```bash
+tars extensions migrate
+```
+
+The migration groups findings by extension and scans its source for static `process.env.NAME`
+references. Suggestions are best-effort, not authorization decisions. For each extension, the
+operator must choose detected names, enter reviewed names, explicitly use an empty allowlist,
+disable the extension, or cancel. Tars backs up `extension-enablement.json`, writes the replacement
+atomically with owner-only permissions, and never reads or writes secret values during this flow.
+External working directories require a manifest change; the guided flow can disable the affected
+extension or cancel without writing changes.
+
+`tars restart` runs the same migration automatically when policies are unresolved and the command
+has an interactive terminal. It continues the restart after a successful migration. In
+non-interactive automation it refuses the restart and directs the operator to run
+`tars extensions migrate`; it never silently grants environment access.
+
 Review `~/.tars/extensions/extension-enablement.json` before restart. It is a strict allowlist; an
 absent or invalid file disables all extensions. Omit a custom extension or set `enabled: false` to
 prevent it from running. Bootstrap authorizes missing bundled-extension entries but preserves an
@@ -81,8 +112,9 @@ Grant only required environment variables through each server's `envAllowlist`. 
 trusted local subprocess and has no sandbox.
 
 Every custom MCP server must explicitly declare `envAllowlist`, including an empty array when it
-needs no inherited variables. `tars update` blocks before installation if an enabled legacy server
-has not acknowledged this policy or configures a working directory outside its extension.
+needs no inherited variables. `tars update` pauses before installation if an enabled legacy server
+has not acknowledged this policy or configures a working directory outside its extension. Use the
+audit and migration commands instead of editing policy JSON blindly.
 
 Bundled extensions are installed as managed copies. Bootstrap converts legacy bundled-extension
 symlinks to copies so an installed release does not depend on a source checkout. Source developers

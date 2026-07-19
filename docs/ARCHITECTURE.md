@@ -98,6 +98,18 @@ Subprocesses receive a minimal runtime environment, explicitly allowlisted host 
 manifest-defined values. Tool names remain raw when unique; collisions receive deterministic
 extension namespaces.
 
+The CLI exposes the same trust-boundary checks through `tars extensions audit` and the transactional
+`tars extensions migrate` workflow. Migration suggestions come from a bounded static scan for
+`process.env` references; the operator remains responsible for the final allowlist. `tars restart`
+runs this review before restarting, while non-interactive restarts fail closed when a decision is
+required.
+
+Updates stage the target package before installation and run its versioned, structured preflight in
+a separate Node process with a minimal environment and JSON-only output. This lets a new release
+report configuration blockers that the currently installed release did not know about without
+exposing exported credentials to preflight. A blocked preflight leaves both the global package and
+Tars workspace unchanged.
+
 Extensions are trusted local code and are not sandboxed.
 
 ## Configuration and state
