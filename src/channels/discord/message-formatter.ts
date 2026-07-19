@@ -114,7 +114,7 @@ export class MessageFormatter {
         // Fix trailing-only ** at end of line (text** -> **text**)
         // Only applies when line starts with a letter/number (no leading **)
         // AND has exactly trailing ** (indicative of broken bold)
-        result = result.replace(/^([^*\n][^*]*)(\*\*)$/gm, (match, content, trail) => {
+        result = result.replace(/^([^*\n][^*]*)(\*\*)$/gm, (match, content) => {
             // Check if content already has opening ** - skip if so
             if (content.includes('**')) return match;
             return `**${content.trim()}**`;
@@ -129,20 +129,6 @@ export class MessageFormatter {
                 return `${content.trim()}${punct}**`;
             }
         );
-
-        // Also handle cases specifically ending with punctuation on the line
-        result = result.replace(/^(\*\*[^*]+)(?=\s*([:.,!?-]))/gm, (match, content, punct) => {
-            if (match.endsWith('**')) return match;
-            // Regex lookahead logic is tricky here, simplifiying:
-            // The previous regex fixes the EOL case.
-            // This regex handles mid-line punctuation if we want to support it?
-            // Actually, the previous regex handles `punctuation at the end of the line OR content`.
-            // If we have `**Header: content`, the first regex won't catch it unless it matches newline?
-            // Let's rely on the first regex which is robust for EOL.
-            // For mid-line, if there's no closing `**`, it's hard to guess where it ends.
-            // So we'll skip this second aggressive block to avoid regressions.
-            return match;
-        });
 
         return result;
     }
@@ -209,7 +195,7 @@ export class MessageFormatter {
             return text;
         }
 
-        const jsonPattern = /(?:^|\n)([\[{][\s\S]*?[\]}])(?=\n|$)/g;
+        const jsonPattern = /(?:^|\n)([[{][\s\S]*?[\]}])(?=\n|$)/g;
 
         return text.replace(jsonPattern, (match, json) => {
             try {
@@ -329,13 +315,13 @@ export class MessageFormatter {
             }
 
             // Find best split point, leaving buffer for markdown closures
-            let splitIndex = this.findSemanticSplitPoint(remaining, maxLength - 20);
+            const splitIndex = this.findSemanticSplitPoint(remaining, maxLength - 20);
 
             // If the semantic split failed to find a good spot (e.g., returned the max length)
             // and we are trying to split a continuous block of text (like 3000 'a's),
             // just hard cut it. Our findSemanticSplitPoint ensures it won't be > maxLength - 20.
 
-            let chunk = remaining.substring(0, splitIndex);
+            const chunk = remaining.substring(0, splitIndex);
 
             // Check if we are inside a code block by counting backticks
             let inCodeBlock = false;
@@ -489,7 +475,7 @@ export class MessageFormatter {
             }
 
             // Also check for bold emoji pattern: **🎯 or similar
-            if (line.match(/^\*\*[🎯⚖️📊⚠️✅❓❌]/)) {
+            if (/^\*\*(?:🎯|⚖️|📊|⚠️|✅|❓|❌)/u.test(line)) {
                 const summary = line;
                 const restLines = [...lines.slice(0, i), ...lines.slice(i + 1)];
                 const rest = restLines.join('\n').trim();
@@ -546,7 +532,7 @@ export class MessageFormatter {
             if (typeof value === 'object') {
                 lines.push(`• **${key}:** \`${JSON.stringify(value)}\``);
             } else {
-                lines.push(`• **${key}:** ${value}`);
+                lines.push(`• **${key}:** ${String(value ?? '')}`);
             }
         }
 

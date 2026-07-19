@@ -4,6 +4,8 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
+        // node:sqlite is still marked experimental in the supported Node 22 runtime.
+        execArgv: ['--disable-warning=ExperimentalWarning'],
         include: ['src/tests/**/*.test.ts'],
         coverage: {
             provider: 'v8',
@@ -12,10 +14,10 @@ export default defineConfig({
             reporter: ['text', 'json-summary', 'html'],
             reportsDirectory: 'coverage',
             thresholds: {
-                statements: 45,
-                branches: 39,
-                functions: 50,
-                lines: 46
+                statements: 49,
+                branches: 42,
+                functions: 57,
+                lines: 51
             }
         }
     }

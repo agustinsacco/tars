@@ -14,7 +14,7 @@ async function runMemoryAction(config: Config, action: string, args: string[]): 
     const manager = new MemoryManager(config);
 
     switch (action) {
-        case 'search':
+        case 'search': {
             const query = args.join(' ');
             if (!query) {
                 console.error(chalk.red('❌ Please provide a search query.'));
@@ -35,6 +35,7 @@ async function runMemoryAction(config: Config, action: string, args: string[]): 
                 });
             }
             break;
+        }
 
         case 'sync':
             console.log(chalk.cyan('🔄 Syncing knowledge base...'));

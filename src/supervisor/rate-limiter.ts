@@ -1,5 +1,3 @@
-import logger from '../utils/logger.js';
-
 interface RequestRecord {
     timestamp: number;
     tokens: number;

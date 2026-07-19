@@ -1,11 +1,16 @@
 import {
     Agent,
-    AgentEvent,
-    AgentMessage,
-    AgentTool,
+    type AgentEvent,
+    type AgentMessage,
     type AgentOptions
 } from '@earendil-works/pi-agent-core';
-import { getModel, Model, Message } from '@earendil-works/pi-ai';
+import {
+    getModels,
+    type Api,
+    type KnownProvider,
+    type Model,
+    type Message
+} from '@earendil-works/pi-ai';
 import type { ImageContent } from '@earendil-works/pi-ai/base';
 import {
     createCodingTools,
@@ -15,18 +20,17 @@ import {
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { Config as TarsConfig } from '../config/config.js';
+import { type Config as TarsConfig } from '../config/config.js';
 import logger from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
 import path from 'path';
 
-import { AttachmentContext, TarsEvent } from '../types/index.js';
+import { type AttachmentContext, type TarsEvent } from '../types/index.js';
 
-import { ChannelManager } from '../channels/channel-manager.js';
-import { SendNotificationTool } from '../tools/send-notification.js';
+import { SendNotificationTool, type NotificationChannel } from '../tools/send-notification.js';
 
-import { SessionIdSchema, SessionManager } from './session-manager.js';
+import { SessionIdSchema, type SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
 import { McpBridge } from './mcp-bridge.js';
 import { DLPService } from '../utils/dlp-service.js';
@@ -56,6 +60,7 @@ export type StatusUpdateHandler = (
 ) => void | Promise<void>;
 
 type AgentFactory = (options: AgentOptions) => Agent;
+type RuntimeTool = NonNullable<NonNullable<AgentOptions['initialState']>['tools']>[number];
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -198,6 +203,41 @@ const AgentHistorySchema: z.ZodType<AgentMessage[]> = z.array(
         ToolResultMessageSchema
     ])
 );
+const LegacyContentPartSchema = z.object({ text: z.string().optional() }).passthrough();
+const LegacyToolCallSchema = z
+    .object({
+        id: z.string().optional(),
+        callId: z.string().optional(),
+        name: z.string(),
+        args: z.record(z.string(), z.unknown()).optional(),
+        status: z.string().optional(),
+        result: z.unknown().optional(),
+        isError: z.boolean().optional()
+    })
+    .passthrough();
+const LegacyMessageSchema = z
+    .object({
+        type: z.enum(['user', 'gemini']),
+        content: z.union([z.string(), z.array(LegacyContentPartSchema)]).optional(),
+        toolCalls: z.array(LegacyToolCallSchema).optional(),
+        timestamp: TimestampSchema.optional()
+    })
+    .passthrough();
+const LegacyConversationSchema = z.object({ messages: z.array(z.unknown()) });
+const LegacyProjectRegistrySchema = z.object({
+    projects: z.record(z.string(), z.string())
+});
+
+interface ResumedSessionData {
+    conversation: unknown;
+    filePath: string;
+}
+
+type BuiltInProvider = Extract<KnownProvider, 'google' | 'openai' | 'anthropic'>;
+
+function isBuiltInProvider(provider: string): provider is BuiltInProvider {
+    return provider === 'google' || provider === 'openai' || provider === 'anthropic';
+}
 
 export function parseAgentHistory(value: unknown): AgentMessage[] {
     return AgentHistorySchema.parse(value);
@@ -222,11 +262,11 @@ export function resolveSessionHistoryPath(chatsDir: string, sessionId: string): 
 export class TarsEngine extends EventEmitter {
     private initialized = false;
     private currentSessionId: string | null = null;
-    private channelManager?: ChannelManager;
+    private channelManager?: NotificationChannel;
     private sessionManager?: SessionManager;
     private rateLimiter: LocalRateLimiter;
     private mcpBridge!: McpBridge;
-    private allTools: AgentTool<any>[] = [];
+    private allTools: RuntimeTool[] = [];
     public activeTools: ToolStatus[] = [];
 
     constructor(
@@ -243,7 +283,7 @@ export class TarsEngine extends EventEmitter {
     /**
      * Provide the ChannelManager instance to the engine so it can build proactive notification tools
      */
-    public setChannelManager(channelManager: ChannelManager): void {
+    public setChannelManager(channelManager: NotificationChannel): void {
         this.channelManager = channelManager;
     }
 
@@ -268,28 +308,28 @@ export class TarsEngine extends EventEmitter {
 
         // Initialize MCP bridge
         this.mcpBridge = new McpBridge(this.tarsConfig.homeDir);
-        let mcpTools: AgentTool<any>[] = [];
+        let mcpTools: RuntimeTool[] = [];
         try {
             mcpTools = await this.mcpBridge.initialize();
             logger.info(`🔌 Loaded ${mcpTools.length} MCP tools.`);
-        } catch (err: any) {
-            logger.error(`⚠️ Failed to initialize MCP bridge: ${err.message}`);
+        } catch (error: unknown) {
+            logger.error(`⚠️ Failed to initialize MCP bridge: ${getErrorMessage(error)}`);
         }
 
         // Gather native tools
-        const nativeTools: AgentTool<any>[] = [];
+        const nativeTools: RuntimeTool[] = [];
         if (this.channelManager) {
-            nativeTools.push(new SendNotificationTool(this.channelManager) as any);
+            nativeTools.push(new SendNotificationTool(this.channelManager) as RuntimeTool);
             logger.info('🔌 Registered native tool: send_notification');
         }
 
         // Gather coding tools
-        let codingTools: AgentTool<any>[] = [];
+        let codingTools: RuntimeTool[] = [];
         try {
-            codingTools = createCodingTools(this.tarsConfig.homeDir) as any[];
+            codingTools = createCodingTools(this.tarsConfig.homeDir);
             logger.info(`🔌 Loaded ${codingTools.length} standard coding tools.`);
-        } catch (err: any) {
-            logger.error(`⚠️ Failed to initialize coding tools: ${err.message}`);
+        } catch (error: unknown) {
+            logger.error(`⚠️ Failed to initialize coding tools: ${getErrorMessage(error)}`);
         }
 
         this.allTools = [...mcpTools, ...nativeTools, ...codingTools];
@@ -332,6 +372,34 @@ export class TarsEngine extends EventEmitter {
         return undefined;
     }
 
+    private createModel(): Model<Api> {
+        const provider = this.tarsConfig.piProvider;
+        if (isBuiltInProvider(provider) && !this.tarsConfig.piBaseUrl) {
+            const model = getModels(provider).find(({ id }) => id === this.tarsConfig.piModel);
+            if (!model) {
+                throw new Error(`Unknown ${provider} model: ${this.tarsConfig.piModel}`);
+            }
+            return model;
+        }
+
+        return {
+            id: this.tarsConfig.piModel,
+            name: this.tarsConfig.piModel,
+            api: provider === 'google' ? 'google-generative-ai' : 'openai-completions',
+            provider: provider || 'custom',
+            baseUrl:
+                this.tarsConfig.piBaseUrl ||
+                (provider === 'google'
+                    ? 'https://generativelanguage.googleapis.com'
+                    : 'https://api.openai.com/v1'),
+            reasoning: false,
+            input: ['text'],
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+            contextWindow: this.tarsConfig.contextWindowTokens || 128000,
+            maxTokens: 32000
+        };
+    }
+
     /**
      * Resolves the full system prompt by reading the base system prompt file
      * and appending the formatted available skills prompt block.
@@ -354,8 +422,8 @@ export class TarsEngine extends EventEmitter {
                 const skillsPrompt = formatSkillsForPrompt(skills);
                 systemPrompt += skillsPrompt;
             }
-        } catch (err: any) {
-            logger.warn(`⚠️ Failed to load skills: ${err.message}`);
+        } catch (error: unknown) {
+            logger.warn(`⚠️ Failed to load skills: ${getErrorMessage(error)}`);
         }
 
         return systemPrompt;
@@ -385,32 +453,7 @@ export class TarsEngine extends EventEmitter {
         // Get system prompt (with skills protocol appended if available)
         const systemPrompt = this.getSystemPrompt();
 
-        // Construct model config
-        let model: Model<any>;
-        const isBuiltIn = ['google', 'openai', 'anthropic'].includes(this.tarsConfig.piProvider);
-        if (isBuiltIn && !this.tarsConfig.piBaseUrl) {
-            model = getModel(this.tarsConfig.piProvider as any, this.tarsConfig.piModel as any);
-        } else {
-            model = {
-                id: this.tarsConfig.piModel,
-                name: this.tarsConfig.piModel,
-                api:
-                    this.tarsConfig.piProvider === 'google'
-                        ? 'google-generative-ai'
-                        : 'openai-completions',
-                provider: this.tarsConfig.piProvider || 'custom',
-                baseUrl:
-                    this.tarsConfig.piBaseUrl ||
-                    (this.tarsConfig.piProvider === 'google'
-                        ? 'https://generativelanguage.googleapis.com'
-                        : 'https://api.openai.com/v1'),
-                reasoning: false,
-                input: ['text'],
-                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-                contextWindow: this.tarsConfig.contextWindowTokens || 128000,
-                maxTokens: 32000
-            };
-        }
+        const model = this.createModel();
 
         // Build target Agent
         const tools =
@@ -772,37 +815,7 @@ export class TarsEngine extends EventEmitter {
 
                     const summaryPrompt = `${anchorInstruction}\nExtract all important constraints, configs, details and tool results from this chunk of history. Format your response cleanly.`;
 
-                    // Construct model config
-                    let model: Model<any>;
-                    const isBuiltIn = ['google', 'openai', 'anthropic'].includes(
-                        this.tarsConfig.piProvider
-                    );
-                    if (isBuiltIn && !this.tarsConfig.piBaseUrl) {
-                        model = getModel(
-                            this.tarsConfig.piProvider as any,
-                            this.tarsConfig.piModel as any
-                        );
-                    } else {
-                        model = {
-                            id: this.tarsConfig.piModel,
-                            name: this.tarsConfig.piModel,
-                            api:
-                                this.tarsConfig.piProvider === 'google'
-                                    ? 'google-generative-ai'
-                                    : 'openai-completions',
-                            provider: this.tarsConfig.piProvider || 'custom',
-                            baseUrl:
-                                this.tarsConfig.piBaseUrl ||
-                                (this.tarsConfig.piProvider === 'google'
-                                    ? 'https://generativelanguage.googleapis.com'
-                                    : 'https://api.openai.com/v1'),
-                            reasoning: false,
-                            input: ['text'],
-                            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-                            contextWindow: this.tarsConfig.contextWindowTokens || 128000,
-                            maxTokens: 32000
-                        };
-                    }
+                    const model = this.createModel();
 
                     // Convert historyToCompress to Message[] for streamSimple
                     const llmMessages = historyToCompress.filter((m) =>
@@ -955,7 +968,7 @@ export class TarsEngine extends EventEmitter {
     /**
      * Helper to load legacy conversation records.
      */
-    private async loadConversationRecord(filePath: string): Promise<any> {
+    private async loadConversationRecord(filePath: string): Promise<unknown> {
         const content = await fs.promises.readFile(filePath, 'utf-8');
         try {
             return JSON.parse(content);
@@ -969,45 +982,47 @@ export class TarsEngine extends EventEmitter {
     /**
      * Converts a legacy ConversationRecord to Pi SDK AgentMessage[] format.
      */
-    private migrateLegacyConversation(conversation: any): AgentMessage[] {
-        const messages: AgentMessage[] = [];
-        if (!conversation || !conversation.messages) return messages;
+    private migrateLegacyConversation(conversation: unknown): AgentMessage[] {
+        const parsed = LegacyConversationSchema.safeParse(conversation);
+        if (!parsed.success) return [];
 
-        for (const msg of conversation.messages) {
+        const messages: unknown[] = [];
+
+        for (const value of parsed.data.messages) {
+            const legacyMessage = LegacyMessageSchema.safeParse(value);
+            if (!legacyMessage.success) continue;
+            const msg = legacyMessage.data;
             if (msg.type === 'user') {
-                let content: string | any[] = '';
+                let content: string | Array<{ type: 'text'; text: string }> = '';
                 if (typeof msg.content === 'string') {
                     content = msg.content;
                 } else if (Array.isArray(msg.content)) {
-                    content = msg.content.map((p: any) => ({
+                    content = msg.content.map((part) => ({
                         type: 'text',
-                        text: p.text || ''
+                        text: part.text ?? ''
                     }));
                 }
                 messages.push({
                     role: 'user',
                     content,
-                    timestamp: msg.timestamp || Date.now()
-                } as any);
+                    timestamp: msg.timestamp ?? Date.now()
+                });
             } else if (msg.type === 'gemini') {
-                const contentParts: any[] = [];
-                const toolResultMessages: any[] = [];
+                const contentParts: unknown[] = [];
+                const toolResultMessages: unknown[] = [];
                 if (typeof msg.content === 'string' && msg.content !== '') {
                     contentParts.push({ type: 'text', text: msg.content });
                 } else if (Array.isArray(msg.content)) {
-                    for (const p of msg.content) {
-                        if (p.text) {
-                            contentParts.push({ type: 'text', text: p.text });
+                    for (const part of msg.content) {
+                        if (part.text) {
+                            contentParts.push({ type: 'text', text: part.text });
                         }
                     }
                 }
 
                 if (msg.toolCalls) {
                     for (const tc of msg.toolCalls) {
-                        const callId =
-                            tc.id ||
-                            tc.callId ||
-                            `call-${Math.random().toString(36).substring(2, 9)}`;
+                        const callId = tc.id || tc.callId || `call-${randomUUID()}`;
                         contentParts.push({
                             type: 'toolCall',
                             id: callId,
@@ -1036,7 +1051,7 @@ export class TarsEngine extends EventEmitter {
                                 content: [{ type: 'text', text: responseContent }],
                                 details: responseObj,
                                 isError: tc.isError || false,
-                                timestamp: msg.timestamp || Date.now()
+                                timestamp: msg.timestamp ?? Date.now()
                             });
                         }
                     }
@@ -1057,21 +1072,21 @@ export class TarsEngine extends EventEmitter {
                         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
                     },
                     stopReason: 'stop',
-                    timestamp: msg.timestamp || Date.now()
-                } as any);
+                    timestamp: msg.timestamp ?? Date.now()
+                });
 
                 if (toolResultMessages.length > 0) {
                     messages.push(...toolResultMessages);
                 }
             }
         }
-        return messages;
+        return parseAgentHistory(messages);
     }
 
     /**
      * Attempts to find and load legacy session history.
      */
-    private async loadResumedSessionData(sessionId: string): Promise<any | null> {
+    private async loadResumedSessionData(sessionId: string): Promise<ResumedSessionData | null> {
         try {
             const geminiDir = path.join(this.tarsConfig.homeDir, '.gemini');
             const tmpDir = path.join(geminiDir, 'tmp');
@@ -1082,7 +1097,9 @@ export class TarsEngine extends EventEmitter {
             const registryPath = path.join(geminiDir, 'projects.json');
             if (fs.existsSync(registryPath)) {
                 try {
-                    const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+                    const registry = LegacyProjectRegistrySchema.parse(
+                        JSON.parse(fs.readFileSync(registryPath, 'utf-8'))
+                    );
                     projectIdentifier = registry.projects[this.tarsConfig.homeDir] || null;
                 } catch (e) {
                     logger.warn(`⚠️ Failed to read projects.json: ${e}`);

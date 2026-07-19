@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TuiChannel } from '../../channels/tui/tui-channel.js';
-import { Config } from '../../config/config.js';
 import { Readable, Writable } from 'stream';
 
 // Mock Config
@@ -62,7 +61,9 @@ describe('TuiChannel', () => {
     afterEach(() => {
         try {
             mockInput.destroy();
-        } catch {}
+        } catch {
+            // The stream may already be destroyed by the test.
+        }
     });
 
     describe('Interface Compliance', () => {
@@ -158,7 +159,7 @@ describe('TuiChannel', () => {
             const exitFn = vi.fn().mockResolvedValue(undefined);
             const mockExit = vi
                 .spyOn(process, 'exit')
-                .mockImplementation((code?: string | number | null) => {
+                .mockImplementation((_code?: string | number | null) => {
                     return undefined as never;
                 });
 

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { Task, TaskStore } from './store.js';
+import { type Task, TaskStore } from './store.js';
 
 const LOCK_TOKEN = '00000000-0000-4000-8000-000000000001';
 const DEAD_PID = 2_147_483_647;

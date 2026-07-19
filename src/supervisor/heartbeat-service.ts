@@ -1,9 +1,9 @@
 import path from 'path';
-import { Supervisor } from './supervisor.js';
+import { type Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
-import { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 import { AttachmentProcessor } from '../utils/attachment-processor.js';
-import { SessionManager } from './session-manager.js';
+import { type SessionManager } from './session-manager.js';
 
 /**
  * HeartbeatService - Manages background maintenance and autonomous health checks.

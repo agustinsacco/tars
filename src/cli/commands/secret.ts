@@ -59,7 +59,7 @@ async function runSecretAction(
             console.log(chalk.dim('Tars supervisor will need to restart to pick up the change.'));
             break;
 
-        case 'list':
+        case 'list': {
             const keys = secretsManager.list();
             if (keys.length === 0) {
                 console.log(chalk.yellow('No secrets stored.'));
@@ -70,6 +70,7 @@ async function runSecretAction(
             keys.forEach((k) => console.log(`- ${k}`));
             console.log('');
             break;
+        }
 
         case 'remove':
             if (!key) {

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CronService } from '../../supervisor/cron-service.js';
-import { Supervisor } from '../../supervisor/supervisor.js';
-import { Config } from '../../config/config.js';
+import { type Supervisor } from '../../supervisor/supervisor.js';
+import { type Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
-import { DiscordChannel } from '../../channels/discord/discord-channel.js';
+import { type DiscordChannel } from '../../channels/discord/discord-channel.js';
 import type { Task } from '../../types/index.js';
 
 function createTask(overrides: Partial<Task> = {}): Task {

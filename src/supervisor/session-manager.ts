@@ -3,7 +3,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import logger from '../utils/logger.js';
-import { UsageStats } from '../types/index.js';
+import { type UsageStats } from '../types/index.js';
 
 /**
  * Session data stored to disk
@@ -250,7 +250,9 @@ export class SessionManager {
             // Cleanup temp file if it exists
             try {
                 await fs.promises.unlink(tempPath);
-            } catch {}
+            } catch {
+                // The temporary file may not have been created yet.
+            }
             throw e;
         }
     }

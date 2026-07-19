@@ -1,17 +1,48 @@
-import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
-import { KnowledgeStore } from './knowledge-store.js';
-import { Config } from '../config/config.js';
+import { KnowledgeStore, type MemoryResult } from './knowledge-store.js';
+import { type Config } from '../config/config.js';
 import logger from '../utils/logger.js';
+import { z } from 'zod';
+
+const FactsFileSchema = z.object({
+    facts: z.record(
+        z.string(),
+        z.object({
+            key: z.string(),
+            value: z.string()
+        })
+    )
+});
+const SessionContentPartSchema = z.object({ text: z.string().optional() }).passthrough();
+const SessionMessageSchema = z
+    .object({
+        role: z.string(),
+        content: z.union([z.string(), z.array(SessionContentPartSchema)])
+    })
+    .passthrough();
+const SessionFileSchema = z.union([
+    z.array(SessionMessageSchema),
+    z.object({ messages: z.array(SessionMessageSchema) }).passthrough()
+]);
+
+function getErrorCode(error: unknown): string | undefined {
+    if (typeof error !== 'object' || error === null) return undefined;
+    const code = Reflect.get(error, 'code');
+    return typeof code === 'string' ? code : undefined;
+}
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * MemoryManager - High-level interface for Tars' memory systems.
- * Manages the transition from flat GEMINI.md to indexed storage.
+ * Synchronizes durable facts, skills, and session transcripts into the search index.
  */
 export class MemoryManager {
-    private knowledgeStore: KnowledgeStore;
-    private config: Config;
+    private readonly knowledgeStore: KnowledgeStore;
+    private readonly config: Config;
 
     constructor(config: Config) {
         this.config = config;
@@ -19,8 +50,7 @@ export class MemoryManager {
     }
 
     /**
-     * Initial sync of the "Brain" into the knowledge store.
-     * This includes GEMINI.md, skills, and session transcripts.
+     * Synchronize durable memory sources into the knowledge store.
      */
     public async fullSync(): Promise<void> {
         try {
@@ -32,30 +62,34 @@ export class MemoryManager {
             const factsPath = path.join(memoryDir, 'facts.json');
             try {
                 const content = await fsPromises.readFile(factsPath, 'utf-8');
-                const parsed = JSON.parse(content);
-                const factsText = Object.values(parsed.facts || {})
-                    .map((f: any) => `${f.key}: ${f.value}`)
+                const parsed = FactsFileSchema.parse(JSON.parse(content));
+                const factsText = Object.values(parsed.facts)
+                    .map((fact) => `${fact.key}: ${fact.value}`)
                     .join('\n');
                 await this.knowledgeStore.indexFile('active_memory/facts.txt', factsText);
-            } catch (e: any) {
-                if (e.code !== 'ENOENT') logger.warn(`Failed to sync memory facts: ${e.message}`);
+            } catch (error: unknown) {
+                if (getErrorCode(error) !== 'ENOENT') {
+                    logger.warn(`Failed to sync memory facts: ${getErrorMessage(error)}`);
+                }
             }
 
             // 2. Sync Skills
             const skillsDir = path.join(this.config.homeDir, 'skills');
             try {
                 await fsPromises.access(skillsDir);
-                await this.syncDir(skillsDir, 'skills');
-            } catch (e: any) {
-                if (e.code !== 'ENOENT') logger.warn(`Failed to sync skills: ${e.message}`);
+                await this.syncDir(skillsDir);
+            } catch (error: unknown) {
+                if (getErrorCode(error) !== 'ENOENT') {
+                    logger.warn(`Failed to sync skills: ${getErrorMessage(error)}`);
+                }
             }
 
             // 3. Sync Sessions (Episodic Memory)
             await this.syncSessions();
 
             logger.info('✅ Memory sync complete.');
-        } catch (error: any) {
-            logger.error(`❌ Memory sync failed: ${error.message}`);
+        } catch (error: unknown) {
+            logger.error(`❌ Memory sync failed: ${getErrorMessage(error)}`);
         }
     }
 
@@ -69,27 +103,23 @@ export class MemoryManager {
                 try {
                     const fullPath = path.join(chatsDir, file);
                     const raw = await fsPromises.readFile(fullPath, 'utf-8');
-                    const session = JSON.parse(raw);
-
+                    const session = SessionFileSchema.parse(JSON.parse(raw));
                     const messages = Array.isArray(session) ? session : session.messages;
 
                     if (messages && messages.length > 0) {
                         const transcript = messages
-                            .map((m: any) => {
-                                const role = m.role === 'user' ? 'USER' : 'ASSISTANT';
-                                let text = '';
-                                if (Array.isArray(m.content)) {
-                                    text = m.content.map((c: any) => c.text || '').join(' ');
-                                } else {
-                                    text = m.content || '';
-                                }
+                            .map((message) => {
+                                const role = message.role === 'user' ? 'USER' : 'ASSISTANT';
+                                const text = Array.isArray(message.content)
+                                    ? message.content.map((part) => part.text ?? '').join(' ')
+                                    : message.content;
                                 return `${role}: ${text}`;
                             })
                             .join('\n\n');
 
                         await this.knowledgeStore.indexFile(`history/${file}`, transcript);
                     }
-                } catch (err) {
+                } catch {
                     // Skip invalid session files
                 }
             }
@@ -98,13 +128,13 @@ export class MemoryManager {
         }
     }
 
-    private async syncDir(dir: string, category: string): Promise<void> {
+    private async syncDir(dir: string): Promise<void> {
         try {
             const entries = await fsPromises.readdir(dir, { withFileTypes: true });
             for (const entry of entries) {
                 const fullPath = path.join(dir, entry.name);
                 if (entry.isDirectory()) {
-                    await this.syncDir(fullPath, category);
+                    await this.syncDir(fullPath);
                 } else if (entry.name.endsWith('.md')) {
                     const content = await fsPromises.readFile(fullPath, 'utf-8');
                     const relPath = path.relative(this.config.homeDir, fullPath);
@@ -119,7 +149,7 @@ export class MemoryManager {
     /**
      * Search memory for relevant snippets.
      */
-    public async search(query: string, limit: number = 5) {
+    public async search(query: string, limit: number = 5): Promise<MemoryResult[]> {
         return this.knowledgeStore.search(query, limit);
     }
 }

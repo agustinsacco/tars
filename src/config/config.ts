@@ -3,13 +3,13 @@ import fs from 'fs';
 import path from 'path';
 
 import dotenv from 'dotenv';
-import { z } from 'zod';
+import { type z } from 'zod';
 
 import logger from '../utils/logger.js';
 import { getTarsHome } from '../utils/paths.js';
 import { SecretsManager } from '../utils/secrets-manager.js';
 import {
-    ChannelConfigSchema,
+    type ChannelConfigSchema,
     ConfigFileSchema,
     RuntimeConfigSchema,
     type RuntimeConfig

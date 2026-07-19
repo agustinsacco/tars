@@ -24,6 +24,11 @@ const FactSchema = z.object({
     updatedAt: z.string().datetime()
 });
 const FactsFileSchema = z.object({ facts: z.record(z.string(), FactSchema) });
+const KnowledgeSearchRowSchema = z.object({
+    path: z.string(),
+    content: z.string(),
+    score: z.number()
+});
 const LOCK_RETRY_MS = 25;
 const LOCK_TIMEOUT_MS = 5_000;
 const STALE_LOCK_MS = 30_000;
@@ -305,19 +310,20 @@ export class MemoryStore {
             try {
                 const { DatabaseSync } = await import('node:sqlite');
                 const db = new DatabaseSync(dbPath);
+                try {
+                    const sanitizedQuery = query
+                        .replace(/[-/\\^$*+?.()|[\]{}]/g, ' ')
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .map((term) => `"${term.replace(/"/g, '""')}"`)
+                        .join(' AND ');
 
-                const sanitizedQuery = query
-                    .replace(/[-\/\\^$*+?.()|[\]{}]/g, ' ')
-                    .trim()
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .map((term) => `"${term.replace(/"/g, '""')}"`)
-                    .join(' AND ');
-
-                if (sanitizedQuery) {
-                    const dbResults = db
-                        .prepare(
-                            `
+                    if (sanitizedQuery) {
+                        const dbResults = z.array(KnowledgeSearchRowSchema).parse(
+                            db
+                                .prepare(
+                                    `
                         SELECT f.path, c.content, rank as score
                         FROM chunks_fts fts
                         JOIN chunks c ON fts.rowid = c.id
@@ -326,22 +332,25 @@ export class MemoryStore {
                         ORDER BY rank
                         LIMIT 5
                     `
-                        )
-                        .all(sanitizedQuery) as any[];
+                                )
+                                .all(sanitizedQuery)
+                        );
 
-                    for (const r of dbResults) {
-                        // Prettify the source path (e.g. history/session-XXX.json -> Session history)
-                        let source = r.path;
-                        if (source.startsWith('history/')) {
-                            const dateMatch = source.match(/session-(\d{4}-\d{2}-\d{2})/);
-                            source = dateMatch
-                                ? `Past Session ${dateMatch[1]}`
-                                : 'Past Session history';
+                        for (const result of dbResults) {
+                            // Prettify the source path (e.g. history/session-XXX.json -> Session history)
+                            let source = result.path;
+                            if (source.startsWith('history/')) {
+                                const dateMatch = source.match(/session-(\d{4}-\d{2}-\d{2})/);
+                                source = dateMatch
+                                    ? `Past Session ${dateMatch[1]}`
+                                    : 'Past Session history';
+                            }
+                            results.push(`[${source}] ${result.content.trim()}`);
                         }
-                        results.push(`[${source}] ${r.content.trim()}`);
                     }
+                } finally {
+                    db.close();
                 }
-                db.close();
             } catch (error) {
                 console.error(`Failed to search knowledge DB: ${error}`);
             }

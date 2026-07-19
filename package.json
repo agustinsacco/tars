@@ -57,9 +57,9 @@
         "test:watch": "vitest",
         "typecheck": "tsc --noEmit --project tsconfig.json",
         "format:check": "prettier --check .",
-        "lint": "npm run typecheck",
+        "lint": "eslint . --max-warnings 0",
         "format": "prettier --write .",
-        "check": "npm run format:check && npm run lint && npm run test:coverage",
+        "check": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage",
         "prepare": "husky",
         "prepack": "npm run build"
     },
@@ -96,14 +96,17 @@
         "zod": "^3.25.76"
     },
     "devDependencies": {
+        "@eslint/js": "^9.39.5",
         "@types/inquirer": "^9.0.9",
         "@types/node": "^22.19.15",
         "@vitest/coverage-v8": "^4.1.10",
+        "eslint": "^9.39.5",
         "husky": "^9.1.7",
         "lint-staged": "^16.4.0",
         "prettier": "^3.8.1",
         "tsx": "^4.21.0",
         "typescript": "^5.9.3",
+        "typescript-eslint": "^8.64.0",
         "vitest": "^4.1.10"
     },
     "lint-staged": {

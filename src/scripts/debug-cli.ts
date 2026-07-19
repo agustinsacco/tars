@@ -1,6 +1,5 @@
 import { Config } from '../config/config.js';
 import { TarsEngine } from '../supervisor/tars-engine.js';
-import logger from '../utils/logger.js';
 
 async function main() {
     console.log('🔍 Starting Debug CLI (Native)...');
@@ -12,11 +11,10 @@ async function main() {
 
     // Provide a mocked DiscordBot so the send_discord_message tool is injected
     engine.setChannelManager({
-        config: config,
         notify: async (content: string) => {
             console.log(`\n\n📢 [MOCK DISCORD NOTIFICATION] -> ${content}\n\n`);
         }
-    } as any);
+    });
 
     await engine.initialize();
 

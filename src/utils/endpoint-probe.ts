@@ -1,4 +1,16 @@
-import logger from './logger.js';
+import { z } from 'zod';
+
+const ModelsResponseSchema = z.object({
+    data: z.array(z.object({ id: z.string().optional() }).passthrough()).optional()
+});
+const PropsResponseSchema = z.object({
+    default_generation_settings: z.object({ n_ctx: z.number().positive() }).optional()
+});
+
+function getErrorProperty(error: unknown, property: string): unknown {
+    if (typeof error !== 'object' || error === null) return undefined;
+    return Reflect.get(error, property);
+}
 
 /**
  * Result of probing a local inference endpoint.
@@ -51,16 +63,10 @@ export async function probeEndpoint(
             clearTimeout(timeout);
 
             if (response.ok) {
-                const data = (await response.json()) as any;
-                const models: string[] = [];
-
-                if (data.data && Array.isArray(data.data)) {
-                    for (const model of data.data) {
-                        if (model.id) {
-                            models.push(model.id);
-                        }
-                    }
-                }
+                const data = ModelsResponseSchema.parse(await response.json());
+                const models = (data.data ?? [])
+                    .map((model) => model.id)
+                    .filter((id): id is string => Boolean(id));
 
                 let contextWindow: number | undefined;
 
@@ -71,10 +77,8 @@ export async function probeEndpoint(
                         : `${normalizedUrl}/props`;
                     const propsRes = await fetch(propsUrl, { method: 'GET' });
                     if (propsRes.ok) {
-                        const propsData = (await propsRes.json()) as any;
-                        if (propsData.default_generation_settings?.n_ctx) {
-                            contextWindow = propsData.default_generation_settings.n_ctx;
-                        }
+                        const propsData = PropsResponseSchema.parse(await propsRes.json());
+                        contextWindow = propsData.default_generation_settings?.n_ctx;
                     }
                 } catch {
                     // Ignore failures, just a best-effort auto-detection
@@ -88,7 +92,7 @@ export async function probeEndpoint(
         } finally {
             clearTimeout(timeout);
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
         // If /v1/models failed, try a simpler connectivity check
         try {
             const healthUrl = normalizedUrl.endsWith('/v1')
@@ -116,12 +120,18 @@ export async function probeEndpoint(
             // Both /v1/models and /health failed
         }
 
+        const cause = getErrorProperty(error, 'cause');
+        const causeCode = getErrorProperty(cause, 'code');
+        const errorName = getErrorProperty(error, 'name');
+        const errorMessageValue = getErrorProperty(error, 'message');
         const errorMessage =
-            error.cause?.code === 'ECONNREFUSED'
+            causeCode === 'ECONNREFUSED'
                 ? `Connection refused at ${normalizedUrl}`
-                : error.name === 'AbortError'
+                : errorName === 'AbortError'
                   ? `Connection timed out after ${timeoutMs}ms`
-                  : error.message || 'Unknown error';
+                  : typeof errorMessageValue === 'string'
+                    ? errorMessageValue
+                    : 'Unknown error';
 
         return {
             reachable: false,

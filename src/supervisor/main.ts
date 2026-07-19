@@ -4,7 +4,7 @@ import logger from '../utils/logger.js';
 /**
  * Tars Main Entry Point (PM2 Background Mode)
  */
-async function main() {
+async function main(): Promise<void> {
     try {
         const {
             config,
@@ -37,9 +37,8 @@ async function main() {
             await dashboard.stop();
             process.exit(0);
         });
-    } catch (error: any) {
-        const errorMsg =
-            error.message || (typeof error === 'object' ? JSON.stringify(error) : String(error));
+    } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
         logger.error(`💥 Fatal error during startup: ${errorMsg}`);
         process.exit(1);
     }

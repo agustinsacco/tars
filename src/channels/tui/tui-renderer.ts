@@ -64,7 +64,7 @@ export class TuiRenderer {
         codeBlockBorder: (text: string) => chalk.dim(text),
         quote: (text: string) => chalk.italic.dim(text),
         quoteBorder: (text: string) => chalk.dim(text),
-        hr: (text: string) => chalk.dim('─'.repeat(40)),
+        hr: (_text: string) => chalk.dim('─'.repeat(40)),
         listBullet: (text: string) => chalk.cyan(text),
         bold: (text: string) => chalk.bold(text),
         italic: (text: string) => chalk.italic(text),

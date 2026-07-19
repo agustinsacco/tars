@@ -4,7 +4,7 @@ import {
     resolveSessionHistoryPath,
     TarsEngine
 } from '../../supervisor/tars-engine.js';
-import { Config as TarsConfig } from '../../config/config.js';
+import { type Config as TarsConfig } from '../../config/config.js';
 import fs from 'fs';
 import path from 'path';
 import { loadSkills, formatSkillsForPrompt } from '@earendil-works/pi-coding-agent';
@@ -340,6 +340,26 @@ describe('TarsEngine', () => {
             const history = (engine as any).migrateLegacyConversation(conversation);
 
             expect(history[1].details).toEqual({ temperature: 20 });
+        });
+
+        it('should skip malformed legacy entries without dropping valid messages', () => {
+            const conversation = {
+                messages: [
+                    { type: 'user', content: 'Before' },
+                    { type: 'unsupported', content: 'Ignore me' },
+                    null,
+                    { type: 'gemini', content: 'After' }
+                ]
+            };
+
+            const history = (engine as any).migrateLegacyConversation(conversation);
+
+            expect(history).toHaveLength(2);
+            expect(history[0]).toMatchObject({ role: 'user', content: 'Before' });
+            expect(history[1]).toMatchObject({
+                role: 'assistant',
+                content: [{ type: 'text', text: 'After' }]
+            });
         });
     });
 

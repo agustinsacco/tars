@@ -3,11 +3,34 @@ import fsSync from 'fs';
 import path from 'path';
 import chalk from 'chalk';
 import logger from './logger.js';
+import { z } from 'zod';
+
+const LegacyToolCallSchema = z
+    .object({
+        id: z.string(),
+        name: z.string(),
+        args: z.record(z.string(), z.unknown()).optional(),
+        status: z.string().optional(),
+        result: z.unknown().optional()
+    })
+    .passthrough();
+const LegacyMessageSchema = z
+    .object({
+        type: z.enum(['user', 'gemini']),
+        content: z.string().optional(),
+        toolCalls: z.array(LegacyToolCallSchema).optional()
+    })
+    .passthrough();
+const LegacyConversationSchema = z.object({ messages: z.array(z.unknown()) });
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 /**
  * Handles migration from legacy engine hidden directories to a consolidated ~/.tars layout
  */
-export async function migrateLegacyConfig(tarsHome: string) {
+export async function migrateLegacyConfig(tarsHome: string): Promise<void> {
     const geminiDir = path.join(tarsHome, '.gemini');
 
     // Check if legacy directory exists
@@ -43,7 +66,7 @@ export async function migrateLegacyConfig(tarsHome: string) {
         }
 
         // 3. Helper to migrate folder contents
-        const migrateFolder = async (srcName: string, destPath: string) => {
+        const migrateFolder = async (srcName: string, destPath: string): Promise<void> => {
             const srcPath = path.join(geminiDir, srcName);
             if (!fsSync.existsSync(srcPath)) return;
 
@@ -110,12 +133,17 @@ export async function migrateLegacyConfig(tarsHome: string) {
 
                             try {
                                 const raw = await fs.readFile(oldChatFile, 'utf-8');
-                                const conversation = JSON.parse(raw);
+                                const conversation = LegacyConversationSchema.parse(
+                                    JSON.parse(raw)
+                                );
 
                                 // Perform legacy conversation structure translation
-                                if (conversation && Array.isArray(conversation.messages)) {
-                                    const messages: any[] = [];
-                                    for (const msg of conversation.messages) {
+                                if (conversation.messages.length > 0) {
+                                    const messages: unknown[] = [];
+                                    for (const value of conversation.messages) {
+                                        const legacyMessage = LegacyMessageSchema.safeParse(value);
+                                        if (!legacyMessage.success) continue;
+                                        const msg = legacyMessage.data;
                                         const timestamp = new Date().toISOString();
                                         if (msg.type === 'user') {
                                             messages.push({
@@ -124,7 +152,7 @@ export async function migrateLegacyConfig(tarsHome: string) {
                                                 timestamp
                                             });
                                         } else if (msg.type === 'gemini') {
-                                            const content: any[] = [];
+                                            const content: unknown[] = [];
                                             if (msg.content) {
                                                 content.push({ type: 'text', text: msg.content });
                                             }
@@ -177,9 +205,9 @@ export async function migrateLegacyConfig(tarsHome: string) {
                                         JSON.stringify(messages, null, 2)
                                     );
                                 }
-                            } catch (e: any) {
+                            } catch (error: unknown) {
                                 logger.warn(
-                                    `Failed to migrate legacy chat file ${file}: ${e.message}`
+                                    `Failed to migrate legacy chat file ${file}: ${getErrorMessage(error)}`
                                 );
                             }
                         }
@@ -225,8 +253,10 @@ export async function migrateLegacyConfig(tarsHome: string) {
                 '✨ Migration completed. Legacy Gemini primitives successfully purged.\n'
             )
         );
-    } catch (err: any) {
-        console.log(chalk.red(`❌ Automated migration failed: ${err.message}`));
-        logger.error(`Automated migration failed: ${err.stack}`);
+    } catch (error: unknown) {
+        console.log(chalk.red(`❌ Automated migration failed: ${getErrorMessage(error)}`));
+        logger.error(
+            `Automated migration failed: ${error instanceof Error ? error.stack : String(error)}`
+        );
     }
 }

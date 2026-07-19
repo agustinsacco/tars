@@ -1,6 +1,9 @@
-import { AgentTool } from '@earendil-works/pi-agent-core';
-import { ChannelManager } from '../channels/channel-manager.js';
-import { Type, Static } from 'typebox';
+import { type AgentTool } from '@earendil-works/pi-agent-core';
+import { Type, type Static } from 'typebox';
+
+export interface NotificationChannel {
+    notify(content: string, attachments?: string[]): Promise<void>;
+}
 
 const NotifyParamsSchema = Type.Object({
     message: Type.String({
@@ -20,9 +23,9 @@ export class SendNotificationTool implements AgentTool<typeof NotifyParamsSchema
         'Send a proactive message back to the configured owner during an interactive workflow.';
     public readonly parameters = NotifyParamsSchema;
 
-    constructor(private readonly channelManager: ChannelManager) {}
+    constructor(private readonly channelManager: NotificationChannel) {}
 
-    async execute(toolCallId: string, params: NotifyParams) {
+    async execute(_toolCallId: string, params: NotifyParams) {
         try {
             await this.channelManager.notify(params.message);
             return {
@@ -34,15 +37,16 @@ export class SendNotificationTool implements AgentTool<typeof NotifyParamsSchema
                 ],
                 details: { status: 'success' }
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 content: [
                     {
                         type: 'text' as const,
-                        text: `❌ Failed to send notification: ${error.message}`
+                        text: `❌ Failed to send notification: ${message}`
                     }
                 ],
-                details: { status: 'error', error: error.message }
+                details: { status: 'error', error: message }
             };
         }
     }

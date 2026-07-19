@@ -1,7 +1,22 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { MemoryStore } from './store.js';
+
+const ManageFactsArgumentsSchema = z.discriminatedUnion('action', [
+    z.object({
+        action: z.literal('store'),
+        key: z.string().trim().min(1),
+        value: z.string().trim().min(1)
+    }),
+    z.object({ action: z.literal('delete'), key: z.string().trim().min(1) }),
+    z.object({ action: z.literal('list') })
+]);
+const ManageNotesArgumentsSchema = z.object({
+    action: z.enum(['add', 'search']),
+    queryOrContent: z.string().trim().min(1)
+});
 
 const store = new MemoryStore();
 const server = new Server(
@@ -81,13 +96,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
         switch (name) {
             case 'manage_facts': {
-                const { action, key, value } = args as any;
-                if (!action) throw new Error('Action is required.');
+                const parsed = ManageFactsArgumentsSchema.parse(args);
 
-                if (action === 'store') {
-                    if (!key || !value)
-                        throw new Error('Both key and value are required to store a fact.');
-                    const fact = await store.storeFact(key.trim(), value.trim());
+                if (parsed.action === 'store') {
+                    const fact = await store.storeFact(parsed.key, parsed.value);
                     return {
                         content: [
                             {
@@ -96,20 +108,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             }
                         ]
                     };
-                } else if (action === 'delete') {
-                    if (!key) throw new Error('Key is required to delete a fact.');
-                    const deleted = await store.deleteFact(key);
+                } else if (parsed.action === 'delete') {
+                    const deleted = await store.deleteFact(parsed.key);
                     return {
                         content: [
                             {
                                 type: 'text',
                                 text: deleted
-                                    ? `✅ Deleted fact: "${key}"`
-                                    : `❌ Fact "${key}" not found.`
+                                    ? `✅ Deleted fact: "${parsed.key}"`
+                                    : `❌ Fact "${parsed.key}" not found.`
                             }
                         ]
                     };
-                } else if (action === 'list') {
+                } else {
                     const facts = await store.listFacts();
                     if (facts.length === 0) {
                         return {
@@ -122,18 +133,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         .join('\n');
 
                     return { content: [{ type: 'text', text }] };
-                } else {
-                    throw new Error(`Unknown action: ${action}`);
                 }
             }
 
             case 'manage_notes': {
-                const { action, queryOrContent } = args as any;
-                if (!action) throw new Error('Action is required.');
-                if (!queryOrContent) throw new Error('queryOrContent is required.');
+                const parsed = ManageNotesArgumentsSchema.parse(args);
 
-                if (action === 'add') {
-                    const fileName = await store.addNote(queryOrContent.trim());
+                if (parsed.action === 'add') {
+                    const fileName = await store.addNote(parsed.queryOrContent);
                     return {
                         content: [
                             {
@@ -142,12 +149,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             }
                         ]
                     };
-                } else if (action === 'search') {
-                    const results = await store.search(queryOrContent.trim());
+                } else {
+                    const results = await store.search(parsed.queryOrContent);
                     if (results.length === 0) {
                         return {
                             content: [
-                                { type: 'text', text: `No results found for "${queryOrContent}".` }
+                                {
+                                    type: 'text',
+                                    text: `No results found for "${parsed.queryOrContent}".`
+                                }
                             ]
                         };
                     }
@@ -161,17 +171,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                             }
                         ]
                     };
-                } else {
-                    throw new Error(`Unknown action: ${action}`);
                 }
             }
 
             default:
                 throw new Error(`Unknown tool: ${name}`);
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
         return {
-            content: [{ type: 'text', text: `❌ Error: ${error.message}` }],
+            content: [{ type: 'text', text: `❌ Error: ${message}` }],
             isError: true
         };
     }
