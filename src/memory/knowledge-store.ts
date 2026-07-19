@@ -2,8 +2,20 @@ import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 import logger from '../utils/logger.js';
-import { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 import crypto from 'crypto';
+import { z } from 'zod';
+
+const IndexedFileSchema = z.object({
+    id: z.number().int().positive(),
+    hash: z.string()
+});
+const SearchRowSchema = z.object({
+    path: z.string(),
+    content: z.string(),
+    start_line: z.number().int(),
+    score: z.number()
+});
 
 export interface MemoryResult {
     path: string;
@@ -17,7 +29,7 @@ export interface MemoryResult {
  * Uses a classic keyword inverted index approach for high-speed, authless search.
  */
 export class KnowledgeStore {
-    private db: DatabaseSync;
+    private readonly db: DatabaseSync;
 
     constructor(config: Config) {
         const dbPath = path.join(config.homeDir, 'data', 'knowledge.db');
@@ -31,8 +43,10 @@ export class KnowledgeStore {
         this.initialize();
     }
 
-    private initialize() {
+    private initialize(): void {
         try {
+            this.db.exec('PRAGMA foreign_keys = ON;');
+
             // Initialize Tables
             this.db.exec(`
                 CREATE TABLE IF NOT EXISTS files (
@@ -69,8 +83,9 @@ export class KnowledgeStore {
                 END;
             `);
             logger.info('🧠 KnowledgeStore: Local keyword index initialized');
-        } catch (error: any) {
-            logger.error(`❌ KnowledgeStore init failed: ${error.message}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.error(`❌ KnowledgeStore init failed: ${message}`);
             throw error;
         }
     }
@@ -78,13 +93,14 @@ export class KnowledgeStore {
     /**
      * Add or update a file in the knowledge base.
      */
-    async indexFile(filePath: string, content: string) {
+    async indexFile(filePath: string, content: string): Promise<void> {
         const hash = crypto.createHash('sha256').update(content).digest('hex');
 
         // 1. Check if file has changed
-        const existing = this.db
+        const existingRow = this.db
             .prepare('SELECT id, hash FROM files WHERE path = ?')
-            .get(filePath) as any;
+            .get(filePath);
+        const existing = existingRow ? IndexedFileSchema.parse(existingRow) : undefined;
         if (existing && existing.hash === hash) {
             return; // No changes
         }
@@ -130,7 +146,7 @@ export class KnowledgeStore {
     async search(query: string, limit: number = 5): Promise<MemoryResult[]> {
         try {
             const sanitizedQuery = query
-                .replace(/[-\/\\^$*+?.()|[\]{}]/g, ' ')
+                .replace(/[-/\\^$*+?.()|[\]{}]/g, ' ')
                 .trim()
                 .split(/\s+/)
                 .filter(Boolean)
@@ -139,7 +155,7 @@ export class KnowledgeStore {
 
             if (!sanitizedQuery) return [];
 
-            const results = this.db
+            const rows = this.db
                 .prepare(
                     `
                 SELECT f.path, c.content, c.start_line, rank as score
@@ -151,7 +167,8 @@ export class KnowledgeStore {
                 LIMIT ?
             `
                 )
-                .all(sanitizedQuery, limit) as any[];
+                .all(sanitizedQuery, limit);
+            const results = z.array(SearchRowSchema).parse(rows);
 
             return results.map((r) => ({
                 path: r.path,
@@ -159,7 +176,7 @@ export class KnowledgeStore {
                 startLine: r.start_line,
                 score: 1 / (1 + Math.abs(r.score)) // Normalize FTS rank to 0-1 range
             }));
-        } catch (err) {
+        } catch {
             logger.warn(`⚠️ Search failed: ${query}`);
             return [];
         }

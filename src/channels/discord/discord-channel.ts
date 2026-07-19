@@ -312,7 +312,7 @@ export class DiscordChannel implements CommunicationChannel {
             // Handle Attachments
             const attachments: AttachmentContext[] = [];
             if (message.attachments.size > 0) {
-                for (const [id, attachment] of message.attachments) {
+                for (const attachment of message.attachments.values()) {
                     try {
                         const filePath = await this.processor.download(attachment);
                         if (attachment.contentType) {

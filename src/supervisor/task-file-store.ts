@@ -5,7 +5,7 @@ import path from 'path';
 
 import { z } from 'zod';
 
-import { Task } from '../types/index.js';
+import { type Task } from '../types/index.js';
 
 const TaskSchema: z.ZodType<Task> = z.object({
     id: z.string().min(1),

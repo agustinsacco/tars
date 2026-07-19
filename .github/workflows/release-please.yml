@@ -56,8 +56,8 @@ jobs:
             - name: Build
               run: npm run build
 
-            - name: Run tests
-              run: npm run test:coverage
+            - name: Validate core
+              run: npm run check
 
             - name: Run extension tests
               run: npm run test:extensions

@@ -133,11 +133,9 @@ Build the documentation locally with `npm run docs:build` or run it with `npm ru
 ```bash
 npm ci
 npm run ci:extensions
+npm run check
 npm run build
-npm run typecheck
-npm run test:coverage
 npm run test:extensions
-npm run format:check
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a change. Releases and npm publishing are

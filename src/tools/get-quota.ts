@@ -1,6 +1,6 @@
-import { AgentTool } from '@earendil-works/pi-agent-core';
-import { SessionManager, SessionData } from '../supervisor/session-manager.js';
-import { Type, Static } from 'typebox';
+import { type AgentTool } from '@earendil-works/pi-agent-core';
+import { type SessionManager, type SessionData } from '../supervisor/session-manager.js';
+import { Type, type Static } from 'typebox';
 
 const GetQuotaParamsSchema = Type.Object({
     modelId: Type.Optional(
@@ -33,7 +33,7 @@ export class GetQuotaTool implements AgentTool<typeof GetQuotaParamsSchema> {
         }
     ) {}
 
-    async execute(toolCallId: string, params: GetQuotaParams) {
+    async execute(_toolCallId: string, _params: GetQuotaParams) {
         try {
             if (this.sessionManager) {
                 return {
@@ -51,12 +51,13 @@ export class GetQuotaTool implements AgentTool<typeof GetQuotaParamsSchema> {
                 ],
                 details: {}
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
             return {
                 content: [
-                    { type: 'text' as const, text: `❌ Failed to retrieve quota: ${error.message}` }
+                    { type: 'text' as const, text: `❌ Failed to retrieve quota: ${message}` }
                 ],
-                details: { error: error.message }
+                details: { error: message }
             };
         }
     }

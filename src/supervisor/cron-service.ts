@@ -1,9 +1,9 @@
-import { Task } from '../types/index.js';
-import { Supervisor } from './supervisor.js';
+import { type Task } from '../types/index.js';
+import { type Supervisor } from './supervisor.js';
 import logger from '../utils/logger.js';
-import { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 import { CronExpressionParser } from 'cron-parser';
-import { ChannelManager } from '../channels/channel-manager.js';
+import { type ChannelManager } from '../channels/channel-manager.js';
 import { TaskFileStore } from './task-file-store.js';
 import { DLPService } from '../utils/dlp-service.js';
 
@@ -161,7 +161,7 @@ export class CronService {
             const interval = CronExpressionParser.parse(schedule);
             const next = interval.next().toISOString();
             return next || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-        } catch (err) {
+        } catch {
             const date = new Date(schedule);
             if (!isNaN(date.getTime()) && schedule.includes('-')) {
                 // Return a date far in the past/future so it doesn't immediately re-trigger

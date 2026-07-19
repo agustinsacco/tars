@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 import { ChannelManager } from '../channels/channel-manager.js';
 import type { ChannelMessage } from '../channels/types.js';
-import { TuiChannel } from '../channels/tui/tui-channel.js';
+import { type TuiChannel } from '../channels/tui/tui-channel.js';
 import { Config } from '../config/config.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
 import { BrainAuditor } from '../utils/brain-audit.js';
@@ -570,8 +570,9 @@ function patchSettings(config: Config): void {
             fs.writeFileSync(targetSettings, JSON.stringify(settings, null, 2));
             logger.info('⚙️ Patched settings.json from template.');
         }
-    } catch (e: any) {
-        logger.warn(`⚠️ Failed to patch settings.json: ${e.message}`);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.warn(`⚠️ Failed to patch settings.json: ${message}`);
     }
 }
 
@@ -604,7 +605,9 @@ function installDashboard(config: Config): void {
         try {
             fs.copyFileSync(templateEnv, targetEnv);
             logger.info('⚙️ Created default dashboard .env');
-        } catch (e) {}
+        } catch {
+            logger.warn(`⚠️ Could not create the dashboard environment file at ${targetEnv}`);
+        }
     }
 
     const nmPath = path.join(targetDashDir, 'node_modules');
@@ -691,7 +694,7 @@ function formatStatusContent(
             } else {
                 let preview = (tool.responsePreview || '')
                     .replace(/\s+/g, ' ')
-                    .replace(/[`*#_\[\]]/g, '')
+                    .replace(/[`*#_[\]]/g, '')
                     .trim();
 
                 if (preview.length > 80) {
@@ -825,8 +828,9 @@ export function wireMessageRouting(
                     await message.reply(
                         '✨ **Session Reset:** I have cleared the current session context and started a new, clean conversation.'
                     );
-                } catch (e: any) {
-                    await message.reply(`❌ **Error resetting session:** ${e.message}`);
+                } catch (error: unknown) {
+                    const errorMessage = error instanceof Error ? error.message : String(error);
+                    await message.reply(`❌ **Error resetting session:** ${errorMessage}`);
                 }
                 message.stopTyping();
                 return;
@@ -877,7 +881,7 @@ export function wireMessageRouting(
         const updateStatus = async (
             turnCount: number,
             recentTools: ToolStatus[],
-            isMilestone: boolean
+            _isMilestone: boolean
         ): Promise<void> => {
             const content = formatStatusContent(turnCount, recentTools, sessionManager, config);
             await deliverStatusUpdateBestEffort(channelManager, liveStatus, content);
@@ -978,10 +982,8 @@ export function wireMessageRouting(
                 message.attachments,
                 statusEnabled ? updateStatus : undefined
             );
-        } catch (error: any) {
-            const errorMsg =
-                error.message ||
-                (typeof error === 'object' ? JSON.stringify(error) : String(error));
+        } catch (error: unknown) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
             logger.error(`Routing error: ${errorMsg}`);
             await message.reply(`❌ **Supervisor Error:** ${errorMsg}`);
         } finally {

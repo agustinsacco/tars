@@ -1,6 +1,6 @@
-import { TarsEngine, StatusUpdateHandler } from './tars-engine.js';
-import { SessionManager } from './session-manager.js';
-import { TarsOutputHandler, AttachmentContext, type TarsEvent } from '../types/index.js';
+import { type TarsEngine, type StatusUpdateHandler } from './tars-engine.js';
+import { type SessionManager } from './session-manager.js';
+import { type TarsOutputHandler, type AttachmentContext, type TarsEvent } from '../types/index.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';

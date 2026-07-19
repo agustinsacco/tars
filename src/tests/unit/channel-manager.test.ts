@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { ChannelManager } from '../../channels/channel-manager.js';
 import type { CommunicationChannel, ChannelMessage } from '../../channels/types.js';
-import { Config } from '../../config/config.js';
 
 // Mock discord.js to prevent actual Discord client initialization
 vi.mock('discord.js', () => ({

@@ -9,37 +9,46 @@ import {
     Container
 } from '@earendil-works/pi-tui';
 import type { Terminal } from '@earendil-works/pi-tui';
-import { CommunicationChannel, ChannelMessage } from '../types.js';
+import { type CommunicationChannel, type ChannelMessage } from '../types.js';
 import { TuiRenderer } from './tui-renderer.js';
 import { versionString } from '../../utils/version.js';
 import { Config } from '../../config/config.js';
+
+type TuiInput = NodeJS.ReadableStream & {
+    readonly isRaw?: boolean;
+    setRawMode?: (enabled: boolean) => void;
+};
+type TuiOutput = NodeJS.WritableStream & {
+    readonly columns?: number;
+    readonly rows?: number;
+};
 
 /**
  * Custom Terminal implementation wrapping Readable and Writable streams.
  * Used for testing and custom I/O redirection.
  */
 export class StreamTerminal implements Terminal {
-    private readonly input: NodeJS.ReadableStream;
-    private readonly output: NodeJS.WritableStream;
+    private readonly input: TuiInput;
+    private readonly output: TuiOutput;
     private inputHandler?: (data: string) => void;
     private wasRaw = false;
 
-    constructor(input: NodeJS.ReadableStream, output: NodeJS.WritableStream) {
+    constructor(input: TuiInput, output: TuiOutput) {
         this.input = input;
         this.output = output;
     }
 
-    start(onInput: (data: string) => void, onResize: () => void): void {
+    start(onInput: (data: string) => void, _onResize: () => void): void {
         this.inputHandler = onInput;
-        this.wasRaw = (this.input as any).isRaw || false;
-        if ((this.input as any).setRawMode) {
+        this.wasRaw = this.input.isRaw ?? false;
+        if (this.input.setRawMode) {
             try {
-                (this.input as any).setRawMode(true);
-            } catch {}
+                this.input.setRawMode(true);
+            } catch {
+                // Some injected streams expose setRawMode but do not support it.
+            }
         }
-        if (typeof (this.input as any).resume === 'function') {
-            (this.input as any).resume();
-        }
+        this.input.resume();
         this.input.on('data', this.handleData);
     }
 
@@ -51,17 +60,17 @@ export class StreamTerminal implements Terminal {
 
     stop(): void {
         this.input.removeListener('data', this.handleData);
-        if ((this.input as any).setRawMode) {
+        if (this.input.setRawMode) {
             try {
-                (this.input as any).setRawMode(this.wasRaw);
-            } catch {}
+                this.input.setRawMode(this.wasRaw);
+            } catch {
+                // The stream may have closed before terminal state restoration.
+            }
         }
-        if (typeof (this.input as any).pause === 'function') {
-            (this.input as any).pause();
-        }
+        this.input.pause();
     }
 
-    async drainInput(maxMs = 1000, idleMs = 50): Promise<void> {
+    async drainInput(_maxMs = 1000, idleMs = 50): Promise<void> {
         await new Promise((resolve) => setTimeout(resolve, idleMs));
     }
 
@@ -70,11 +79,11 @@ export class StreamTerminal implements Terminal {
     }
 
     get columns(): number {
-        return (this.output as any).columns || 80;
+        return this.output.columns ?? 80;
     }
 
     get rows(): number {
-        return (this.output as any).rows || 24;
+        return this.output.rows ?? 24;
     }
 
     get kittyProtocolActive(): boolean {
@@ -113,7 +122,9 @@ export class StreamTerminal implements Terminal {
         this.write(`\x1b]0;${title}\x07`);
     }
 
-    setProgress(active: boolean): void {}
+    setProgress(_active: boolean): void {
+        // Progress rendering is handled by the Tars status container.
+    }
 }
 
 /**
@@ -143,13 +154,13 @@ export class TuiChannel implements CommunicationChannel {
     private lastStatusLineCount: number = 0;
 
     // Allow injecting custom streams for testing
-    private readonly input: NodeJS.ReadableStream;
-    private readonly output: NodeJS.WritableStream;
+    private readonly input: TuiInput;
+    private readonly output: TuiOutput;
 
     constructor(
         opts: {
-            input?: NodeJS.ReadableStream;
-            output?: NodeJS.WritableStream;
+            input?: TuiInput;
+            output?: TuiOutput;
             onExit?: () => Promise<void>;
         } = {}
     ) {
@@ -348,10 +359,7 @@ export class TuiChannel implements CommunicationChannel {
         if (!this.tui) {
             const formatted = TuiRenderer.formatMarkdown(content);
             this.write(formatted + '\n');
-            this.lastStatusLineCount = TuiRenderer.countLines(
-                formatted,
-                (this.output as any).columns || 80
-            );
+            this.lastStatusLineCount = TuiRenderer.countLines(formatted, this.output.columns ?? 80);
             return;
         }
 
@@ -373,12 +381,12 @@ export class TuiChannel implements CommunicationChannel {
         if (!this.tui) {
             if (this.lastStatusLineCount <= 0) return false;
             try {
-                TuiRenderer.clearLines(this.output as NodeJS.WriteStream, this.lastStatusLineCount);
+                TuiRenderer.clearLines(this.output, this.lastStatusLineCount);
                 const formatted = TuiRenderer.formatMarkdown(content);
                 this.write(formatted + '\n');
                 this.lastStatusLineCount = TuiRenderer.countLines(
                     formatted,
-                    (this.output as any).columns || 80
+                    this.output.columns ?? 80
                 );
                 return true;
             } catch {
@@ -400,11 +408,10 @@ export class TuiChannel implements CommunicationChannel {
         if (!this.tui) {
             if (this.lastStatusLineCount > 0) {
                 try {
-                    TuiRenderer.clearLines(
-                        this.output as NodeJS.WriteStream,
-                        this.lastStatusLineCount
-                    );
-                } catch {}
+                    TuiRenderer.clearLines(this.output, this.lastStatusLineCount);
+                } catch {
+                    // The output stream may already be closed during shutdown.
+                }
             }
             this.lastStatusLineCount = 0;
             return;

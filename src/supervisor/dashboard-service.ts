@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import pm2 from 'pm2';
-import { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 import logger from '../utils/logger.js';
 import {
     createTarsPm2Identity,

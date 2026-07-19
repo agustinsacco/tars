@@ -16,9 +16,8 @@ git clone https://github.com/agustinsacco/tars.git
 cd tars
 npm ci
 npm run ci:extensions
+npm run check
 npm run build
-npm run typecheck
-npm run test:coverage
 npm run test:extensions
 ```
 
@@ -49,11 +48,9 @@ by the project.
 For core changes:
 
 ```bash
+npm run check
 npm run build:src
-npm run typecheck
-npm run test:coverage
 npm run test:extensions
-npm run format:check
 ```
 
 For an extension, replace `tasks` with the affected extension:
@@ -82,8 +79,8 @@ Before release-sensitive changes, inspect the package contents without publishin
 npm pack --dry-run --ignore-scripts
 ```
 
-CI runs formatting, core build and tests, each built-in extension build, dashboard type/build
-checks, the documentation build, and a package smoke check.
+CI runs formatting and linting, core build and tests, each built-in extension build, dashboard
+lint/type/test/build checks, the documentation build, dependency audits, and a package smoke check.
 
 ## Pull requests and commits
 

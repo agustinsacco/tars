@@ -4,7 +4,7 @@ import { SessionManager } from '../../supervisor/session-manager.js';
 import { GetQuotaTool } from '../../tools/get-quota.js';
 import ora from 'ora';
 
-export async function quota() {
+export async function quota(): Promise<void> {
     const config = Config.getInstance();
     const sessionManager = new SessionManager(config.sessionFilePath);
 
@@ -24,7 +24,8 @@ export async function quota() {
 
         spinner.stop();
         console.log('\n' + usageText + '\n');
-    } catch (error: any) {
-        spinner.fail(chalk.red(`Error retrieving quota: ${error.message}`));
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        spinner.fail(chalk.red(`Error retrieving quota: ${message}`));
     }
 }

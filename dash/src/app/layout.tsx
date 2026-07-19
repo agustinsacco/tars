@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     title: 'Tars Dash',
     description: 'Personal AI Assistant Dashboard',
     icons: {
-        icon: '/tars-logo.png'
+        icon: '/icon.png'
     }
 };
 

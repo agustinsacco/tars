@@ -319,7 +319,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             const botName = client.user?.tag;
             client.destroy();
             validateSpinner.succeed(`Discord Token valid! Bot: ${chalk.bold(botName)}`);
-        } catch (err: any) {
+        } catch {
             validateSpinner.fail('Invalid Discord token. Check your token and try again.');
             process.exit(1);
         }
@@ -390,16 +390,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     ]);
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 5: Integrations ──────────────────────────────────
+    // ── Step 5: Tars Dashboard ────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 5: Integrations'));
-    console.log(chalk.dim('────────────────────'));
-    console.log(chalk.dim('  Workspace integration has been deprecated. Skipping.'));
-
-    // ══════════════════════════════════════════════════════════
-    // ── Step 6: Tars Dashboard ────────────────────────────────
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 6: Tars Dashboard'));
+    console.log(chalk.bold('\nStep 5: Tars Dashboard'));
     console.log(chalk.dim('──────────────────────'));
 
     const generatedDashPassword = crypto.randomBytes(24).toString('base64url');
@@ -475,9 +468,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     }
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 7: Installing ────────────────────────────────────
+    // ── Step 6: Installing ────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 7: Installing'));
+    console.log(chalk.bold('\nStep 6: Installing'));
     console.log(chalk.dim('──────────────────'));
 
     // Provision isolated environment

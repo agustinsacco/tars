@@ -15,9 +15,8 @@ git clone https://github.com/agustinsacco/tars.git
 cd tars
 npm ci
 npm run ci:extensions
+npm run check
 npm run build
-npm run typecheck
-npm run test:coverage
 npm run test:extensions
 ```
 
@@ -68,11 +67,9 @@ site/               Astro documentation site
 Core:
 
 ```bash
+npm run check
 npm run build:src
-npm run typecheck
-npm run test:coverage
 npm run test:extensions
-npm run format:check
 ```
 
 Built-in extensions:

@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import { Config } from '../config/config.js';
+import { type Config } from '../config/config.js';
 import logger from './logger.js';
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;

@@ -1,7 +1,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { TaskStore, Task } from './store.js';
+import { TaskStore, type Task } from './store.js';
 import { v4 as uuidv4 } from 'uuid';
 import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod';
