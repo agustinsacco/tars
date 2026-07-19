@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.43.0](https://github.com/agustinsacco/tars/compare/v1.42.1...v1.43.0) (2026-07-19)
+
+
+### Features
+
+* add guided extension policy migration ([#165](https://github.com/agustinsacco/tars/issues/165)) ([6308906](https://github.com/agustinsacco/tars/commit/6308906d5631db573e488f021b9d002b07a0872f))
+
 ## [1.42.1](https://github.com/agustinsacco/tars/compare/v1.42.0...v1.42.1) (2026-07-19)
 
 
