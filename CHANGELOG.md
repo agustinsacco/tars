@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.44.0](https://github.com/agustinsacco/tars/compare/v1.43.0...v1.44.0) (2026-07-21)
+
+
+### Features
+
+* add proactive self-healing ([#167](https://github.com/agustinsacco/tars/issues/167)) ([bdec1aa](https://github.com/agustinsacco/tars/commit/bdec1aa391397e53a99f51d97356e6ad38ee46db))
+
 ## [1.43.0](https://github.com/agustinsacco/tars/compare/v1.42.1...v1.43.0) (2026-07-19)
 
 
