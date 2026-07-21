@@ -4,6 +4,7 @@ import logger from '../utils/logger.js';
 import { type Config } from '../config/config.js';
 import { AttachmentProcessor } from '../utils/attachment-processor.js';
 import { type SessionManager } from './session-manager.js';
+import { type InitiativeService } from '../initiative/initiative-service.js';
 
 /**
  * HeartbeatService - Manages background maintenance and autonomous health checks.
@@ -14,15 +15,14 @@ export class HeartbeatService {
     private processor: AttachmentProcessor;
     private lastSyncTime: number = 0;
 
-    // Only run heartbeats if user was active within this window
-    private static readonly IDLE_THRESHOLD_MS = 2 * 60 * 60 * 1000; // 2 hours
     // Minimum interval between memory syncs
     private static readonly SYNC_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
     constructor(
         private readonly supervisor: Supervisor,
         private readonly config: Config,
-        private readonly sessionManager?: SessionManager
+        private readonly sessionManager?: SessionManager,
+        private readonly initiativeService?: InitiativeService
     ) {
         this.processor = new AttachmentProcessor(config);
     }
@@ -37,6 +37,7 @@ export class HeartbeatService {
 
         // Run initial memory sync at startup
         await this.syncMemoryIfNeeded();
+        await this.runInitiativeSafely();
 
         // Start interval
         this.interval = setInterval(() => void this.tick(), intervalMs);
@@ -59,14 +60,6 @@ export class HeartbeatService {
         logger.debug('💓 Heartbeat tick started');
 
         try {
-            // 0. Check if user is idle - skip heavy work if so
-            if (this.isUserIdle()) {
-                logger.debug(
-                    '💓 Heartbeat tick skipped: User is idle (>2h since last interaction)'
-                );
-                return;
-            }
-
             // 1. Safety net: report unexpectedly long runs without unlocking them.
             const STALE_LOCK_MS = 10 * 60 * 1000; // 10 minutes
             if (this.supervisor.hasStaleRun(STALE_LOCK_MS)) {
@@ -79,6 +72,9 @@ export class HeartbeatService {
             this.processor.cleanup();
             await this.syncMemoryIfNeeded();
 
+            // 3. Goal-grounded initiative runs independently of user activity.
+            await this.runInitiativeSafely();
+
             logger.debug('💓 Heartbeat tick completed successfully');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
@@ -88,11 +84,13 @@ export class HeartbeatService {
         }
     }
 
-    private isUserIdle(): boolean {
-        if (!this.sessionManager) return false;
-        const lastActivity = this.sessionManager.getLastUserInteraction();
-        if (!lastActivity) return true;
-        return Date.now() - lastActivity.getTime() > HeartbeatService.IDLE_THRESHOLD_MS;
+    private async runInitiativeSafely(): Promise<void> {
+        try {
+            await this.initiativeService?.tick();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn(`Initiative check failed; heartbeat will continue: ${message}`);
+        }
     }
 
     private async syncMemoryIfNeeded(): Promise<void> {

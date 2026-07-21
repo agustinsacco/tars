@@ -19,18 +19,21 @@ schema, and numeric intervals, context sizes, thresholds, and rate limits are bo
 
 ## Common settings
 
-| JSON                            | Environment                       | Purpose                    |
-| ------------------------------- | --------------------------------- | -------------------------- |
-| `assistantName`                 | `ASSISTANT_NAME`                  | Display identity           |
-| `piProvider`                    | `PI_PROVIDER`                     | Model provider             |
-| `piModel`                       | `PI_MODEL`                        | Provider model ID          |
-| `piBaseUrl`                     | `PI_BASE_URL`                     | Compatible custom endpoint |
-| `heartbeatIntervalSec`          | `HEARTBEAT_INTERVAL_SEC`          | Maintenance cadence        |
-| `contextWindowTokens`           | `CONTEXT_WINDOW_TOKENS`           | Actual model context limit |
-| `compressionThreshold`          | `COMPRESSION_THRESHOLD`           | Normal compression trigger |
-| `preflightCompressionThreshold` | `PREFLIGHT_COMPRESSION_THRESHOLD` | Before-request trigger     |
-| `channels.discord.enabled`      | —                                 | Explicit channel toggle    |
-| `channels.discord.ownerId`      | `DISCORD_OWNER_ID`                | Authorized Discord owner   |
+| JSON                                | Environment                         | Purpose                    |
+| ----------------------------------- | ----------------------------------- | -------------------------- |
+| `assistantName`                     | `ASSISTANT_NAME`                    | Display identity           |
+| `piProvider`                        | `PI_PROVIDER`                       | Model provider             |
+| `piModel`                           | `PI_MODEL`                          | Provider model ID          |
+| `piBaseUrl`                         | `PI_BASE_URL`                       | Compatible custom endpoint |
+| `heartbeatIntervalSec`              | `HEARTBEAT_INTERVAL_SEC`            | Maintenance cadence        |
+| `initiative.mode`                   | `TARS_INITIATIVE_MODE`              | Initiative authority mode  |
+| `initiative.intervalSec`            | `TARS_INITIATIVE_INTERVAL_SEC`      | Initiative cadence         |
+| `initiative.maxNotificationsPerDay` | `TARS_INITIATIVE_MAX_NOTIFICATIONS` | Attention budget           |
+| `contextWindowTokens`               | `CONTEXT_WINDOW_TOKENS`             | Actual model context limit |
+| `compressionThreshold`              | `COMPRESSION_THRESHOLD`             | Normal compression trigger |
+| `preflightCompressionThreshold`     | `PREFLIGHT_COMPRESSION_THRESHOLD`   | Before-request trigger     |
+| `channels.discord.enabled`          | —                                   | Explicit channel toggle    |
+| `channels.discord.ownerId`          | `DISCORD_OWNER_ID`                  | Authorized Discord owner   |
 
 Provider credentials and `DISCORD_TOKEN` belong in `.env` through `tars secret set`, not in
 `config.json`. An explicit `channels.discord.enabled: false` takes precedence over a configured

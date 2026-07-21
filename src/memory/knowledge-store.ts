@@ -141,6 +141,30 @@ export class KnowledgeStore {
     }
 
     /**
+     * Remove derived index rows whose source no longer exists.
+     */
+    async reconcileFiles(validPaths: ReadonlySet<string>): Promise<number> {
+        const rows = this.db.prepare('SELECT path FROM files').all();
+        const parsedRows = z.array(z.object({ path: z.string() })).parse(rows);
+        const stalePaths = parsedRows
+            .map(({ path: indexedPath }) => indexedPath)
+            .filter((indexedPath) => !validPaths.has(indexedPath));
+        if (stalePaths.length === 0) return 0;
+
+        try {
+            this.db.exec('BEGIN IMMEDIATE');
+            const deleteStatement = this.db.prepare('DELETE FROM files WHERE path = ?');
+            for (const stalePath of stalePaths) deleteStatement.run(stalePath);
+            this.db.exec('COMMIT');
+            logger.info(`🧹 Removed ${stalePaths.length} stale memory index source(s)`);
+            return stalePaths.length;
+        } catch (error: unknown) {
+            this.db.exec('ROLLBACK');
+            throw error;
+        }
+    }
+
+    /**
      * Search for relevant knowledge using keyword match (BM25 ranking).
      */
     async search(query: string, limit: number = 5): Promise<MemoryResult[]> {
@@ -180,5 +204,9 @@ export class KnowledgeStore {
             logger.warn(`⚠️ Search failed: ${query}`);
             return [];
         }
+    }
+
+    close(): void {
+        this.db.close();
     }
 }

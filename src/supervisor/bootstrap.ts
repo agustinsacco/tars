@@ -11,6 +11,7 @@ import type { ChannelMessage } from '../channels/types.js';
 import { type TuiChannel } from '../channels/tui/tui-channel.js';
 import { Config } from '../config/config.js';
 import { GetQuotaTool } from '../tools/get-quota.js';
+import { InitiativeService } from '../initiative/initiative-service.js';
 import { BrainAuditor } from '../utils/brain-audit.js';
 import { initializeMemoryFiles } from '../utils/memory-initializer.js';
 import logger, { configureDaemonLogging } from '../utils/logger.js';
@@ -745,7 +746,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     logger.info('🚀 Tars Starting...');
 
     const auditor = new BrainAuditor(config.homeDir);
-    await auditor.audit({ silent: true });
+    await auditor.audit({ repair: false, silent: true });
 
     // 2. Install components
     installSystemPrompt(config);
@@ -771,7 +772,8 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     await tarsEngine.initialize();
 
     // 6. Initialize Background Services
-    const heartbeat = new HeartbeatService(supervisor, config, sessionManager);
+    const initiative = new InitiativeService(config, channelManager);
+    const heartbeat = new HeartbeatService(supervisor, config, sessionManager, initiative);
     const cron = new CronService(supervisor, config, channelManager);
     const dashboard = new DashboardService(config);
 

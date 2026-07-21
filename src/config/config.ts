@@ -45,6 +45,7 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
     const statusUpdates = getRecord(jsonConfig.statusUpdates);
     const channels = getRecord(jsonConfig.channels);
     const discord = getRecord(channels.discord);
+    const initiative = getRecord(jsonConfig.initiative);
 
     return RuntimeConfigSchema.parse({
         assistantName: process.env.ASSISTANT_NAME ?? jsonConfig.assistantName,
@@ -67,6 +68,16 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
         heartbeatIntervalSec:
             getNonEmptyEnvironmentValue(process.env.HEARTBEAT_INTERVAL_SEC) ??
             jsonConfig.heartbeatIntervalSec,
+        initiative: {
+            mode: process.env.TARS_INITIATIVE_MODE ?? initiative.mode,
+            intervalSec: process.env.TARS_INITIATIVE_INTERVAL_SEC ?? initiative.intervalSec,
+            maxNotificationsPerDay:
+                process.env.TARS_INITIATIVE_MAX_NOTIFICATIONS ?? initiative.maxNotificationsPerDay,
+            quietHoursStart: process.env.TARS_INITIATIVE_QUIET_START ?? initiative.quietHoursStart,
+            quietHoursEnd: process.env.TARS_INITIATIVE_QUIET_END ?? initiative.quietHoursEnd,
+            repeatAfterHours:
+                process.env.TARS_INITIATIVE_REPEAT_HOURS ?? initiative.repeatAfterHours
+        },
         contextWindowTokens:
             getNonEmptyEnvironmentValue(process.env.CONTEXT_WINDOW_TOKENS) ??
             jsonConfig.contextWindowTokens,
@@ -109,6 +120,7 @@ export class Config {
     public readonly instanceName: string;
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
+    public readonly initiative: RuntimeConfig['initiative'];
     public readonly piProvider: string;
     public readonly piModel: string;
     public readonly piBaseUrl: string;
@@ -158,6 +170,7 @@ export class Config {
         this.localInferenceUrl = config.localInferenceUrl;
         this.statusUpdates = config.statusUpdates;
         this.heartbeatIntervalMs = config.heartbeatIntervalSec * 1_000;
+        this.initiative = config.initiative;
         this.contextWindowTokens = config.contextWindowTokens;
         this.compressionThreshold = config.compressionThreshold;
         this.preflightCompressionThreshold = config.preflightCompressionThreshold;

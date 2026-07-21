@@ -258,6 +258,36 @@ describe('TarsEngine', () => {
             expect(onEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'done' }));
             expect(saveHistory).not.toHaveBeenCalled();
         });
+
+        it('keeps ephemeral background runs out of persisted chat history', async () => {
+            // ARRANGE
+            const agentFactory = (options: AgentOptions): Agent => {
+                const agent = new Agent(options);
+                vi.spyOn(agent, 'prompt').mockResolvedValue(undefined);
+                return agent;
+            };
+            const backgroundEngine = new TarsEngine(mockTarsConfig, agentFactory);
+            Reflect.set(backgroundEngine, 'initialized', true);
+            const loadHistory = vi.fn().mockResolvedValue([]);
+            const saveHistory = vi.fn().mockResolvedValue(undefined);
+            Reflect.set(backgroundEngine, 'loadHistory', loadHistory);
+            Reflect.set(backgroundEngine, 'saveHistory', saveHistory);
+            vi.mocked(loadSkills).mockReturnValue({ skills: [], diagnostics: [] });
+
+            // ACT
+            await backgroundEngine.run(
+                'scheduled task',
+                vi.fn(),
+                '00000000-0000-4000-8000-000000000001',
+                undefined,
+                undefined,
+                { allowNotifications: false, ephemeral: true }
+            );
+
+            // ASSERT
+            expect(loadHistory).not.toHaveBeenCalled();
+            expect(saveHistory).not.toHaveBeenCalled();
+        });
     });
 
     describe('migrateLegacyConversation', () => {

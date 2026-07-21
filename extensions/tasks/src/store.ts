@@ -14,9 +14,10 @@ export const TaskSchema = z.object({
     nextRun: z.string().datetime(),
     lastRun: z.string().datetime().optional(),
     enabled: z.boolean(),
-    mode: z.enum(['notify', 'silent']),
+    mode: z.enum(['notify', 'silent', 'on-failure', 'on-change', 'action-required', 'digest']),
     source: z.enum(['user', 'system']),
     failedCount: z.number().int().nonnegative(),
+    lastOutcomeFingerprint: z.string().length(64).optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime()
 });

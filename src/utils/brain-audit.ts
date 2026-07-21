@@ -26,9 +26,9 @@ export class BrainAuditor {
     }
 
     /**
-     * Run a full audit and repair cycle.
+     * Inspect the brain and optionally apply legacy structural repairs.
      */
-    public async audit(options: { silent?: boolean } = {}): Promise<void> {
+    public async audit(options: { repair?: boolean; silent?: boolean } = {}): Promise<void> {
         const log = (msg: string) => {
             if (!options.silent) console.log(chalk.blue(`🔍 ${msg}`));
             logger.debug(`[Auditor] ${msg}`);
@@ -38,26 +38,20 @@ export class BrainAuditor {
 
         log('Auditing Tars brain structure...');
 
-        // 1. Remove recursive anomalies (e.g. ~/.tars/.tars or ~/.tars/~)
-        this.cleanupAnomalies(log);
-
-        // 2. Re-home extension paths in extension-enablement.json
+        this.inspectAnomalies(log, options.repair === true);
+        if (!options.repair) return;
         this.rehomeExtensions(log);
-
-        // 3. Audit Skills (clean up flat files shadowed by folders)
         this.auditSkills(log);
-
-        // 4. Update Metadata
         this.updateMetadata();
     }
 
-    private cleanupAnomalies(log: (msg: string) => void): void {
+    private inspectAnomalies(log: (msg: string) => void, repair: boolean): void {
         const anomalies = ['.tars', '~', 'tmp/gemini-cli', 'tmp/tars-cli'];
         for (const anomaly of anomalies) {
             const anomalyPath = path.join(this.tarsHome, anomaly);
             if (fs.existsSync(anomalyPath)) {
-                log(`Removing anomaly: ${anomaly}`);
-                fs.rmSync(anomalyPath, { recursive: true, force: true });
+                log(`${repair ? 'Removing' : 'Found'} anomaly: ${anomaly}`);
+                if (repair) fs.rmSync(anomalyPath, { recursive: true, force: true });
             }
         }
 
@@ -68,8 +62,8 @@ export class BrainAuditor {
             for (const ext of extensions) {
                 const tildeChild = path.join(extDir, ext, '~');
                 if (fs.existsSync(tildeChild)) {
-                    log(`Removing nested extension anomaly: ${ext}/~`);
-                    fs.rmSync(tildeChild, { recursive: true, force: true });
+                    log(`${repair ? 'Removing' : 'Found'} nested extension anomaly: ${ext}/~`);
+                    if (repair) fs.rmSync(tildeChild, { recursive: true, force: true });
                 }
             }
         }

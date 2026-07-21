@@ -13,6 +13,8 @@ import { secret } from './commands/secret.js';
 import { quota } from './commands/quota.js';
 import { uninstall } from './commands/uninstall.js';
 import { extensions } from './commands/extensions.js';
+import { doctor } from './commands/doctor.js';
+import { repair } from './commands/repair.js';
 
 import { versionString } from '../utils/version.js';
 
@@ -78,6 +80,31 @@ program
     .action(async (action: unknown) => {
         if (!(await extensions(action))) process.exitCode = 1;
     });
+
+program
+    .command('doctor')
+    .description('Run read-only health, security, task, extension, and brain diagnostics')
+    .option('--json', 'Print a machine-readable report')
+    .action(async (options: { json?: boolean }) => {
+        if (!(await doctor(options))) process.exitCode = 1;
+    });
+
+program
+    .command('repair')
+    .description('Plan or apply registered safe repairs')
+    .argument('<action>', 'Action to perform (plan or apply)')
+    .argument('[repairIds...]', 'Optional repair IDs; defaults to all current safe repairs')
+    .option('--json', 'Print machine-readable output')
+    .option('--yes', 'Confirm application of the repair plan')
+    .action(
+        async (
+            action: unknown,
+            repairIds: string[],
+            options: { json?: boolean; yes?: boolean }
+        ) => {
+            if (!(await repair(action, repairIds, options))) process.exitCode = 1;
+        }
+    );
 
 program
     .command('status')

@@ -587,7 +587,7 @@ export class McpBridge {
 
                 return {
                     content: rawContent.map(toAgentContent),
-                    details: result
+                    details: { tool: originalName }
                 };
             }
         };

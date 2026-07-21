@@ -61,7 +61,8 @@ After a standalone migration, run `tars restart` to load the reviewed policies.
 
 ## Updates
 
-`tars update` stages the target release and runs that release's preflight before installing it. If
-custom policies need review, the update is paused and no package or configuration is changed. Run
-the migration, then retry the update. You do not need to stop Tars first; a successful update
-restarts the processes that were active when it began.
+`tars update` stages the target release and runs that release's preflight before installing it.
+Custom-policy findings do not block a core update: affected extensions remain fail-closed, the
+update completes, and the CLI reports `tars extensions migrate` as a post-update action. This avoids
+an upgrade deadlock while preserving least privilege. You do not need to stop Tars first; a
+successful update restarts the processes that were active when it began.

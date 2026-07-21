@@ -141,6 +141,14 @@ export class DLPService {
         if (value === null || value === undefined) return value;
 
         if (typeof value === 'string') {
+            try {
+                const parsed: unknown = JSON.parse(value);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    return JSON.stringify(this.scrubDeep(parsed));
+                }
+            } catch {
+                // Ordinary strings continue through pattern-based scrubbing.
+            }
             return this.scrub(value);
         }
 

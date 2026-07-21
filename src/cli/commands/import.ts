@@ -299,7 +299,7 @@ async function validateImportedBrain(stagedHome: string): Promise<void> {
 
     const secretsPath = path.join(stagedHome, '.env');
     if (fs.existsSync(secretsPath)) await fsp.chmod(secretsPath, 0o600);
-    await new BrainAuditor(stagedHome).audit({ silent: true });
+    await new BrainAuditor(stagedHome).audit({ repair: true, silent: true });
 }
 
 function backupName(tarsHome: string): string {

@@ -9,7 +9,8 @@ export const UPDATE_PREFLIGHT_CONTRACT_VERSION = 1;
 
 const UpdatePreflightResultSchema = z.object({
     contractVersion: z.literal(UPDATE_PREFLIGHT_CONTRACT_VERSION),
-    blockers: z.array(
+    blockers: z.array(z.never()),
+    warnings: z.array(
         z.object({
             code: z.enum(['external-working-directory', 'missing-environment-policy']),
             extension: z.string(),
@@ -27,7 +28,8 @@ export type UpdatePreflightResult = z.infer<typeof UpdatePreflightResultSchema>;
 export function runUpdatePreflight(tarsHome: string): UpdatePreflightResult {
     return UpdatePreflightResultSchema.parse({
         contractVersion: UPDATE_PREFLIGHT_CONTRACT_VERSION,
-        blockers: findMcpPolicyViolations(tarsHome)
+        blockers: [],
+        warnings: findMcpPolicyViolations(tarsHome)
     });
 }
 

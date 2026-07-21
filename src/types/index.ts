@@ -10,12 +10,16 @@ export interface Task {
     nextRun: string; // ISO date
     lastRun?: string; // ISO date
     enabled: boolean;
-    mode: 'notify' | 'silent';
+    mode: TaskNotificationMode;
     source: 'user' | 'system';
     failedCount: number;
+    lastOutcomeFingerprint?: string;
     createdAt: string; // ISO date
     updatedAt: string; // ISO date
 }
+
+export type TaskNotificationMode =
+    'silent' | 'notify' | 'on-failure' | 'on-change' | 'action-required' | 'digest';
 
 export interface SessionMetadata {
     id: string;

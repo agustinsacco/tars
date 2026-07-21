@@ -29,6 +29,8 @@ import path from 'path';
 import { type AttachmentContext, type TarsEvent } from '../types/index.js';
 
 import { SendNotificationTool, type NotificationChannel } from '../tools/send-notification.js';
+import { ManageTarsTool } from '../tools/manage-tars.js';
+import { routeMcpTools } from '../tools/mcp-tool-router.js';
 
 import { SessionIdSchema, type SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
@@ -38,6 +40,11 @@ import { DLPService } from '../utils/dlp-service.js';
 export type TarsEngineEvent = TarsEvent;
 
 export type TarsEngineOutputHandler = (event: TarsEngineEvent) => unknown | Promise<unknown>;
+
+interface EngineRunOptions {
+    readonly allowNotifications?: boolean;
+    readonly ephemeral?: boolean;
+}
 
 /**
  * Snapshot of a completed tool call for status reporting.
@@ -91,6 +98,7 @@ function estimateSerializedCharacters(value: unknown): number {
     const isImage = Reflect.get(value, 'type') === 'image';
     return Object.entries(value).reduce((total, [key, nestedValue]) => {
         if (isImage && key === 'data') return total + 4_000;
+        if (['details', 'usage', 'timestamp'].includes(key)) return total;
         return total + key.length + estimateSerializedCharacters(nestedValue);
     }, 0);
 }
@@ -317,7 +325,16 @@ export class TarsEngine extends EventEmitter {
         }
 
         // Gather native tools
-        const nativeTools: RuntimeTool[] = [];
+        const routedMcpTools = routeMcpTools(mcpTools);
+        const nativeTools: RuntimeTool[] = [
+            new ManageTarsTool(this.tarsConfig) as RuntimeTool,
+            ...(routedMcpTools.routerTools as RuntimeTool[])
+        ];
+        if (routedMcpTools.routerTools.length > 0) {
+            logger.info(
+                `🔌 Exposed ${routedMcpTools.directTools.length} core MCP tools directly and ${mcpTools.length - routedMcpTools.directTools.length} through the extension catalog.`
+            );
+        }
         if (this.channelManager) {
             nativeTools.push(new SendNotificationTool(this.channelManager) as RuntimeTool);
             logger.info('🔌 Registered native tool: send_notification');
@@ -332,7 +349,11 @@ export class TarsEngine extends EventEmitter {
             logger.error(`⚠️ Failed to initialize coding tools: ${getErrorMessage(error)}`);
         }
 
-        this.allTools = [...mcpTools, ...nativeTools, ...codingTools];
+        this.allTools = [
+            ...(routedMcpTools.directTools as RuntimeTool[]),
+            ...nativeTools,
+            ...codingTools
+        ];
         this.initialized = true;
         this.currentSessionId = initialSessionId || uuidv4();
         logger.info('✨ Tars Engine initialized successfully.');
@@ -438,17 +459,17 @@ export class TarsEngine extends EventEmitter {
         sessionId?: string,
         attachments?: AttachmentContext[],
         onStatus?: StatusUpdateHandler,
-        options: { allowNotifications?: boolean } = {}
+        options: EngineRunOptions = {}
     ): Promise<void> {
         if (!this.initialized) {
             await this.initialize(sessionId);
         }
 
         const sid = SessionIdSchema.parse(sessionId || this.currentSessionId || uuidv4());
-        this.currentSessionId = sid;
+        if (!options.ephemeral) this.currentSessionId = sid;
 
         // Load history messages
-        const history = await this.loadHistory(sid);
+        const history = options.ephemeral ? [] : await this.loadHistory(sid);
 
         // Get system prompt (with skills protocol appended if available)
         const systemPrompt = this.getSystemPrompt();
@@ -461,6 +482,7 @@ export class TarsEngine extends EventEmitter {
                 ? this.allTools.filter(({ name }) => name !== 'send_notification')
                 : this.allTools;
         const agent = this.agentFactory({
+            sessionId: sid,
             initialState: {
                 systemPrompt,
                 model,
@@ -623,7 +645,10 @@ export class TarsEngine extends EventEmitter {
             const maxContext = this.tarsConfig.contextWindowTokens || 128000;
 
             // Use centralized pre-flight threshold to leave adequate buffer for model responses
-            if (estimatedContextSize > maxContext * this.tarsConfig.preflightCompressionThreshold) {
+            if (
+                !options.ephemeral &&
+                estimatedContextSize > maxContext * this.tarsConfig.preflightCompressionThreshold
+            ) {
                 logger.info(
                     `🗜️ Pre-flight check: Context size (${estimatedContextSize.toLocaleString()} tokens) at ${((estimatedContextSize / maxContext) * 100).toFixed(1)}% of window. Triggering compression before execution.`
                 );
@@ -661,7 +686,7 @@ export class TarsEngine extends EventEmitter {
             }
 
             // Save history
-            await this.saveHistory(sid, agent.state.messages);
+            if (!options.ephemeral) await this.saveHistory(sid, agent.state.messages);
 
             // Sum usage stats from all newly added assistant messages in this turn
             let totalInput = 0;
@@ -729,7 +754,7 @@ export class TarsEngine extends EventEmitter {
             const contextSize = reportedTokens || estimatedContextSize;
 
             // Keep the context estimate current without recording rejected work as usage.
-            if (this.sessionManager && contextSize > 0) {
+            if (!options.ephemeral && this.sessionManager && contextSize > 0) {
                 try {
                     await this.sessionManager.updateContextEstimate(contextSize);
                     logger.info(
@@ -750,7 +775,7 @@ export class TarsEngine extends EventEmitter {
     public async runSync(
         prompt: string,
         sessionId?: string,
-        options: { allowNotifications?: boolean } = {}
+        options: EngineRunOptions = {}
     ): Promise<string> {
         let fullContent = '';
         await this.run(
@@ -1144,7 +1169,7 @@ export class TarsEngine extends EventEmitter {
      * Uses a character-based approximation (1 token ≈ 3.8 chars for Qwen/Gemini).
      */
     private estimateContextSize(messages: AgentMessage[], systemPrompt: string): number {
-        let totalChars = systemPrompt.length;
+        let totalChars = systemPrompt.length + this.estimateToolDefinitionCharacters();
 
         for (const msg of messages) {
             totalChars += estimateSerializedCharacters(msg);
@@ -1152,6 +1177,19 @@ export class TarsEngine extends EventEmitter {
 
         // Qwen/Gemini tokenization: ~3.8 chars per token
         return Math.ceil(totalChars / 3.8);
+    }
+
+    private estimateToolDefinitionCharacters(): number {
+        return this.allTools.reduce((total, tool) => {
+            return (
+                total +
+                estimateSerializedCharacters({
+                    description: tool.description,
+                    name: tool.name,
+                    parameters: tool.parameters
+                })
+            );
+        }, 0);
     }
 
     /**

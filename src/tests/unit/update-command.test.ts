@@ -17,6 +17,7 @@ const updateMocks = vi.hoisted(() => {
     return {
         execFileSync: vi.fn(),
         ora: vi.fn(),
+        refresh: vi.fn(),
         restartActiveTarsProcessesByHome: vi.fn(),
         spinner,
         tarsHome: '',
@@ -33,7 +34,7 @@ vi.mock('../../utils/pm2-processes.js', () => ({
 vi.mock('../../utils/tars-home-lease.js', () => ({
     withTarsHomeMutationLease: updateMocks.withTarsHomeMutationLease
 }));
-vi.mock('../../cli/commands/refresh.js', () => ({ refresh: vi.fn() }));
+vi.mock('../../cli/commands/refresh.js', () => ({ refresh: updateMocks.refresh }));
 
 import { update } from '../../cli/commands/update.js';
 import { pkg } from '../../utils/version.js';
@@ -83,6 +84,8 @@ beforeEach(async () => {
     );
     updateMocks.ora.mockReturnValue(updateMocks.spinner);
     updateMocks.spinner.start.mockReturnValue(updateMocks.spinner);
+    updateMocks.refresh.mockResolvedValue(true);
+    updateMocks.restartActiveTarsProcessesByHome.mockResolvedValue([]);
     updateMocks.execFileSync.mockImplementation((command: string, args: readonly string[]) => {
         if (args[0] === 'view') return targetVersion;
         const prefixIndex = args.indexOf('--prefix');
@@ -90,10 +93,12 @@ beforeEach(async () => {
             createStagedTarget(args[prefixIndex + 1]);
             return '';
         }
+        if (args[0] === 'install' && args.includes('--global')) return '';
         if (command === process.execPath) {
             return JSON.stringify({
                 contractVersion: 1,
-                blockers: [
+                blockers: [],
+                warnings: [
                     {
                         code: 'missing-environment-policy',
                         extension: 'legacy-search',
@@ -122,7 +127,7 @@ afterEach(async () => {
 });
 
 describe('update policy preflight', () => {
-    it('pauses before global installation when the target release reports a blocker', async () => {
+    it('continues the core update while policy warnings remain fail-closed', async () => {
         // ARRANGE
         const before = await fsp.readdir(updateMocks.tarsHome);
 
@@ -130,12 +135,52 @@ describe('update policy preflight', () => {
         const updated = await update();
 
         // ASSERT
-        expect(updated).toBe(false);
+        expect(updated).toBe(true);
         expect(await fsp.readdir(updateMocks.tarsHome)).toEqual(before);
-        expect(updateMocks.execFileSync).toHaveBeenCalledTimes(3);
+        expect(updateMocks.execFileSync).toHaveBeenCalledTimes(4);
         expect(updateMocks.spinner.warn).toHaveBeenCalledWith(
-            expect.stringContaining('Update paused')
+            expect.stringContaining('remaining fail-closed')
         );
-        expect(updateMocks.restartActiveTarsProcessesByHome).not.toHaveBeenCalled();
+        expect(updateMocks.restartActiveTarsProcessesByHome).toHaveBeenCalledOnce();
+    });
+
+    it('treats legacy target blockers as fail-closed warnings', async () => {
+        // ARRANGE
+        updateMocks.execFileSync.mockImplementation((command: string, args: readonly string[]) => {
+            if (args[0] === 'view') return targetVersion;
+            const prefixIndex = args.indexOf('--prefix');
+            if (args[0] === 'install' && prefixIndex >= 0) {
+                createStagedTarget(args[prefixIndex + 1]);
+                return '';
+            }
+            if (args[0] === 'install' && args.includes('--global')) return '';
+            if (command === process.execPath) {
+                return JSON.stringify({
+                    contractVersion: 1,
+                    blockers: [
+                        {
+                            code: 'missing-environment-policy',
+                            extension: 'legacy-search',
+                            manifestPath: '/tmp/legacy-search/tars-extension.json',
+                            reason: 'missing an explicit envAllowlist',
+                            server: 'search',
+                            suggestedEnvironmentVariables: [],
+                            suggestionScanTruncated: false
+                        }
+                    ]
+                });
+            }
+            throw new Error(`Unexpected npm invocation: ${args.join(' ')}`);
+        });
+
+        // ACT
+        const updated = await update();
+
+        // ASSERT
+        expect(updated).toBe(true);
+        expect(updateMocks.spinner.warn).toHaveBeenCalledWith(
+            expect.stringContaining('remaining fail-closed')
+        );
+        expect(updateMocks.refresh).toHaveBeenCalledOnce();
     });
 });
