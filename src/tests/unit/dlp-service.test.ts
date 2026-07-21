@@ -100,4 +100,19 @@ describe('DLPService', () => {
         expect(result).not.toBe(input);
         expect(input.nested.token).toBe('secret-value');
     });
+
+    it('redacts credential keys inside JSON strings returned by MCP tools', () => {
+        // ARRANGE
+        const secret = 'short-live-token';
+        const input = JSON.stringify({
+            content: [{ type: 'text', text: JSON.stringify({ access_token: secret }) }]
+        });
+
+        // ACT
+        const result = DLPService.scrubTextOrJson(input);
+
+        // ASSERT
+        expect(result).not.toContain(secret);
+        expect(result).toContain('[REDACTED_SECRET]');
+    });
 });

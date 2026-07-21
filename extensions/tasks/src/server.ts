@@ -14,13 +14,42 @@ const ManageTaskInputSchema = z
         prompt: z.string().min(1).optional(),
         schedule: z.string().min(1).optional(),
         enabled: z.boolean().optional(),
-        mode: z.enum(['notify', 'silent']).optional(),
+        mode: z
+            .enum(['notify', 'silent', 'on-failure', 'on-change', 'action-required', 'digest'])
+            .optional(),
         enabledOnly: z.boolean().default(false)
     })
-    .strict();
+    .strict()
+    .superRefine((input, context) => {
+        if (input.action === 'create' && input.mode === undefined) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                    'mode is required when creating a task. Use notify for reminders, on-failure for maintenance, on-change for monitors, action-required for alerts, digest for routine reports, or silent for internal-only work.',
+                path: ['mode']
+            });
+        }
+        const intent = `${input.title ?? ''}\n${input.prompt ?? ''}`;
+        if (
+            input.action === 'create' &&
+            input.mode === 'silent' &&
+            /\b(remind|notify|alert|tell me|discord)\b/i.test(intent)
+        ) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                    'A reminder or alert cannot use silent delivery. Choose notify, on-change, action-required, or digest.',
+                path: ['mode']
+            });
+        }
+    });
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
+}
+
+function isReminderIntent(text: string): boolean {
+    return /\b(remind|notify|alert|tell me|send (?:me|a).*message|discord)\b/i.test(text);
 }
 
 const store = new TaskStore();
@@ -78,9 +107,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                         },
                         mode: {
                             type: 'string',
-                            enum: ['notify', 'silent'],
-                            default: 'silent',
-                            description: 'Notification mode for task execution results'
+                            enum: [
+                                'notify',
+                                'silent',
+                                'on-failure',
+                                'on-change',
+                                'action-required',
+                                'digest'
+                            ],
+                            description:
+                                'Required for create. notify always delivers; on-failure only reports failures; on-change reports changed outcomes; action-required reports only actionable outcomes; digest batches routine reports; silent never delivers.'
                         },
                         enabledOnly: {
                             type: 'boolean',
@@ -155,7 +191,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     content: [
                         {
                             type: 'text',
-                            text: `✅ Task created: ${task.title} (ID: ${task.id})\nNext run: ${task.nextRun}`
+                            text: `✅ Task created: ${task.title} (ID: ${task.id})\nNext run: ${task.nextRun}\nDelivery: ${task.mode}`
                         }
                     ]
                 };
@@ -172,7 +208,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 const text = filtered
                     .map((t) => {
                         const status = t.enabled ? 'ON' : 'OFF';
-                        let info = `- [${status}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}`;
+                        let info = `- [${status}] **${t.title}** (\`${t.id}\`)\n  Schedule: \`${t.schedule}\`\n  Next run: ${t.nextRun}\n  Delivery: ${t.mode}`;
                         if (t.failedCount > 0) {
                             info += `\n  ⚠️ Failures: ${t.failedCount}`;
                         }
@@ -218,6 +254,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
             case 'modify': {
                 if (!id) throw new Error('Task ID is required for modify action.');
+                const existing = (await store.loadTasks()).find((task) => task.id === id);
+                if (!existing) throw new Error(`Task ${id} not found.`);
+                const resultingIntent = `${title ?? existing.title}\n${prompt ?? existing.prompt}`;
+                if ((mode ?? existing.mode) === 'silent' && isReminderIntent(resultingIntent)) {
+                    throw new Error(
+                        'A reminder or alert cannot use silent delivery. Choose notify, on-change, action-required, or digest.'
+                    );
+                }
                 const updates: Partial<Task> = {};
                 if (title) updates.title = title;
                 if (prompt) updates.prompt = prompt;

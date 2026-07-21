@@ -31,8 +31,26 @@ const TargetPreflightResultSchema = z.object({
             suggestedEnvironmentVariables: z.array(z.string()),
             suggestionScanTruncated: z.boolean()
         })
-    )
+    ),
+    warnings: z
+        .array(
+            z.object({
+                code: z.enum(['external-working-directory', 'missing-environment-policy']),
+                extension: z.string(),
+                manifestPath: z.string(),
+                reason: z.string(),
+                server: z.string(),
+                suggestedEnvironmentVariables: z.array(z.string()),
+                suggestionScanTruncated: z.boolean()
+            })
+        )
+        .default([])
 });
+
+interface TargetPreflightResult {
+    readonly blockers: readonly McpPolicyViolation[];
+    readonly warnings: readonly McpPolicyViolation[];
+}
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -121,14 +139,16 @@ function getStagedPackageRoot(stagingRoot: string): string {
 async function runTargetUpdatePreflight(
     stagingRoot: string,
     tarsHome: string
-): Promise<McpPolicyViolation[]> {
+): Promise<TargetPreflightResult> {
     const targetModulePath = path.join(
         getStagedPackageRoot(stagingRoot),
         'dist',
         'cli',
         'update-preflight.js'
     );
-    if (!fs.existsSync(targetModulePath)) return findMcpPolicyViolations(tarsHome);
+    if (!fs.existsSync(targetModulePath)) {
+        return { blockers: [], warnings: findMcpPolicyViolations(tarsHome) };
+    }
 
     const output = execFileSync(process.execPath, [targetModulePath, tarsHome], {
         encoding: 'utf8',
@@ -138,7 +158,10 @@ async function runTargetUpdatePreflight(
         stdio: ['ignore', 'pipe', 'pipe']
     });
     const rawResult: unknown = JSON.parse(output);
-    return TargetPreflightResultSchema.parse(rawResult).blockers;
+    const result = TargetPreflightResultSchema.parse(rawResult);
+    // Contract v1 blockers are custom-extension policy findings. The bridge already
+    // fails those servers closed, so they must not deadlock a core security update.
+    return { blockers: [], warnings: [...result.blockers, ...result.warnings] };
 }
 
 export async function update(): Promise<boolean> {
@@ -177,17 +200,30 @@ async function updateWithLease(tarsHome: string): Promise<boolean> {
 
     try {
         stagingRoot = await stageLatestPackage(latest);
-        const policyViolations = await runTargetUpdatePreflight(stagingRoot, tarsHome);
-        if (policyViolations.length > 0) {
+        const preflight = await runTargetUpdatePreflight(stagingRoot, tarsHome);
+        if (preflight.blockers.length > 0) {
             upgradeSpinner.warn(
                 chalk.yellow(
-                    `Update paused: ${policyViolations.length} custom MCP server polic${policyViolations.length === 1 ? 'y needs' : 'ies need'} review.`
+                    `Update paused: ${preflight.blockers.length} target preflight blocker${preflight.blockers.length === 1 ? '' : 's'} require review.`
                 )
             );
-            printMcpPolicyAudit(tarsHome, policyViolations);
+            printMcpPolicyAudit(tarsHome, preflight.blockers);
             console.log(chalk.yellow('\nNo packages or configuration were changed.'));
             console.log(chalk.cyan('Run `tars extensions migrate`, then retry `tars update`.'));
             return false;
+        }
+        if (preflight.warnings.length > 0) {
+            upgradeSpinner.warn(
+                chalk.yellow(
+                    `Updating with ${preflight.warnings.length} custom MCP server polic${preflight.warnings.length === 1 ? 'y' : 'ies'} remaining fail-closed.`
+                )
+            );
+            printMcpPolicyAudit(tarsHome, preflight.warnings);
+            console.log(
+                chalk.yellow(
+                    '\nThe core update will continue. Noncompliant custom extensions remain disabled until reviewed.'
+                )
+            );
         }
         upgradeSpinner.text = '📦 Installing the validated update...';
         globalUpgradeAttempted = true;
@@ -210,6 +246,11 @@ async function updateWithLease(tarsHome: string): Promise<boolean> {
             );
         } else {
             console.log(chalk.green('\n✨ Tars updated successfully. Run "tars start" to begin.'));
+        }
+        if (preflight.warnings.length > 0) {
+            console.log(
+                chalk.cyan('Run `tars extensions migrate` to restore reviewed extensions.')
+            );
         }
         return true;
     } catch (error) {

@@ -40,11 +40,12 @@ describe('CronService', () => {
     let mockDiscordChannel: Partial<DiscordChannel>;
 
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.resetAllMocks();
         mockSupervisor = {
             executeTask: vi.fn().mockResolvedValue('task completed successfully')
         };
         mockConfig = {
+            homeDir: '/mock',
             taskFilePath: '/mock/paths/tasks.json'
         };
         mockDiscordChannel = {
@@ -184,6 +185,129 @@ describe('CronService', () => {
 
             // ASSERT
             expect(mockDiscordChannel.notify).not.toHaveBeenCalled();
+        });
+
+        it('reports failures for on-failure maintenance tasks', async () => {
+            // ARRANGE
+            const task = createTask({ mode: 'on-failure' });
+            vi.mocked(mockSupervisor.executeTask!).mockRejectedValue(new Error('backup failed'));
+            Reflect.set(service, 'taskStore', {
+                updateTask: async (
+                    _id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockDiscordChannel.notify).toHaveBeenCalledWith(
+                expect.stringContaining('backup failed')
+            );
+        });
+
+        it.each(['on-change', 'action-required', 'digest'] as const)(
+            'does not lose failures under the %s policy',
+            async (mode) => {
+                // ARRANGE
+                const task = createTask({ mode });
+                vi.mocked(mockSupervisor.executeTask!).mockRejectedValue(
+                    new Error('monitor failed')
+                );
+                Reflect.set(service, 'taskStore', {
+                    updateTask: async (
+                        _id: string,
+                        update: (candidate: Task) => void | Promise<void>
+                    ): Promise<Task> => {
+                        const persistedTask = { ...task };
+                        await update(persistedTask);
+                        return persistedTask;
+                    }
+                });
+                const enqueue = vi.fn().mockResolvedValue(undefined);
+                Reflect.set(service, 'digestStore', { enqueue });
+
+                // ACT
+                await runTask(service, task);
+
+                // ASSERT
+                if (mode === 'digest') {
+                    expect(enqueue).toHaveBeenCalledWith(expect.stringContaining('monitor failed'));
+                    expect(mockDiscordChannel.notify).not.toHaveBeenCalled();
+                } else {
+                    expect(mockDiscordChannel.notify).toHaveBeenCalledWith(
+                        expect.stringContaining('monitor failed')
+                    );
+                }
+            }
+        );
+
+        it('notifies action-required tasks only when the outcome requests attention', async () => {
+            // ARRANGE
+            const task = createTask({ mode: 'action-required' });
+            vi.mocked(mockSupervisor.executeTask!).mockResolvedValue(
+                JSON.stringify({
+                    changed: true,
+                    requiresAttention: true,
+                    status: 'warning',
+                    summary: 'A stop-loss threshold was crossed.'
+                })
+            );
+            Reflect.set(service, 'taskStore', {
+                updateTask: async (
+                    _id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockDiscordChannel.notify).toHaveBeenCalledWith(
+                'A stop-loss threshold was crossed.'
+            );
+        });
+
+        it('notifies on-change tasks when the outcome fingerprint changes', async () => {
+            // ARRANGE
+            const task = createTask({
+                lastOutcomeFingerprint: 'a'.repeat(64),
+                mode: 'on-change'
+            });
+            vi.mocked(mockSupervisor.executeTask!).mockResolvedValue(
+                JSON.stringify({
+                    changed: true,
+                    requiresAttention: false,
+                    status: 'ok',
+                    summary: 'The monitored value changed.'
+                })
+            );
+            Reflect.set(service, 'taskStore', {
+                updateTask: async (
+                    _id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...task };
+                    await update(persistedTask);
+                    return persistedTask;
+                }
+            });
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockDiscordChannel.notify).toHaveBeenCalledWith('The monitored value changed.');
         });
     });
 });

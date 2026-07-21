@@ -59,6 +59,25 @@ export const RuntimeConfigSchema = z.object({
         })
         .default({ tars: true, llamacpp: true }),
     heartbeatIntervalSec: z.coerce.number().int().min(1).max(86_400).default(300),
+    initiative: z
+        .object({
+            mode: z
+                .enum(['off', 'observe', 'propose', 'safe-auto', 'delegated'])
+                .default('observe'),
+            intervalSec: z.coerce.number().int().min(60).max(86_400).default(900),
+            maxNotificationsPerDay: z.coerce.number().int().min(0).max(50).default(3),
+            quietHoursStart: z.coerce.number().int().min(0).max(23).default(22),
+            quietHoursEnd: z.coerce.number().int().min(0).max(23).default(8),
+            repeatAfterHours: z.coerce.number().int().min(1).max(720).default(24)
+        })
+        .default({
+            mode: 'observe',
+            intervalSec: 900,
+            maxNotificationsPerDay: 3,
+            quietHoursStart: 22,
+            quietHoursEnd: 8,
+            repeatAfterHours: 24
+        }),
     contextWindowTokens: z.coerce.number().int().min(1).max(10_000_000).default(128_000),
     compressionThreshold: z.coerce.number().min(0.1).max(0.9).default(0.6),
     preflightCompressionThreshold: z.coerce.number().min(0.2).max(0.98).default(0.75),

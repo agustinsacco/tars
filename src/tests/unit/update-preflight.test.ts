@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe('target update preflight contract', () => {
-    it('returns structured blockers understood by an older updater', () => {
+    it('returns policy warnings without blocking an older updater', () => {
         // ARRANGE
         const tarsHome = fs.mkdtempSync(path.join(os.tmpdir(), 'tars-update-preflight-'));
         temporaryDirectories.push(tarsHome);
@@ -41,7 +41,8 @@ describe('target update preflight contract', () => {
 
         // ASSERT
         expect(result.contractVersion).toBe(UPDATE_PREFLIGHT_CONTRACT_VERSION);
-        expect(result.blockers).toEqual([
+        expect(result.blockers).toEqual([]);
+        expect(result.warnings).toEqual([
             expect.objectContaining({
                 code: 'missing-environment-policy',
                 extension: 'legacy-search',

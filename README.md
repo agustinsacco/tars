@@ -18,7 +18,7 @@ their multi-agent, mobile, voice, or broad multi-channel ecosystems.
 - Discord and interactive terminal interfaces backed by one active agent.
 - Google, OpenAI, Anthropic, local, and custom OpenAI-compatible model configuration.
 - Durable facts, searchable notes, and scheduled tasks through built-in MCP extensions.
-- A PM2-managed supervisor with explicit cron execution and a maintenance heartbeat.
+- A PM2-managed supervisor with explicit cron execution, maintenance, and bounded initiative modes.
 - Local skills and explicitly enabled MCP servers with restricted subprocess environments.
 - Backup and restore commands with secret exclusion by default and transactional imports.
 - Defensive defaults for Discord ownership, dashboard access, outbound fetching, attachments, and
@@ -60,6 +60,8 @@ writes, or memory index operations; those commands refuse a live lease.
 | `tars start` / `tars stop`         | Start or stop PM2 processes for the configured Tars home.  |
 | `tars restart`                     | Review policies if needed, then restart active processes.  |
 | `tars status`                      | Show process and active-session metrics.                   |
+| `tars doctor`                      | Run read-only health and security diagnostics.             |
+| `tars repair plan`                 | Show registered safe repairs without changing state.       |
 | `tars logs`                        | Follow logs for the configured supervisor.                 |
 | `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.       |
 | `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`. |
@@ -86,6 +88,10 @@ them with `tars extensions audit`; use the guided `tars extensions migrate` flow
 The migration scans extension source for likely names but requires an operator decision and never
 prints or copies secret values. `tars restart` launches the same review when required and continues
 the restart only after every blocking policy is resolved.
+
+Common memory, search, and task tools stay directly available to the model. Specialized MCP schemas
+are discovered and invoked through a compact catalog, avoiding the recurring context cost of every
+browser, brokerage, commerce, and health tool definition on unrelated turns.
 
 ## Runtime layout
 
@@ -129,8 +135,8 @@ Build the documentation locally with `npm run docs:build` or run it with `npm ru
 
 - Discord is the supported daemon channel; terminal chat is available in the foreground.
 - Foreground chat uses the same `TARS_HOME`; daemon/chat and chat/mutation exclusivity are enforced.
-- The heartbeat performs maintenance. It does not independently invent work or run continuous
-  security monitoring.
+- Heartbeat maintenance continues while the owner is idle. The initiative service can observe,
+  propose, or apply registered safe repairs from explicit objectives and runtime findings.
 - Scheduled tasks are explicit and poll on a separate cron loop.
 - Tars has one active agent and does not implement sub-agent orchestration.
 - Multiple PM2 process names can be created, but the convenience lifecycle commands are not fully

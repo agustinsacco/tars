@@ -488,7 +488,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
 
     // Audit and heal only after the workspace exists so metadata is always created.
     const auditor = new BrainAuditor(tarsHome);
-    await auditor.audit({ silent: true });
+    await auditor.audit({ repair: true, silent: true });
 
     // Legacy Cleanup
     const cleanupSpinner = ora('Checking for legacy components...').start();

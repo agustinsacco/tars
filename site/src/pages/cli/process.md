@@ -22,6 +22,11 @@ and then restarts active processes for the configured `TARS_HOME` without instal
 process. `status` reports process and active-session metrics; it does not prove that heartbeat,
 cron, or a particular task tick succeeded.
 
+Use `tars doctor` for read-only health, security, task, extension, and brain diagnostics. Machine
+consumers can use `tars doctor --json`. `tars repair plan` lists applicable registered safe repairs;
+`tars repair apply --yes` applies and verifies that plan under the Tars-home mutation lease.
+Extension trust decisions remain in `tars extensions migrate`.
+
 Use lifecycle commands from an operator shell. A running assistant should not stop its own process
 mid-response.
 

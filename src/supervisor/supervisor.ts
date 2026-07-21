@@ -6,6 +6,8 @@ import { Config } from '../config/config.js';
 import { MemoryManager } from '../memory/memory-manager.js';
 import { DLPService } from '../utils/dlp-service.js';
 
+const BACKGROUND_SESSION_ID = '00000000-0000-4000-8000-000000000001';
+
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -224,8 +226,7 @@ export class Supervisor {
 
     /**
      * Specialized execution for background tasks.
-     * Runs in the active session so the model retains context of what it did.
-     * No more orphan sessions or dangerous history injection.
+     * Runs with a stable cache-affinity ID without reading or persisting conversation history.
      */
     public async executeTask(prompt: string): Promise<string> {
         if (this.processingSince !== null) {
@@ -238,10 +239,9 @@ export class Supervisor {
         try {
             this.processingSince = Date.now();
 
-            // Run in the active session so context is shared
-            const activeSessionId = await this.sessionManager.load();
-            const result = await this.tarsEngine.runSync(prompt, activeSessionId || undefined, {
-                allowNotifications: false
+            const result = await this.tarsEngine.runSync(prompt, BACKGROUND_SESSION_ID, {
+                allowNotifications: false,
+                ephemeral: true
             });
 
             return result;

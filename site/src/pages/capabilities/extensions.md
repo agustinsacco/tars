@@ -35,8 +35,9 @@ For legacy object entries, a missing `enabled` property means enabled.
 Custom extensions must explicitly declare an environment policy for every server. Use
 `"envAllowlist": []` when no host variables are needed, or list only the required names. Audit and
 migrate older entries through `tars extensions audit` and `tars extensions migrate`. Tars pauses an
-update before installation when the target release reports a blocker. External working directories
-are not accepted; keep `cwd` inside the extension directory.
+affected custom server by leaving it fail-closed, but core updates continue so an older policy cannot
+deadlock a security or compatibility upgrade. External working directories are not accepted; keep
+`cwd` inside the extension directory.
 
 An interactive `tars restart` launches the migration when necessary and continues only after the
 policies pass. See [Extension Policy Audit](/cli/extensions) for choices, backups, non-interactive
@@ -54,6 +55,11 @@ and bounded startup/tool timeouts.
 
 Unique tool names stay unchanged. When servers declare the same tool name, Tars applies a stable
 extension namespace to the collision.
+
+Memory, search, and task tools remain directly available. Specialized extension schemas are kept
+behind `discover_extension_tools` and `invoke_extension_tool`, so browser, brokerage, commerce, and
+health tool definitions enter model context only when relevant. Discovery results are still
+untrusted extension input and must be validated before use.
 
 ## Trust model
 

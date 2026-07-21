@@ -15,6 +15,7 @@ tars status
 tars logs
 tars quota
 tars extensions audit
+tars doctor
 ```
 
 `status` reports the PM2 process and active session. Use logs for heartbeat, cron, extension, and
@@ -87,7 +88,8 @@ refuses to start a second engine against an active Tars home.
 - Do not recursively delete Tars directories. Use the guarded `tars uninstall` flow when removal is
   requested and confirm backup expectations first.
 - Do not log or echo secret values.
-- Do not claim the heartbeat performs autonomous monitoring; it performs maintenance, while the cron
-  service runs explicit scheduled tasks.
+- Heartbeat maintenance continues while the owner is idle. The initiative service may observe,
+  propose, or apply registered safe repairs according to the configured initiative mode; cron still
+  runs explicit scheduled tasks.
 - Use the tool names actually present in the session. Built-ins are consolidated as `manage_tasks`,
   `manage_facts`, and `manage_notes`.

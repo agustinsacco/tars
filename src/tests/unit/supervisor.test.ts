@@ -72,13 +72,14 @@ describe('Supervisor', () => {
         );
     });
 
-    it('should execute tasks in the active session (no more orphan sessions)', async () => {
+    it('should execute background tasks without persisting them in the active session', async () => {
         const result = await supervisor.executeTask('background prompt');
         expect(result).toBe('task output');
-        // Should pass active session ID to runSync
-        expect(mockGemini.runSync).toHaveBeenCalledWith('background prompt', 'existing-session', {
-            allowNotifications: false
-        });
+        expect(mockGemini.runSync).toHaveBeenCalledWith(
+            'background prompt',
+            '00000000-0000-4000-8000-000000000001',
+            { allowNotifications: false, ephemeral: true }
+        );
     });
 
     it('should track user activity on run', async () => {

@@ -26,16 +26,20 @@ The cron service polls every 60 seconds. Due tasks execute through the active su
 interactive run can defer scheduled work. A successful one-time task is disabled; a recurring task
 computes its next run.
 
-Modes control result delivery:
+Task creation requires an explicit mode. Modes control result delivery:
 
 - `notify` sends the completed result through the configured channel;
+- `on-failure` sends only execution failures;
+- `on-change` sends when the normalized result changes;
+- `action-required` sends warnings that require owner attention;
+- `digest` batches routine results for daily delivery;
 - `silent` records execution without sending the result.
 
 ## Limits
 
-Tars does not invent tasks from heartbeat activity. It is not a durable distributed job queue and
-does not guarantee second-level scheduling. Tasks inherit the permissions, model access, session
-constraints, and trusted tools of the running supervisor.
+The initiative service can propose work from explicit objectives and runtime findings, but it does
+not silently create cron tasks or infer authority for consequential actions. Tars is not a durable
+distributed job queue and does not guarantee second-level scheduling.
 
 Use narrow prompts, avoid embedded secrets, and keep destructive automation behind deterministic
 confirmation or an external policy boundary.
