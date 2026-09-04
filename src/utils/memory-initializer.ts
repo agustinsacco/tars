@@ -13,32 +13,51 @@ const INITIAL_MEMORY_FILES = [
 
 ## Overview
 
-The Heartbeat Service is Tars' autonomous background maintenance engine. It runs on a configurable interval and manages:
+The Heartbeat Service is Tars' autonomous background engine. It runs on a configurable interval and manages:
 
 - **Memory Synchronization** - Re-indexes facts, skills, and session histories
 - **Filesystem Cleanup** - Removes stale temp files and attachments
-- **Stale Lock Recovery** - Detects and releases stuck supervisor locks
-- **Idle Suppression** - Skips background work when user has been inactive
+- **Stale Run Watchdog** - Warns (advisory only) when a live run exceeds 10 minutes
+- **Initiative Check** - Runs the autonomous doctor / repair / notification pass
+- **Agent Work (on by default)** - Runs an agent turn to manage tasks, do already-authorized work, and notify you if something is important
 
 ## Configuration
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | \`heartbeatIntervalSec\` | 300s (5 min) | How frequently the heartbeat tick runs |
-| \`IDLE_THRESHOLD_MS\` | 2 hours | Skip ticks if user inactive longer than this |
+| \`heartbeatRunAgent\` | \`true\` | Run an agent turn every heartbeat to manage tasks / do work |
+| \`heartbeatAgentPrompt\` | (built-in directive) | The directive passed to the agent when \`heartbeatRunAgent\` is on |
 | \`SYNC_INTERVAL_MS\` | 1 hour | Minimum time between memory syncs |
 
-**Edit:** \`~/.tars/config.json\` → \`heartbeatIntervalSec\`
+**Edit:** \`~/.tars/config.json\` → \`heartbeatIntervalSec\`, \`heartbeatRunAgent\`, \`heartbeatAgentPrompt\`
+(Env overrides: \`HEARTBEAT_INTERVAL_SEC\`, \`HEARTBEAT_RUN_AGENT\`, \`HEARTBEAT_AGENT_PROMPT\`)
+
+### Autonomous agent turns
+
+On by default: when \`heartbeatRunAgent\` is enabled, each heartbeat tick invokes the
+agent with \`heartbeatAgentPrompt\` after maintenance and the initiative pass, so it sees
+freshly synced memory. This runs regardless of user activity. Because every enabled tick
+is a full inference run, mind your \`heartbeatIntervalSec\` and rate limits (set
+\`heartbeatRunAgent: false\` to return to code-only maintenance). The invocation never
+interrupts a live conversation: if the supervisor is busy the agent turn is skipped for
+that tick, and agent failures never abort the heartbeat.
+
+Heartbeat agent turns may send you a proactive message (via the \`send_notification\`
+tool) when the agent judges something genuinely important or attention-worthy; it stays
+silent otherwise. This notification ability is specific to heartbeat turns — scheduled
+cron tasks keep their own per-task notification policy and are unaffected.
 
 ## Tick Execution Flow
 
 \`\`\`
 heartbeat.tick()
-  ├── Check: User idle? → Skip if >2h since last interaction
   ├── Check: Already executing? → Skip (concurrency guard)
-  ├── Check: Stale supervisor lock? → Release if >10min old
+  ├── Warn: Supervisor busy >10min? → Log advisory (live run stays locked)
   ├── Cleanup: Remove stale temp files (>1h) and uploads (>24h)
-  └── Sync: Memory re-index (rate-limited to 1h minimum)
+  ├── Sync: Memory re-index + session GC (rate-limited to 1h minimum)
+  ├── Initiative: Run doctor / repairs / notifications
+  └── Agent (default on): manage tasks, do authorized work, notify only if important
 \`\`\`
 
 ## Logging & Traceability
@@ -51,8 +70,8 @@ heartbeat.tick()
 
 **Log Levels:**
 - \`info\` - Service start/stop, memory syncs
-- \`debug\` - Every tick start/complete (full traceability)
-- \`warn\` - Stale lock releases
+- \`debug\` - Every tick start/complete, agent invocation lifecycle (full traceability)
+- \`warn\` - Long-running supervisor run (advisory only)
 - \`error\` - Tick failures
 
 ## User Activity Tracking
@@ -65,7 +84,8 @@ Every user prompt updates \`lastUserInteractionAt\` in \`session.json\`:
 }
 \`\`\`
 
-Heartbeat checks this timestamp and skips work if idle > 2 hours.
+The heartbeat no longer skips work when idle — maintenance, initiative, and (when enabled)
+agent turns run regardless of user activity. This timestamp is kept for observability only.
 
 ## Troubleshooting
 

@@ -33,6 +33,31 @@ describe('Config', () => {
         expect(config.heartbeatIntervalMs).toBe(300000); // Default 300s
     });
 
+    it('should default heartbeat agent invocation to enabled with a directive', () => {
+        const config = Config.getInstance();
+        expect(config.heartbeatRunAgent).toBe(true);
+        expect(typeof config.heartbeatAgentPrompt).toBe('string');
+        expect(config.heartbeatAgentPrompt.length).toBeGreaterThan(0);
+    });
+
+    it('should disable heartbeat agent invocation from HEARTBEAT_RUN_AGENT=false', () => {
+        vi.stubEnv('HEARTBEAT_RUN_AGENT', 'false');
+        const config = Config.getInstance();
+        expect(config.heartbeatRunAgent).toBe(false);
+    });
+
+    it('should enable heartbeat agent invocation from HEARTBEAT_RUN_AGENT', () => {
+        vi.stubEnv('HEARTBEAT_RUN_AGENT', 'true');
+        const config = Config.getInstance();
+        expect(config.heartbeatRunAgent).toBe(true);
+    });
+
+    it('should override the heartbeat agent directive from HEARTBEAT_AGENT_PROMPT', () => {
+        vi.stubEnv('HEARTBEAT_AGENT_PROMPT', 'Tidy my tasks please');
+        const config = Config.getInstance();
+        expect(config.heartbeatAgentPrompt).toBe('Tidy my tasks please');
+    });
+
     it('should default contextWindowTokens to 128000', () => {
         const config = Config.getInstance();
         expect(config.contextWindowTokens).toBe(128000);

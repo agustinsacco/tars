@@ -228,19 +228,25 @@ export class Supervisor {
      * Specialized execution for background tasks.
      * Runs with a stable cache-affinity ID without reading or persisting conversation history.
      */
-    public async executeTask(prompt: string): Promise<string> {
+    public async executeTask(
+        prompt: string,
+        options: { allowNotifications?: boolean } = {}
+    ): Promise<string> {
         if (this.processingSince !== null) {
             logger.warn('⚠️ Supervisor is busy, skipping background task');
             throw new Error('Supervisor is busy');
         }
 
+        // Background work is silent unless explicitly allowed to notify (e.g. heartbeat
+        // agent turns). Cron and other callers keep the safe default of no notifications.
+        const allowNotifications = options.allowNotifications ?? false;
         logger.info(`⚙️ Executing background task...`);
 
         try {
             this.processingSince = Date.now();
 
             const result = await this.tarsEngine.runSync(prompt, BACKGROUND_SESSION_ID, {
-                allowNotifications: false,
+                allowNotifications,
                 ephemeral: true
             });
 

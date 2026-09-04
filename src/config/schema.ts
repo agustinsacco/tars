@@ -7,6 +7,14 @@ const BooleanLikeSchema = z
     )
     .transform((value) => value === true || value === 'true' || value === '1');
 
+/**
+ * Default directive handed to the agent when heartbeat agent invocation is enabled.
+ * Deliberately scoped: make progress on already-authorized work, keep the task
+ * list current, and avoid consequential or unauthorized actions.
+ */
+export const DEFAULT_HEARTBEAT_AGENT_PROMPT =
+    'Autonomous heartbeat check: Review my scheduled tasks, notes, and objectives for work I have already authorized. Make concrete progress where it is safe to do so, keep the task list accurate, and record anything notable or blocked as a note. Work silently by default — use the send_notification tool ONLY when something is genuinely important or needs my attention; if nothing warrants it, do not message me. Never take consequential or unauthorized actions such as purchases, trades, or deployments.';
+
 const HttpUrlSchema = z
     .string()
     .url()
@@ -59,6 +67,13 @@ export const RuntimeConfigSchema = z.object({
         })
         .default({ tars: true, llamacpp: true }),
     heartbeatIntervalSec: z.coerce.number().int().min(1).max(86_400).default(300),
+    heartbeatRunAgent: BooleanLikeSchema.default(true),
+    heartbeatAgentPrompt: z
+        .string()
+        .trim()
+        .min(1)
+        .max(8_000)
+        .default(DEFAULT_HEARTBEAT_AGENT_PROMPT),
     initiative: z
         .object({
             mode: z
