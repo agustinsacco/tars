@@ -68,6 +68,12 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
         heartbeatIntervalSec:
             getNonEmptyEnvironmentValue(process.env.HEARTBEAT_INTERVAL_SEC) ??
             jsonConfig.heartbeatIntervalSec,
+        heartbeatRunAgent:
+            getNonEmptyEnvironmentValue(process.env.HEARTBEAT_RUN_AGENT) ??
+            jsonConfig.heartbeatRunAgent,
+        heartbeatAgentPrompt:
+            getNonEmptyEnvironmentValue(process.env.HEARTBEAT_AGENT_PROMPT) ??
+            jsonConfig.heartbeatAgentPrompt,
         initiative: {
             mode: process.env.TARS_INITIATIVE_MODE ?? initiative.mode,
             intervalSec: process.env.TARS_INITIATIVE_INTERVAL_SEC ?? initiative.intervalSec,
@@ -120,6 +126,8 @@ export class Config {
     public readonly instanceName: string;
     public readonly instanceRole: string;
     public readonly heartbeatIntervalMs: number;
+    public readonly heartbeatRunAgent: boolean;
+    public readonly heartbeatAgentPrompt: string;
     public readonly initiative: RuntimeConfig['initiative'];
     public readonly piProvider: string;
     public readonly piModel: string;
@@ -170,6 +178,8 @@ export class Config {
         this.localInferenceUrl = config.localInferenceUrl;
         this.statusUpdates = config.statusUpdates;
         this.heartbeatIntervalMs = config.heartbeatIntervalSec * 1_000;
+        this.heartbeatRunAgent = config.heartbeatRunAgent;
+        this.heartbeatAgentPrompt = config.heartbeatAgentPrompt;
         this.initiative = config.initiative;
         this.contextWindowTokens = config.contextWindowTokens;
         this.compressionThreshold = config.compressionThreshold;

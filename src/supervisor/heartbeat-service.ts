@@ -75,6 +75,9 @@ export class HeartbeatService {
             // 3. Goal-grounded initiative runs independently of user activity.
             await this.runInitiativeSafely();
 
+            // 4. Optional: invoke the agent every heartbeat to manage tasks and do work.
+            await this.runAgentSafely();
+
             logger.debug('💓 Heartbeat tick completed successfully');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
@@ -90,6 +93,28 @@ export class HeartbeatService {
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             logger.warn(`Initiative check failed; heartbeat will continue: ${message}`);
+        }
+    }
+
+    /**
+     * Optional autonomous agent invocation on every heartbeat tick.
+     * Gated by config.heartbeatRunAgent (default off). Runs after maintenance and
+     * initiative so the agent sees freshly synced memory. Failures — including the
+     * supervisor being busy with a live run — never abort the heartbeat.
+     */
+    private async runAgentSafely(): Promise<void> {
+        if (!this.config.heartbeatRunAgent) return;
+        try {
+            logger.debug('💓 Heartbeat agent invocation starting');
+            await this.supervisor.executeTask(this.config.heartbeatAgentPrompt);
+            logger.debug('💓 Heartbeat agent invocation completed');
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message.toLowerCase().includes('busy')) {
+                logger.debug('💓 Heartbeat agent invocation skipped: supervisor busy');
+                return;
+            }
+            logger.warn(`Heartbeat agent invocation failed; heartbeat will continue: ${message}`);
         }
     }
 
