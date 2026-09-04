@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.45.0](https://github.com/agustinsacco/tars/compare/v1.44.0...v1.45.0) (2026-09-04)
+
+
+### Features
+
+* **heartbeat:** optional per-heartbeat agent invocation ([#169](https://github.com/agustinsacco/tars/issues/169)) ([b30d7f9](https://github.com/agustinsacco/tars/commit/b30d7f9bac320802f09c331b6742f83a60918998))
+
 ## [1.44.0](https://github.com/agustinsacco/tars/compare/v1.43.0...v1.44.0) (2026-07-21)
 
 
