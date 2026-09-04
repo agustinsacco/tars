@@ -106,7 +106,11 @@ export class HeartbeatService {
         if (!this.config.heartbeatRunAgent) return;
         try {
             logger.debug('💓 Heartbeat agent invocation starting');
-            await this.supervisor.executeTask(this.config.heartbeatAgentPrompt);
+            // allowNotifications: true exposes the send_notification tool so the agent can
+            // reach the owner when it judges something important; otherwise it stays quiet.
+            await this.supervisor.executeTask(this.config.heartbeatAgentPrompt, {
+                allowNotifications: true
+            });
             logger.debug('💓 Heartbeat agent invocation completed');
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);

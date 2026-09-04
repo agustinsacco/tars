@@ -33,11 +33,17 @@ describe('Config', () => {
         expect(config.heartbeatIntervalMs).toBe(300000); // Default 300s
     });
 
-    it('should default heartbeat agent invocation to disabled with a directive', () => {
+    it('should default heartbeat agent invocation to enabled with a directive', () => {
         const config = Config.getInstance();
-        expect(config.heartbeatRunAgent).toBe(false);
+        expect(config.heartbeatRunAgent).toBe(true);
         expect(typeof config.heartbeatAgentPrompt).toBe('string');
         expect(config.heartbeatAgentPrompt.length).toBeGreaterThan(0);
+    });
+
+    it('should disable heartbeat agent invocation from HEARTBEAT_RUN_AGENT=false', () => {
+        vi.stubEnv('HEARTBEAT_RUN_AGENT', 'false');
+        const config = Config.getInstance();
+        expect(config.heartbeatRunAgent).toBe(false);
     });
 
     it('should enable heartbeat agent invocation from HEARTBEAT_RUN_AGENT', () => {

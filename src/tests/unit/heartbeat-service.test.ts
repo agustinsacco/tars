@@ -113,7 +113,9 @@ describe('HeartbeatService', () => {
 
         // ASSERT
         expect(executeTask).toHaveBeenCalledOnce();
-        expect(executeTask).toHaveBeenCalledWith('Manage my tasks and do pending work');
+        expect(executeTask).toHaveBeenCalledWith('Manage my tasks and do pending work', {
+            allowNotifications: true
+        });
     });
 
     it('continues the heartbeat when the supervisor is busy', async () => {

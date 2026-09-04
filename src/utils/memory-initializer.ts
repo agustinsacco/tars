@@ -19,14 +19,14 @@ The Heartbeat Service is Tars' autonomous background engine. It runs on a config
 - **Filesystem Cleanup** - Removes stale temp files and attachments
 - **Stale Run Watchdog** - Warns (advisory only) when a live run exceeds 10 minutes
 - **Initiative Check** - Runs the autonomous doctor / repair / notification pass
-- **Agent Work (opt-in)** - Optionally runs an agent turn to manage tasks and do already-authorized work
+- **Agent Work (on by default)** - Runs an agent turn to manage tasks, do already-authorized work, and notify you if something is important
 
 ## Configuration
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | \`heartbeatIntervalSec\` | 300s (5 min) | How frequently the heartbeat tick runs |
-| \`heartbeatRunAgent\` | \`false\` | Run an agent turn every heartbeat to manage tasks / do work |
+| \`heartbeatRunAgent\` | \`true\` | Run an agent turn every heartbeat to manage tasks / do work |
 | \`heartbeatAgentPrompt\` | (built-in directive) | The directive passed to the agent when \`heartbeatRunAgent\` is on |
 | \`SYNC_INTERVAL_MS\` | 1 hour | Minimum time between memory syncs |
 
@@ -35,13 +35,18 @@ The Heartbeat Service is Tars' autonomous background engine. It runs on a config
 
 ### Autonomous agent turns
 
-When \`heartbeatRunAgent\` is enabled, each heartbeat tick invokes the agent with
-\`heartbeatAgentPrompt\` after maintenance and the initiative pass, so it sees freshly
-synced memory. This runs regardless of user activity. It is opt-in and disabled by
-default because every enabled tick is a full inference run (mind your
-\`heartbeatIntervalSec\` and rate limits). The invocation never interrupts a live
-conversation: if the supervisor is busy, the agent turn is skipped for that tick, and
-agent failures never abort the heartbeat.
+On by default: when \`heartbeatRunAgent\` is enabled, each heartbeat tick invokes the
+agent with \`heartbeatAgentPrompt\` after maintenance and the initiative pass, so it sees
+freshly synced memory. This runs regardless of user activity. Because every enabled tick
+is a full inference run, mind your \`heartbeatIntervalSec\` and rate limits (set
+\`heartbeatRunAgent: false\` to return to code-only maintenance). The invocation never
+interrupts a live conversation: if the supervisor is busy the agent turn is skipped for
+that tick, and agent failures never abort the heartbeat.
+
+Heartbeat agent turns may send you a proactive message (via the \`send_notification\`
+tool) when the agent judges something genuinely important or attention-worthy; it stays
+silent otherwise. This notification ability is specific to heartbeat turns — scheduled
+cron tasks keep their own per-task notification policy and are unaffected.
 
 ## Tick Execution Flow
 
@@ -52,7 +57,7 @@ heartbeat.tick()
   ├── Cleanup: Remove stale temp files (>1h) and uploads (>24h)
   ├── Sync: Memory re-index + session GC (rate-limited to 1h minimum)
   ├── Initiative: Run doctor / repairs / notifications
-  └── Agent (opt-in): Run a task-management agent turn when heartbeatRunAgent is on
+  └── Agent (default on): manage tasks, do authorized work, notify only if important
 \`\`\`
 
 ## Logging & Traceability

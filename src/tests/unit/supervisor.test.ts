@@ -82,6 +82,15 @@ describe('Supervisor', () => {
         );
     });
 
+    it('should execute background tasks with notifications when allowed', async () => {
+        await supervisor.executeTask('heartbeat prompt', { allowNotifications: true });
+        expect(mockGemini.runSync).toHaveBeenCalledWith(
+            'heartbeat prompt',
+            '00000000-0000-4000-8000-000000000001',
+            { allowNotifications: true, ephemeral: true }
+        );
+    });
+
     it('should track user activity on run', async () => {
         await supervisor.run('hello', vi.fn());
         expect(mockSessionManager.touchActivity).toHaveBeenCalled();
