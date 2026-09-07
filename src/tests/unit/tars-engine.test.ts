@@ -26,9 +26,10 @@ const stubModel: Model<Api> = {
 };
 
 const stubModelSource: ModelSource = {
-    getModel: () => stubModel,
-    getApiKey: async () => 'test-key',
-    reload: () => undefined
+    getModel: async () => stubModel,
+    stream: async () => {
+        throw new Error('stream is not expected in these tests');
+    }
 };
 
 vi.mock('fs');

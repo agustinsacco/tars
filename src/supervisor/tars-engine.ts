@@ -184,7 +184,15 @@ const AssistantMessageSchema = z
         responseId: z.string().optional(),
         diagnostics: z.array(AssistantDiagnosticSchema).optional(),
         usage: UsageSchema,
-        stopReason: z.enum(['stop', 'length', 'toolUse', 'error', 'aborted']),
+        stopReason: z.enum([
+            'pending',
+            'stop',
+            'length',
+            'toolUse',
+            'error',
+            'aborted',
+            'deferred'
+        ]),
         errorMessage: z.string().optional(),
         timestamp: TimestampSchema
     })
@@ -410,10 +418,7 @@ export class TarsEngine extends EventEmitter {
         // Get system prompt (with skills protocol appended if available)
         const systemPrompt = this.getSystemPrompt();
 
-        // Pick up credentials stored by `tars auth login` and models.json edits
-        // without requiring a supervisor restart.
-        this.modelSource.reload();
-        const model = this.modelSource.getModel(options.modelRole ?? 'chat');
+        const model = await this.modelSource.getModel(options.modelRole ?? 'chat');
 
         // Build target Agent
         const tools =
@@ -428,7 +433,10 @@ export class TarsEngine extends EventEmitter {
                 tools,
                 messages: history
             },
-            getApiKey: (providerName) => this.modelSource.getApiKey(providerName)
+            // The pi runtime resolves credentials per request: stored API keys,
+            // OAuth tokens (auto-refreshed), and standard environment variables.
+            streamFn: (streamModel, context, streamOptions) =>
+                this.modelSource.stream(streamModel, context, streamOptions)
         });
 
         // Track tool executions for status reporting
@@ -779,7 +787,7 @@ export class TarsEngine extends EventEmitter {
 
                     const summaryPrompt = `${anchorInstruction}\nExtract all important constraints, configs, details and tool results from this chunk of history. Format your response cleanly.`;
 
-                    const model = this.modelSource.getModel('summarizer');
+                    const model = await this.modelSource.getModel('summarizer');
 
                     // Convert historyToCompress to Message[] for streamSimple
                     const llmMessages = historyToCompress.filter((m) =>
@@ -791,9 +799,9 @@ export class TarsEngine extends EventEmitter {
                         timestamp: Date.now()
                     });
 
-                    const { streamSimple } = await import('@earendil-works/pi-ai/base');
-                    const apiKey = await this.modelSource.getApiKey(model.provider);
-                    const stream = streamSimple(model, { messages: llmMessages }, { apiKey });
+                    const stream = await this.modelSource.stream(model, {
+                        messages: llmMessages
+                    });
 
                     let summaryContent = '';
                     for await (const event of stream) {

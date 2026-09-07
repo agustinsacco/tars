@@ -1,26 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import { type OAuthProviderInterface } from '@earendil-works/pi-ai';
+import {
+    formatAuthStatusLine,
+    resolveOAuthProvider,
+    type OAuthProviderChoice
+} from '../../cli/commands/auth.js';
 
-import { formatAuthStatusLine, resolveOAuthProvider } from '../../cli/commands/auth.js';
-
-function createProvider(id: string, name: string): OAuthProviderInterface {
-    return {
-        id,
-        name,
-        login: async () => {
-            throw new Error('not used in tests');
-        },
-        refreshToken: async () => {
-            throw new Error('not used in tests');
-        },
-        getApiKey: () => 'unused'
-    };
-}
-
-const providers = [
-    createProvider('anthropic', 'Anthropic (Claude Pro/Max)'),
-    createProvider('openai-codex', 'OpenAI (ChatGPT)')
+const providers: OAuthProviderChoice[] = [
+    { id: 'anthropic', name: 'Anthropic (Claude Pro/Max)' },
+    { id: 'openai-codex', name: 'OpenAI (ChatGPT)' }
 ];
 
 describe('resolveOAuthProvider', () => {

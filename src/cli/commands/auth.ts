@@ -1,24 +1,33 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import {
-    type OAuthLoginCallbacks,
-    type OAuthProviderInterface,
-    type OAuthSelectPrompt
-} from '@earendil-works/pi-ai';
-import { type AuthStatus, type AuthStorage } from '@earendil-works/pi-coding-agent';
+import { type AuthEvent, type AuthInteraction, type AuthPrompt } from '@earendil-works/pi-ai';
+import { type ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 import { Config } from '../../config/config.js';
-import { createAuthStorage, getAuthStoragePath } from '../../supervisor/model-manager.js';
+import { createModelRuntime, getAuthStoragePath } from '../../supervisor/model-manager.js';
 import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
 
+/** Minimal provider view used by the auth command and its tests. */
+export interface OAuthProviderChoice {
+    readonly id: string;
+    readonly name: string;
+}
+
+/** Structural mirror of pi's provider auth status; never carries secrets. */
+export interface ProviderAuthStatus {
+    readonly configured: boolean;
+    readonly source?: string;
+    readonly label?: string;
+}
+
 /**
- * Finds an OAuth provider by id. Returns undefined when the id is missing or
- * not offered, so the caller can list the valid ids.
+ * Finds an OAuth-capable provider by id. Returns undefined when the id is
+ * missing or not offered, so the caller can list the valid ids.
  */
-export function resolveOAuthProvider(
-    providers: readonly OAuthProviderInterface[],
+export function resolveOAuthProvider<T extends OAuthProviderChoice>(
+    providers: readonly T[],
     requestedId: string | undefined
-): OAuthProviderInterface | undefined {
+): T | undefined {
     if (!requestedId) return undefined;
     return providers.find((provider) => provider.id === requestedId);
 }
@@ -27,55 +36,77 @@ export function resolveOAuthProvider(
 export function formatAuthStatusLine(
     providerId: string,
     providerName: string,
-    status: AuthStatus
+    status: ProviderAuthStatus
 ): string {
     if (!status.configured) return `- ${providerName} (${providerId}): not configured`;
     const source = status.label ?? status.source ?? 'configured';
     return `- ${providerName} (${providerId}): configured (${source})`;
 }
 
-function createLoginCallbacks(): OAuthLoginCallbacks {
+async function promptForInput(prompt: AuthPrompt): Promise<string> {
+    if (prompt.type === 'select') {
+        const answers = await inquirer.prompt<{ value: string }>([
+            {
+                type: 'list',
+                name: 'value',
+                message: prompt.message,
+                choices: prompt.options.map((option) => ({
+                    name: option.description
+                        ? `${option.label} — ${option.description}`
+                        : option.label,
+                    value: option.id
+                }))
+            }
+        ]);
+        return answers.value;
+    }
+    const answers = await inquirer.prompt<{ value: string }>([
+        {
+            type: prompt.type === 'secret' ? 'password' : 'input',
+            name: 'value',
+            message: prompt.message
+        }
+    ]);
+    return answers.value ?? '';
+}
+
+function printAuthEvent(event: AuthEvent): void {
+    if (event.type === 'auth_url') {
+        console.log(chalk.cyan('\n🔐 Open this URL in your browser to authorize:'));
+        console.log(chalk.bold(event.url));
+        if (event.instructions) console.log(chalk.dim(event.instructions));
+        return;
+    }
+    if (event.type === 'device_code') {
+        console.log(chalk.cyan(`\n🔐 Visit ${chalk.bold(event.verificationUri)} and enter:`));
+        console.log(chalk.bold(event.userCode));
+        return;
+    }
+    if (event.type === 'info') {
+        console.log(event.message);
+        for (const link of event.links ?? []) {
+            console.log(chalk.dim(link.label ? `${link.label}: ${link.url}` : link.url));
+        }
+        return;
+    }
+    console.log(chalk.dim(event.message));
+}
+
+function createLoginInteraction(): AuthInteraction {
     return {
-        onAuth: (info) => {
-            console.log(chalk.cyan('\n🔐 Open this URL in your browser to authorize:'));
-            console.log(chalk.bold(info.url));
-            if (info.instructions) console.log(chalk.dim(info.instructions));
-        },
-        onDeviceCode: (info) => {
-            console.log(chalk.cyan(`\n🔐 Visit ${chalk.bold(info.verificationUri)} and enter:`));
-            console.log(chalk.bold(info.userCode));
-        },
-        onPrompt: async (prompt) => {
-            const answers = await inquirer.prompt<{ value: string }>([
-                { type: 'input', name: 'value', message: prompt.message }
-            ]);
-            return answers.value ?? '';
-        },
-        onManualCodeInput: async () => {
-            const answers = await inquirer.prompt<{ value: string }>([
-                { type: 'input', name: 'value', message: 'Paste the authorization code:' }
-            ]);
-            return answers.value ?? '';
-        },
-        onSelect: async (prompt: OAuthSelectPrompt) => {
-            const answers = await inquirer.prompt<{ value: string }>([
-                {
-                    type: 'list',
-                    name: 'value',
-                    message: prompt.message,
-                    choices: prompt.options.map((option) => ({
-                        name: option.label,
-                        value: option.id
-                    }))
-                }
-            ]);
-            return answers.value;
-        },
-        onProgress: (message) => console.log(chalk.dim(message))
+        prompt: promptForInput,
+        notify: printAuthEvent
     };
 }
 
-function printAvailableProviders(providers: readonly OAuthProviderInterface[]): void {
+function getOAuthProviders(runtime: ModelRuntime): OAuthProviderChoice[] {
+    return runtime
+        .getProviders()
+        .filter((provider) => provider.auth.oauth !== undefined)
+        .map((provider) => ({ id: provider.id, name: provider.name }));
+}
+
+function printAvailableProviders(providers: readonly OAuthProviderChoice[]): void {
     console.log(chalk.cyan('Available OAuth providers:'));
     for (const provider of providers) {
         console.log(`- ${provider.id} (${provider.name})`);
@@ -83,11 +114,8 @@ function printAvailableProviders(providers: readonly OAuthProviderInterface[]): 
     console.log(chalk.dim('API-key providers are configured with `tars secret set` instead.'));
 }
 
-async function runLogin(
-    authStorage: AuthStorage,
-    providers: readonly OAuthProviderInterface[],
-    providerId: string | undefined
-): Promise<boolean> {
+async function runLogin(runtime: ModelRuntime, providerId: string | undefined): Promise<boolean> {
+    const providers = getOAuthProviders(runtime);
     let provider = resolveOAuthProvider(providers, providerId);
     if (!provider && providerId) {
         console.log(chalk.red(`❌ Unknown OAuth provider: ${providerId}`));
@@ -110,7 +138,7 @@ async function runLogin(
         if (!provider) return false;
     }
 
-    await authStorage.login(provider.id, createLoginCallbacks());
+    await runtime.login(provider.id, 'oauth', createLoginInteraction());
     console.log(chalk.green(`\n✅ Logged in to ${provider.name}.`));
     console.log(
         chalk.dim(
@@ -120,31 +148,35 @@ async function runLogin(
     return true;
 }
 
-function runLogout(authStorage: AuthStorage, providerId: string | undefined): boolean {
+async function runLogout(runtime: ModelRuntime, providerId: string | undefined): Promise<boolean> {
     if (!providerId) {
         console.log(chalk.red('❌ Usage: tars auth logout <provider>'));
         return false;
     }
-    if (!authStorage.has(providerId)) {
+    const stored = await runtime.listCredentials();
+    if (!stored.some((credential) => credential.providerId === providerId)) {
         console.log(chalk.yellow(`No stored credentials for ${providerId}.`));
         return true;
     }
-    authStorage.logout(providerId);
+    await runtime.logout(providerId);
     console.log(chalk.green(`✅ Removed stored credentials for ${providerId}.`));
     return true;
 }
 
-function runStatus(config: Config, authStorage: AuthStorage): boolean {
-    const providers = authStorage.getOAuthProviders();
+function runStatus(config: Config, runtime: ModelRuntime): boolean {
     console.log(chalk.cyan.bold('\n🔐 Provider authentication'));
     console.log(chalk.cyan('──────────────────────────'));
     console.log(chalk.dim(`Credential store: ${getAuthStoragePath(config.homeDir)}`));
 
     const reportedProviders = new Set<string>();
-    for (const provider of providers) {
+    for (const provider of getOAuthProviders(runtime)) {
         reportedProviders.add(provider.id);
         console.log(
-            formatAuthStatusLine(provider.id, provider.name, authStorage.getAuthStatus(provider.id))
+            formatAuthStatusLine(
+                provider.id,
+                provider.name,
+                runtime.getProviderAuthStatus(provider.id)
+            )
         );
     }
 
@@ -158,7 +190,11 @@ function runStatus(config: Config, authStorage: AuthStorage): boolean {
         if (!providerId || reportedProviders.has(providerId)) continue;
         reportedProviders.add(providerId);
         console.log(
-            formatAuthStatusLine(providerId, providerId, authStorage.getAuthStatus(providerId))
+            formatAuthStatusLine(
+                providerId,
+                runtime.getProvider(providerId)?.name ?? providerId,
+                runtime.getProviderAuthStatus(providerId)
+            )
         );
     }
     console.log('');
@@ -172,24 +208,24 @@ function runStatus(config: Config, authStorage: AuthStorage): boolean {
  */
 export async function auth(action: string, providerId?: string): Promise<boolean> {
     const config = Config.getInstance();
-    const authStorage = createAuthStorage(config.homeDir);
 
     try {
+        const runtime = await createModelRuntime(config.homeDir);
         switch (action) {
             case 'login':
                 return await withTarsHomeMutationLease(
                     config.homeDir,
                     'modify Tars provider credentials',
-                    () => runLogin(authStorage, authStorage.getOAuthProviders(), providerId)
+                    () => runLogin(runtime, providerId)
                 );
             case 'logout':
                 return await withTarsHomeMutationLease(
                     config.homeDir,
                     'modify Tars provider credentials',
-                    async () => runLogout(authStorage, providerId)
+                    () => runLogout(runtime, providerId)
                 );
             case 'status':
-                return runStatus(config, authStorage);
+                return runStatus(config, runtime);
             default:
                 console.log(chalk.red(`❌ Unknown action: ${action}`));
                 console.log(chalk.dim('Try: login, logout, status'));
