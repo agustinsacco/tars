@@ -46,6 +46,7 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
     const channels = getRecord(jsonConfig.channels);
     const discord = getRecord(channels.discord);
     const initiative = getRecord(jsonConfig.initiative);
+    const models = getRecord(jsonConfig.models);
 
     return RuntimeConfigSchema.parse({
         assistantName: process.env.ASSISTANT_NAME ?? jsonConfig.assistantName,
@@ -55,6 +56,13 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
         piProvider: process.env.PI_PROVIDER ?? jsonConfig.piProvider,
         piModel: process.env.PI_MODEL ?? jsonConfig.piModel,
         piBaseUrl: process.env.PI_BASE_URL ?? jsonConfig.piBaseUrl,
+        piApi: process.env.PI_API ?? jsonConfig.piApi,
+        models: {
+            background:
+                getNonEmptyEnvironmentValue(process.env.TARS_BACKGROUND_MODEL) ?? models.background,
+            summarizer:
+                getNonEmptyEnvironmentValue(process.env.TARS_SUMMARIZER_MODEL) ?? models.summarizer
+        },
         inferenceBackend: process.env.INFERENCE_BACKEND ?? jsonConfig.inferenceBackend,
         localInferenceUrl: process.env.LOCAL_INFERENCE_URL ?? jsonConfig.localInferenceUrl,
         statusUpdates: {
@@ -132,6 +140,8 @@ export class Config {
     public readonly piProvider: string;
     public readonly piModel: string;
     public readonly piBaseUrl: string;
+    public readonly piApi: RuntimeConfig['piApi'];
+    public readonly models: RuntimeConfig['models'];
     public readonly inferenceBackend: 'tars' | 'llamacpp';
     public readonly localInferenceUrl: string;
     public readonly statusUpdates: Readonly<{ tars: boolean; llamacpp: boolean }>;
@@ -174,6 +184,8 @@ export class Config {
         this.piProvider = config.piProvider;
         this.piModel = config.piModel;
         this.piBaseUrl = config.piBaseUrl;
+        this.piApi = config.piApi;
+        this.models = config.models;
         this.inferenceBackend = config.inferenceBackend;
         this.localInferenceUrl = config.localInferenceUrl;
         this.statusUpdates = config.statusUpdates;

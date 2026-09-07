@@ -20,6 +20,8 @@ export interface RepairResult {
 function getSensitivePaths(config: Config): string[] {
     return [
         path.join(config.homeDir, '.env'),
+        path.join(config.homeDir, 'auth.json'),
+        path.join(config.homeDir, 'models.json'),
         config.configFilePath,
         config.sessionFilePath,
         config.taskFilePath,

@@ -1,6 +1,6 @@
 # Assistant Overhaul: Auth, Memory, Autonomy
 
-Status: proposal (review artifact, no code changes yet)
+Status: accepted; Phase 1 (auth and models) is implemented alongside this document
 Date: 2026-09-07
 Scope: `src/supervisor`, `src/memory`, `src/initiative`, `extensions/memory`, CLI
 

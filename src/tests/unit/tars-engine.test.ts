@@ -5,10 +5,31 @@ import {
     TarsEngine
 } from '../../supervisor/tars-engine.js';
 import { type Config as TarsConfig } from '../../config/config.js';
+import { type ModelSource } from '../../supervisor/model-manager.js';
 import fs from 'fs';
 import path from 'path';
 import { loadSkills, formatSkillsForPrompt } from '@earendil-works/pi-coding-agent';
 import { Agent, type AgentOptions } from '@earendil-works/pi-agent-core';
+import { type Api, type Model } from '@earendil-works/pi-ai';
+
+const stubModel: Model<Api> = {
+    id: 'gpt-4o',
+    name: 'gpt-4o',
+    api: 'openai-completions',
+    provider: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    reasoning: false,
+    input: ['text'],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128000,
+    maxTokens: 32000
+};
+
+const stubModelSource: ModelSource = {
+    getModel: () => stubModel,
+    getApiKey: async () => 'test-key',
+    reload: () => undefined
+};
 
 vi.mock('fs');
 vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => {
@@ -234,7 +255,7 @@ describe('TarsEngine', () => {
                 });
                 return agent;
             };
-            const failingEngine = new TarsEngine(mockTarsConfig, agentFactory);
+            const failingEngine = new TarsEngine(mockTarsConfig, agentFactory, stubModelSource);
             Reflect.set(failingEngine, 'initialized', true);
             const saveHistory = vi.fn();
             Reflect.set(failingEngine, 'saveHistory', saveHistory);
@@ -266,7 +287,7 @@ describe('TarsEngine', () => {
                 vi.spyOn(agent, 'prompt').mockResolvedValue(undefined);
                 return agent;
             };
-            const backgroundEngine = new TarsEngine(mockTarsConfig, agentFactory);
+            const backgroundEngine = new TarsEngine(mockTarsConfig, agentFactory, stubModelSource);
             Reflect.set(backgroundEngine, 'initialized', true);
             const loadHistory = vi.fn().mockResolvedValue([]);
             const saveHistory = vi.fn().mockResolvedValue(undefined);

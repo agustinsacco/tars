@@ -341,6 +341,8 @@ export class TarsDoctor {
     private checkSensitivePermissions(): DoctorFinding[] {
         const paths = [
             path.join(this.config.homeDir, '.env'),
+            path.join(this.config.homeDir, 'auth.json'),
+            path.join(this.config.homeDir, 'models.json'),
             this.config.configFilePath,
             this.config.sessionFilePath,
             this.config.taskFilePath,
