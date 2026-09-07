@@ -4,8 +4,7 @@ import {
     type AgentMessage,
     type AgentOptions
 } from '@earendil-works/pi-agent-core';
-import { type Message } from '@earendil-works/pi-ai';
-import type { ImageContent } from '@earendil-works/pi-ai/base';
+import { type ImageContent, type Message } from '@earendil-works/pi-ai';
 import {
     createCodingTools,
     loadSkills,
