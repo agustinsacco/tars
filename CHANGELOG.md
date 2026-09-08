@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.46.0](https://github.com/agustinsacco/tars/compare/v1.45.0...v1.46.0) (2026-09-08)
+
+
+### Features
+
+* pi-native provider auth (OAuth) and role-based models ([#172](https://github.com/agustinsacco/tars/issues/172)) ([73f778c](https://github.com/agustinsacco/tars/commit/73f778c31d9ca508e32d05dd569cf581155a33cd))
+
 ## [1.45.0](https://github.com/agustinsacco/tars/compare/v1.44.0...v1.45.0) (2026-09-04)
 
 
