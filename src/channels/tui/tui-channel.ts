@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import {
-    TUI,
+    TuiMainScreen,
     ProcessTerminal,
     Editor,
     Markdown,
@@ -8,7 +8,7 @@ import {
     CombinedAutocompleteProvider,
     Container
 } from '@earendil-works/pi-tui';
-import type { Terminal } from '@earendil-works/pi-tui';
+import type { Terminal, TUI } from '@earendil-works/pi-tui';
 import { type CommunicationChannel, type ChannelMessage } from '../types.js';
 import { TuiRenderer } from './tui-renderer.js';
 import { versionString } from '../../utils/version.js';
@@ -183,7 +183,7 @@ export class TuiChannel implements CommunicationChannel {
         }
 
         // 2. Initialize TUI manager
-        this.tui = new TUI(this.terminal);
+        this.tui = new TuiMainScreen(this.terminal);
 
         // 3. Create initial static components (Logo & Header)
         const logo = TuiRenderer.renderLogo();

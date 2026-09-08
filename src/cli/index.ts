@@ -143,6 +143,16 @@ program
     .action(discord);
 
 program
+    .command('auth')
+    .description('Manage model provider authentication (OAuth login, logout, status)')
+    .argument('<action>', 'Action to perform (login, logout, status)')
+    .argument('[provider]', 'Provider id (anthropic, openai-codex, github-copilot)')
+    .action(async (action: string, provider?: string) => {
+        const { auth } = await import('./commands/auth.js');
+        if (!(await auth(action, provider))) process.exitCode = 1;
+    });
+
+program
     .command('secret')
     .description('Manage secure environment variables for extensions')
     .argument('<action>', 'Action to perform (set, list, remove)')

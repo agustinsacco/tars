@@ -16,7 +16,11 @@ their multi-agent, mobile, voice, or broad multi-channel ecosystems.
 ## What it provides
 
 - Discord and interactive terminal interfaces backed by one active agent.
-- Google, OpenAI, Anthropic, local, and custom OpenAI-compatible model configuration.
+- Every provider in the pi model registry (Google, OpenAI, Anthropic, OpenRouter, and more), plus
+  local and custom OpenAI-compatible endpoints.
+- Subscription OAuth via `tars auth login` for Anthropic (Claude Pro/Max), OpenAI (ChatGPT), and
+  GitHub Copilot, alongside API keys. Optional per-role models route background and summarizer work
+  to a cheaper model.
 - Durable facts, searchable notes, and scheduled tasks through built-in MCP extensions.
 - A PM2-managed supervisor with explicit cron execution, maintenance, and bounded initiative modes.
 - Local skills and explicitly enabled MCP servers with restricted subprocess environments.
@@ -65,6 +69,8 @@ writes, or memory index operations; those commands refuse a live lease.
 | `tars logs`                        | Follow logs for the configured supervisor.                 |
 | `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.       |
 | `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`. |
+| `tars auth login PROVIDER`         | Log in to a provider subscription with OAuth (auth.json).  |
+| `tars auth status`                 | Show configured provider credentials without values.       |
 | `tars extensions audit`            | Inspect custom MCP environment and working-dir policies.   |
 | `tars extensions migrate`          | Interactively migrate legacy custom extension policies.    |
 | `tars memory search QUERY`         | Search the local knowledge index.                          |

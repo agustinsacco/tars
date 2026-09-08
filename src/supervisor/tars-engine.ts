@@ -4,14 +4,7 @@ import {
     type AgentMessage,
     type AgentOptions
 } from '@earendil-works/pi-agent-core';
-import {
-    getModels,
-    type Api,
-    type KnownProvider,
-    type Model,
-    type Message
-} from '@earendil-works/pi-ai';
-import type { ImageContent } from '@earendil-works/pi-ai/base';
+import { type ImageContent, type Message } from '@earendil-works/pi-ai';
 import {
     createCodingTools,
     loadSkills,
@@ -35,6 +28,7 @@ import { routeMcpTools } from '../tools/mcp-tool-router.js';
 import { SessionIdSchema, type SessionManager } from './session-manager.js';
 import { LocalRateLimiter } from './rate-limiter.js';
 import { McpBridge } from './mcp-bridge.js';
+import { ModelManager, type ModelRole, type ModelSource } from './model-manager.js';
 import { DLPService } from '../utils/dlp-service.js';
 
 export type TarsEngineEvent = TarsEvent;
@@ -44,6 +38,7 @@ export type TarsEngineOutputHandler = (event: TarsEngineEvent) => unknown | Prom
 interface EngineRunOptions {
     readonly allowNotifications?: boolean;
     readonly ephemeral?: boolean;
+    readonly modelRole?: ModelRole;
 }
 
 /**
@@ -188,7 +183,15 @@ const AssistantMessageSchema = z
         responseId: z.string().optional(),
         diagnostics: z.array(AssistantDiagnosticSchema).optional(),
         usage: UsageSchema,
-        stopReason: z.enum(['stop', 'length', 'toolUse', 'error', 'aborted']),
+        stopReason: z.enum([
+            'pending',
+            'stop',
+            'length',
+            'toolUse',
+            'error',
+            'aborted',
+            'deferred'
+        ]),
         errorMessage: z.string().optional(),
         timestamp: TimestampSchema
     })
@@ -241,12 +244,6 @@ interface ResumedSessionData {
     filePath: string;
 }
 
-type BuiltInProvider = Extract<KnownProvider, 'google' | 'openai' | 'anthropic'>;
-
-function isBuiltInProvider(provider: string): provider is BuiltInProvider {
-    return provider === 'google' || provider === 'openai' || provider === 'anthropic';
-}
-
 export function parseAgentHistory(value: unknown): AgentMessage[] {
     return AgentHistorySchema.parse(value);
 }
@@ -279,7 +276,8 @@ export class TarsEngine extends EventEmitter {
 
     constructor(
         private readonly tarsConfig: TarsConfig,
-        private readonly agentFactory: AgentFactory = (options) => new Agent(options)
+        private readonly agentFactory: AgentFactory = (options) => new Agent(options),
+        private readonly modelSource: ModelSource = new ModelManager(tarsConfig)
     ) {
         super();
         this.rateLimiter = new LocalRateLimiter(
@@ -367,61 +365,6 @@ export class TarsEngine extends EventEmitter {
     }
 
     /**
-     * Returns the API key mapped to the provider name from process.env.
-     */
-    private getApiKeyForProvider(providerName: string): string | undefined {
-        if (providerName === 'google')
-            return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
-        if (providerName === 'openai') return process.env.OPENAI_API_KEY;
-        if (providerName === 'anthropic') return process.env.ANTHROPIC_API_KEY;
-        if (providerName === 'local' || providerName === 'local-stark')
-            return process.env.LOCAL_API_KEY || process.env.STARK_API_KEY || 'none';
-        if (providerName === 'custom') return process.env.CUSTOM_API_KEY || 'none';
-        if (providerName === this.tarsConfig.piProvider) {
-            if (this.tarsConfig.piProvider === 'google')
-                return process.env.TARS_API_KEY || process.env.GEMINI_API_KEY;
-            if (this.tarsConfig.piProvider === 'openai') return process.env.OPENAI_API_KEY;
-            if (this.tarsConfig.piProvider === 'anthropic') return process.env.ANTHROPIC_API_KEY;
-            if (
-                this.tarsConfig.piProvider === 'local' ||
-                this.tarsConfig.piProvider === 'local-stark'
-            )
-                return process.env.LOCAL_API_KEY || process.env.STARK_API_KEY || 'none';
-            if (this.tarsConfig.piProvider === 'custom')
-                return process.env.CUSTOM_API_KEY || 'none';
-        }
-        return undefined;
-    }
-
-    private createModel(): Model<Api> {
-        const provider = this.tarsConfig.piProvider;
-        if (isBuiltInProvider(provider) && !this.tarsConfig.piBaseUrl) {
-            const model = getModels(provider).find(({ id }) => id === this.tarsConfig.piModel);
-            if (!model) {
-                throw new Error(`Unknown ${provider} model: ${this.tarsConfig.piModel}`);
-            }
-            return model;
-        }
-
-        return {
-            id: this.tarsConfig.piModel,
-            name: this.tarsConfig.piModel,
-            api: provider === 'google' ? 'google-generative-ai' : 'openai-completions',
-            provider: provider || 'custom',
-            baseUrl:
-                this.tarsConfig.piBaseUrl ||
-                (provider === 'google'
-                    ? 'https://generativelanguage.googleapis.com'
-                    : 'https://api.openai.com/v1'),
-            reasoning: false,
-            input: ['text'],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: this.tarsConfig.contextWindowTokens || 128000,
-            maxTokens: 32000
-        };
-    }
-
-    /**
      * Resolves the full system prompt by reading the base system prompt file
      * and appending the formatted available skills prompt block.
      */
@@ -474,7 +417,7 @@ export class TarsEngine extends EventEmitter {
         // Get system prompt (with skills protocol appended if available)
         const systemPrompt = this.getSystemPrompt();
 
-        const model = this.createModel();
+        const model = await this.modelSource.getModel(options.modelRole ?? 'chat');
 
         // Build target Agent
         const tools =
@@ -489,7 +432,10 @@ export class TarsEngine extends EventEmitter {
                 tools,
                 messages: history
             },
-            getApiKey: (providerName) => this.getApiKeyForProvider(providerName)
+            // The pi runtime resolves credentials per request: stored API keys,
+            // OAuth tokens (auto-refreshed), and standard environment variables.
+            streamFn: (streamModel, context, streamOptions) =>
+                this.modelSource.stream(streamModel, context, streamOptions)
         });
 
         // Track tool executions for status reporting
@@ -840,7 +786,7 @@ export class TarsEngine extends EventEmitter {
 
                     const summaryPrompt = `${anchorInstruction}\nExtract all important constraints, configs, details and tool results from this chunk of history. Format your response cleanly.`;
 
-                    const model = this.createModel();
+                    const model = await this.modelSource.getModel('summarizer');
 
                     // Convert historyToCompress to Message[] for streamSimple
                     const llmMessages = historyToCompress.filter((m) =>
@@ -852,9 +798,9 @@ export class TarsEngine extends EventEmitter {
                         timestamp: Date.now()
                     });
 
-                    const { streamSimple } = await import('@earendil-works/pi-ai/base');
-                    const apiKey = this.getApiKeyForProvider(model.provider);
-                    const stream = streamSimple(model, { messages: llmMessages }, { apiKey });
+                    const stream = await this.modelSource.stream(model, {
+                        messages: llmMessages
+                    });
 
                     let summaryContent = '';
                     for await (const event of stream) {

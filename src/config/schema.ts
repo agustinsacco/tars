@@ -34,6 +34,15 @@ export const ChannelConfigSchema = z
     })
     .passthrough();
 
+/**
+ * `provider/model-id` reference into the pi model registry. The model id may
+ * itself contain slashes (for example `openrouter/anthropic/claude-sonnet-4`).
+ */
+export const ModelReferenceSchema = z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*\/\S+$/, 'Model reference must be "provider/model-id"');
+
 export const ConfigFileSchema = z.record(z.unknown());
 
 export const RuntimeConfigSchema = z.object({
@@ -50,6 +59,21 @@ export const RuntimeConfigSchema = z.object({
     piProvider: z.string().trim().min(1).default('google'),
     piModel: z.string().trim().min(1).default('gemini-2.5-flash'),
     piBaseUrl: z.union([z.literal(''), HttpUrlSchema]).default(''),
+    piApi: z
+        .preprocess(
+            (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+            z.union([
+                z.literal(''),
+                z.enum(['openai-completions', 'anthropic-messages', 'google-generative-ai'])
+            ])
+        )
+        .default(''),
+    models: z
+        .object({
+            background: ModelReferenceSchema.optional(),
+            summarizer: ModelReferenceSchema.optional()
+        })
+        .default({}),
     inferenceBackend: z
         .preprocess(
             (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),

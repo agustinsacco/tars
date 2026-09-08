@@ -36,4 +36,32 @@ describe('RuntimeConfigSchema', () => {
         expect(() => RuntimeConfigSchema.parse({ compressionThreshold: 1 })).toThrow();
         expect(() => RuntimeConfigSchema.parse({ maxRPM: 0 })).toThrow();
     });
+
+    it('defaults piApi to inference and accepts only supported API shapes', () => {
+        // ARRANGE / ACT / ASSERT
+        expect(RuntimeConfigSchema.parse({}).piApi).toBe('');
+        expect(RuntimeConfigSchema.parse({ piApi: 'Anthropic-Messages' }).piApi).toBe(
+            'anthropic-messages'
+        );
+        expect(() => RuntimeConfigSchema.parse({ piApi: 'grpc' })).toThrow();
+    });
+
+    it('validates role model references as provider/model-id', () => {
+        // ARRANGE / ACT
+        const parsed = RuntimeConfigSchema.parse({
+            models: {
+                background: 'anthropic/claude-haiku-4-5',
+                summarizer: 'openrouter/anthropic/claude-haiku-4-5'
+            }
+        });
+
+        // ASSERT
+        expect(parsed.models.background).toBe('anthropic/claude-haiku-4-5');
+        expect(parsed.models.summarizer).toBe('openrouter/anthropic/claude-haiku-4-5');
+        expect(RuntimeConfigSchema.parse({}).models).toEqual({});
+        expect(() =>
+            RuntimeConfigSchema.parse({ models: { background: 'claude-haiku-4-5' } })
+        ).toThrow();
+        expect(() => RuntimeConfigSchema.parse({ models: { summarizer: '/model' } })).toThrow();
+    });
 });

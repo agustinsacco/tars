@@ -247,7 +247,8 @@ export class Supervisor {
 
             const result = await this.tarsEngine.runSync(prompt, BACKGROUND_SESSION_ID, {
                 allowNotifications,
-                ephemeral: true
+                ephemeral: true,
+                modelRole: 'background'
             });
 
             return result;
