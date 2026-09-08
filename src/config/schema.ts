@@ -98,6 +98,21 @@ export const RuntimeConfigSchema = z.object({
         .min(1)
         .max(8_000)
         .default(DEFAULT_HEARTBEAT_AGENT_PROMPT),
+    pulse: z
+        .object({
+            enabled: BooleanLikeSchema.default(true),
+            floorSec: z.coerce.number().int().min(60).max(86_400).default(300),
+            ceilingSec: z.coerce.number().int().min(60).max(86_400).default(3_600),
+            activeHoursStart: z.coerce.number().int().min(0).max(23).default(7),
+            activeHoursEnd: z.coerce.number().int().min(0).max(23).default(23)
+        })
+        .default({
+            enabled: true,
+            floorSec: 300,
+            ceilingSec: 3_600,
+            activeHoursStart: 7,
+            activeHoursEnd: 23
+        }),
     initiative: z
         .object({
             mode: z

@@ -64,36 +64,11 @@ describe('HeartbeatService', () => {
         expect(initiativeTick).toHaveBeenCalledOnce();
     });
 
-    it('does not invoke the agent when heartbeatRunAgent is disabled', async () => {
+    it('never invokes the agent — autonomous wakes belong to PulseService', async () => {
         // ARRANGE
         const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tars-heartbeat-'));
         temporaryDirectories.push(homeDir);
         const executeTask = vi.fn().mockResolvedValue('ok');
-        const supervisor = {
-            hasStaleRun: vi.fn().mockReturnValue(false),
-            memory: { fullSync: vi.fn().mockResolvedValue(undefined) },
-            executeTask
-        } as unknown as Supervisor;
-        const config = {
-            heartbeatIntervalMs: 900_000,
-            homeDir,
-            heartbeatRunAgent: false
-        } as Config;
-        const service = new HeartbeatService(supervisor, config);
-        const privateService = service as unknown as { tick(): Promise<void> };
-
-        // ACT
-        await privateService.tick();
-
-        // ASSERT
-        expect(executeTask).not.toHaveBeenCalled();
-    });
-
-    it('invokes the agent every tick with the configured directive when enabled', async () => {
-        // ARRANGE
-        const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tars-heartbeat-'));
-        temporaryDirectories.push(homeDir);
-        const executeTask = vi.fn().mockResolvedValue('did work');
         const supervisor = {
             hasStaleRun: vi.fn().mockReturnValue(false),
             memory: { fullSync: vi.fn().mockResolvedValue(undefined) },
@@ -112,35 +87,28 @@ describe('HeartbeatService', () => {
         await privateService.tick();
 
         // ASSERT
-        expect(executeTask).toHaveBeenCalledOnce();
-        expect(executeTask).toHaveBeenCalledWith('Manage my tasks and do pending work', {
-            allowNotifications: true
-        });
+        expect(executeTask).not.toHaveBeenCalled();
     });
 
-    it('continues the heartbeat when the supervisor is busy', async () => {
+    it('continues the heartbeat when initiative work fails', async () => {
         // ARRANGE
         const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tars-heartbeat-'));
         temporaryDirectories.push(homeDir);
         const fullSync = vi.fn().mockResolvedValue(undefined);
-        const executeTask = vi.fn().mockRejectedValue(new Error('Supervisor is busy'));
+        const initiativeTick = vi.fn().mockRejectedValue(new Error('doctor failed'));
         const supervisor = {
             hasStaleRun: vi.fn().mockReturnValue(false),
-            memory: { fullSync },
-            executeTask
+            memory: { fullSync }
         } as unknown as Supervisor;
-        const config = {
-            heartbeatIntervalMs: 900_000,
-            homeDir,
-            heartbeatRunAgent: true,
-            heartbeatAgentPrompt: 'work'
-        } as Config;
-        const service = new HeartbeatService(supervisor, config);
+        const config = { heartbeatIntervalMs: 900_000, homeDir } as Config;
+        const service = new HeartbeatService(supervisor, config, undefined, {
+            tick: initiativeTick
+        } as unknown as InitiativeService);
         const privateService = service as unknown as { tick(): Promise<void> };
 
-        // ACT / ASSERT: tick resolves without throwing despite the busy rejection
+        // ACT / ASSERT: tick resolves without throwing despite the failure
         await expect(privateService.tick()).resolves.toBeUndefined();
-        expect(executeTask).toHaveBeenCalledOnce();
+        expect(initiativeTick).toHaveBeenCalledOnce();
         expect(fullSync).toHaveBeenCalledOnce();
     });
 });

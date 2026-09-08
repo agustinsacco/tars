@@ -13,6 +13,7 @@ async function main(): Promise<void> {
             supervisor,
             channelManager,
             heartbeat,
+            pulse,
             cron,
             dashboard
         } = await bootstrap();
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
         // Start everything
         await channelManager.start();
         await heartbeat.start();
+        await pulse.start();
         await cron.start();
         await dashboard.start();
 
@@ -33,6 +35,7 @@ async function main(): Promise<void> {
             logger.info('🛑 Shutting down...');
             await channelManager.stop();
             heartbeat.stop();
+            pulse.stop();
             cron.stop();
             await dashboard.stop();
             process.exit(0);
