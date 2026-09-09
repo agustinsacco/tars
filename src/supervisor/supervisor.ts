@@ -230,16 +230,19 @@ export class Supervisor {
      */
     public async executeTask(
         prompt: string,
-        options: { allowNotifications?: boolean } = {}
+        options: { allowNotifications?: boolean; allowMemoryWrites?: boolean } = {}
     ): Promise<string> {
         if (this.processingSince !== null) {
             logger.warn('⚠️ Supervisor is busy, skipping background task');
             throw new Error('Supervisor is busy');
         }
 
-        // Background work is silent unless explicitly allowed to notify (e.g. heartbeat
-        // agent turns). Cron and other callers keep the safe default of no notifications.
+        // Background work is silent unless explicitly allowed to notify (e.g. pulse
+        // agent wakes). Cron and other callers keep the safe default of no
+        // notifications. Memory writes stay off except for memory-purposed jobs
+        // such as the nightly dream consolidation.
         const allowNotifications = options.allowNotifications ?? false;
+        const allowMemoryWrites = options.allowMemoryWrites ?? false;
         logger.info(`⚙️ Executing background task...`);
 
         try {
@@ -247,6 +250,7 @@ export class Supervisor {
 
             const result = await this.tarsEngine.runSync(prompt, BACKGROUND_SESSION_ID, {
                 allowNotifications,
+                allowMemoryWrites,
                 ephemeral: true,
                 modelRole: 'background'
             });

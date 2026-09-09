@@ -104,14 +104,20 @@ export const RuntimeConfigSchema = z.object({
             floorSec: z.coerce.number().int().min(60).max(86_400).default(300),
             ceilingSec: z.coerce.number().int().min(60).max(86_400).default(3_600),
             activeHoursStart: z.coerce.number().int().min(0).max(23).default(7),
-            activeHoursEnd: z.coerce.number().int().min(0).max(23).default(23)
+            activeHoursEnd: z.coerce.number().int().min(0).max(23).default(23),
+            maxWakesPerDay: z.coerce.number().int().min(1).max(1_000).default(60),
+            dreamEnabled: BooleanLikeSchema.default(true),
+            dreamHour: z.coerce.number().int().min(0).max(23).default(3)
         })
         .default({
             enabled: true,
             floorSec: 300,
             ceilingSec: 3_600,
             activeHoursStart: 7,
-            activeHoursEnd: 23
+            activeHoursEnd: 23,
+            maxWakesPerDay: 60,
+            dreamEnabled: true,
+            dreamHour: 3
         }),
     initiative: z
         .object({

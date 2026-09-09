@@ -14,6 +14,13 @@ export interface Task {
     source: 'user' | 'system';
     failedCount: number;
     lastOutcomeFingerprint?: string;
+    /**
+     * Optional pre-LLM change gate: a shell command run before the agent.
+     * When its output hash matches the previous run, the scheduled agent turn
+     * is skipped entirely (a silent no-change run that costs no tokens).
+     */
+    monitorScript?: string;
+    lastMonitorHash?: string;
     createdAt: string; // ISO date
     updatedAt: string; // ISO date
 }

@@ -1,5 +1,7 @@
+import { createHash } from 'crypto';
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CronService } from '../../supervisor/cron-service.js';
+import { CronService, probeMonitorScript } from '../../supervisor/cron-service.js';
 import { type Supervisor } from '../../supervisor/supervisor.js';
 import { type Config } from '../../config/config.js';
 import { readFile } from 'fs/promises';
@@ -308,6 +310,132 @@ describe('CronService', () => {
 
             // ASSERT
             expect(mockDiscordChannel.notify).toHaveBeenCalledWith('The monitored value changed.');
+        });
+    });
+
+    describe('monitor gate', () => {
+        const hashOf = (text: string): string => createHash('sha256').update(text).digest('hex');
+
+        function installStore(task: Task): {
+            updateTask: ReturnType<typeof vi.fn>;
+            persisted: () => Task;
+        } {
+            let lastPersisted = { ...task };
+            const updateTask = vi.fn(
+                async (
+                    _id: string,
+                    update: (candidate: Task) => void | Promise<void>
+                ): Promise<Task> => {
+                    const persistedTask = { ...lastPersisted };
+                    await update(persistedTask);
+                    lastPersisted = persistedTask;
+                    return persistedTask;
+                }
+            );
+            Reflect.set(service, 'taskStore', { updateTask });
+            return { updateTask, persisted: () => lastPersisted };
+        }
+
+        it('probeMonitorScript classifies unchanged, changed, and failed probes', async () => {
+            // ARRANGE
+            const runner = vi.fn().mockResolvedValue({ stdout: 'value=1\n' });
+            const hash = hashOf('value=1\n');
+
+            // ACT / ASSERT: first run has no baseline → changed
+            expect(await probeMonitorScript('cmd', undefined, runner)).toEqual({
+                status: 'changed',
+                hash,
+                output: 'value=1\n'
+            });
+            // Same output as baseline → unchanged
+            expect(await probeMonitorScript('cmd', hash, runner)).toEqual({
+                status: 'unchanged',
+                hash
+            });
+            // Script failure is never a change
+            runner.mockRejectedValue(new Error('command timed out'));
+            expect(await probeMonitorScript('cmd', hash, runner)).toEqual({
+                status: 'failed',
+                error: 'command timed out'
+            });
+        });
+
+        it('skips the agent turn entirely when the monitor output is unchanged', async () => {
+            // ARRANGE
+            const task = createTask({
+                monitorScript: 'echo hi',
+                lastMonitorHash: hashOf('hi\n')
+            });
+            const { updateTask, persisted } = installStore(task);
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockSupervisor.executeTask).not.toHaveBeenCalled();
+            expect(updateTask).toHaveBeenCalledOnce();
+            expect(persisted().failedCount).toBe(0);
+            expect(new Date(persisted().nextRun).getTime()).toBeGreaterThan(Date.now());
+        });
+
+        it('runs the agent with the change output and advances the baseline on success', async () => {
+            // ARRANGE: no baseline yet → first run is a change
+            const task = createTask({ monitorScript: 'echo hi' });
+            const { persisted } = installStore(task);
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockSupervisor.executeTask).toHaveBeenCalledOnce();
+            const prompt = vi.mocked(mockSupervisor.executeTask!).mock.calls[0][0];
+            expect(prompt).toContain('MONITOR CHANGE DETECTED');
+            expect(prompt).toContain('hi');
+            expect(persisted().lastMonitorHash).toBe(hashOf('hi\n'));
+        });
+
+        it('keeps the old baseline when the agent turn fails so the change retries', async () => {
+            // ARRANGE
+            const task = createTask({ monitorScript: 'echo hi' });
+            vi.mocked(mockSupervisor.executeTask!).mockRejectedValue(new Error('provider down'));
+            const { persisted } = installStore(task);
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(persisted().lastMonitorHash).toBeUndefined();
+            expect(persisted().failedCount).toBe(1);
+        });
+
+        it('treats a failing monitor script as a task failure without an agent turn', async () => {
+            // ARRANGE: exit 3 → exec rejects
+            const task = createTask({ monitorScript: 'exit 3' });
+            const { persisted } = installStore(task);
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockSupervisor.executeTask).not.toHaveBeenCalled();
+            expect(persisted().failedCount).toBe(1);
+        });
+
+        it('ignores the monitor gate for one-off ISO schedules', async () => {
+            // ARRANGE: a failing script must not block a one-off task
+            const task = createTask({
+                monitorScript: 'exit 3',
+                schedule: new Date(Date.now() - 1000).toISOString()
+            });
+            installStore(task);
+
+            // ACT
+            await runTask(service, task);
+
+            // ASSERT
+            expect(mockSupervisor.executeTask).toHaveBeenCalledOnce();
+            const prompt = vi.mocked(mockSupervisor.executeTask!).mock.calls[0][0];
+            expect(prompt).not.toContain('MONITOR CHANGE DETECTED');
         });
     });
 });

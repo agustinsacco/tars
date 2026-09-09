@@ -197,6 +197,68 @@ describe('TarsEngine workspace integration', () => {
         expect(JSON.stringify(compactedHistory[0].content)).toContain('state_snapshot');
     });
 
+    it('flushes durable facts from a session that is being reset', async () => {
+        // ARRANGE
+        const harness = createHarness();
+        await harness.store.ensure();
+        const sessionId = '33333333-3333-4333-8333-333333333333';
+        const usage = {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+        };
+        const assistantMessage = (text: string) => ({
+            role: 'assistant',
+            content: [{ type: 'text', text }],
+            api: 'openai-completions',
+            provider: 'stub',
+            model: 'stub-model',
+            usage,
+            stopReason: 'stop',
+            timestamp: Date.now()
+        });
+        const history = [
+            { role: 'user', content: 'I moved to Lisbon last month.', timestamp: 1 },
+            assistantMessage('Noted.'),
+            { role: 'user', content: 'Thanks!', timestamp: 2 },
+            assistantMessage('Anytime.')
+        ];
+        const chatsDir = path.join(harness.homeDir, 'chats');
+        fs.mkdirSync(chatsDir, { recursive: true });
+        fs.writeFileSync(path.join(chatsDir, `${sessionId}.json`), JSON.stringify(history));
+
+        // ACT
+        await harness.engine.flushSessionMemory(sessionId);
+
+        // ASSERT
+        const flushPrompt = harness.prompts.find((prompt) => prompt.includes('Memory flush'));
+        expect(flushPrompt).toBeDefined();
+        expect(flushPrompt).toContain('OWNER: I moved to Lisbon last month.');
+    });
+
+    it('skips the session-end flush for trivial sessions and missing files', async () => {
+        // ARRANGE
+        const harness = createHarness();
+        await harness.store.ensure();
+        const sessionId = '44444444-4444-4444-8444-444444444444';
+        const chatsDir = path.join(harness.homeDir, 'chats');
+        fs.mkdirSync(chatsDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(chatsDir, `${sessionId}.json`),
+            JSON.stringify([{ role: 'user', content: 'hi', timestamp: 1 }])
+        );
+
+        // ACT: trivial history, then a session with no chat file at all
+        await harness.engine.flushSessionMemory(sessionId);
+        await harness.engine.flushSessionMemory('55555555-5555-4555-8555-555555555555');
+
+        // ASSERT: neither produced an agent turn, neither threw
+        expect(harness.prompts).toHaveLength(0);
+    });
+
     it('exposes the memory tool to interactive runs but not background runs', async () => {
         // ARRANGE
         const harness = createHarness();
