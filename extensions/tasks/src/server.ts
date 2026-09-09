@@ -17,6 +17,7 @@ const ManageTaskInputSchema = z
         mode: z
             .enum(['notify', 'silent', 'on-failure', 'on-change', 'action-required', 'digest'])
             .optional(),
+        monitorScript: z.string().min(1).max(4_000).optional(),
         enabledOnly: z.boolean().default(false)
     })
     .strict()
@@ -118,6 +119,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                             description:
                                 'Required for create. notify always delivers; on-failure only reports failures; on-change reports changed outcomes; action-required reports only actionable outcomes; digest batches routine reports; silent never delivers.'
                         },
+                        monitorScript: {
+                            type: 'string',
+                            description:
+                                'Optional pre-check shell command for create/modify. It runs before each scheduled agent turn; when its output is unchanged from the previous run the agent turn is skipped entirely (no tokens spent). Use for cheap change detection, e.g. `curl -s https://example.com/status`.'
+                        },
                         enabledOnly: {
                             type: 'boolean',
                             default: false,
@@ -142,7 +148,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             throw new Error(`Unknown tool: ${name}`);
         }
 
-        const { action, id, title, prompt, schedule, enabled, mode, enabledOnly } =
+        const { action, id, title, prompt, schedule, enabled, mode, monitorScript, enabledOnly } =
             ManageTaskInputSchema.parse(args);
 
         switch (action) {
@@ -182,6 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     mode: mode ?? 'silent',
                     source: 'user',
                     failedCount: 0,
+                    ...(monitorScript ? { monitorScript } : {}),
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString()
                 };
@@ -214,6 +221,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                         }
                         if (t.lastRun) {
                             info += `\n  Last run: ${t.lastRun}`;
+                        }
+                        if (t.monitorScript) {
+                            info += `\n  Monitor gate: \`${t.monitorScript}\``;
                         }
                         return info;
                     })
@@ -266,6 +276,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 if (title) updates.title = title;
                 if (prompt) updates.prompt = prompt;
                 if (mode) updates.mode = mode;
+                if (monitorScript) {
+                    updates.monitorScript = monitorScript;
+                    // A new monitor baseline starts from the next run.
+                    updates.lastMonitorHash = undefined;
+                }
                 if (schedule) {
                     updates.schedule = schedule;
                     try {

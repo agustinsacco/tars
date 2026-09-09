@@ -780,7 +780,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     // 6. Initialize Background Services
     const initiative = new InitiativeService(config, channelManager);
     const heartbeat = new HeartbeatService(supervisor, config, sessionManager, initiative);
-    const pulse = new PulseService(supervisor, config);
+    const pulse = new PulseService(supervisor, config, channelManager);
     const cron = new CronService(supervisor, config, channelManager);
     const dashboard = new DashboardService(config);
 
@@ -824,6 +824,9 @@ export function wireMessageRouting(
                 try {
                     const stats = sessionManager.getStats();
                     if (stats) {
+                        // Flush durable facts into the workspace before the
+                        // transcript is discarded. Failures never block the reset.
+                        await tarsEngine.flushSessionMemory(stats.sessionId);
                         const chatFile = path.join(
                             config.homeDir,
                             'chats',

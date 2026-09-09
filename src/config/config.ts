@@ -98,7 +98,15 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
                 pulse.activeHoursStart,
             activeHoursEnd:
                 getNonEmptyEnvironmentValue(process.env.TARS_PULSE_ACTIVE_END) ??
-                pulse.activeHoursEnd
+                pulse.activeHoursEnd,
+            maxWakesPerDay:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_MAX_WAKES) ??
+                pulse.maxWakesPerDay,
+            dreamEnabled:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_DREAM_ENABLED) ??
+                pulse.dreamEnabled,
+            dreamHour:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_DREAM_HOUR) ?? pulse.dreamHour
         },
         initiative: {
             mode: process.env.TARS_INITIATIVE_MODE ?? initiative.mode,

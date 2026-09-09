@@ -40,8 +40,13 @@ findings.
 | \`SYNC_INTERVAL_MS\` | 1 hour | Minimum time between memory syncs |
 
 **Edit:** \`~/.tars/config.json\` → \`heartbeatIntervalSec\`, \`pulse.*\`
-(Env overrides: \`HEARTBEAT_INTERVAL_SEC\`, \`TARS_PULSE_ENABLED\`, \`TARS_PULSE_FLOOR_SEC\`, \`TARS_PULSE_CEILING_SEC\`, \`TARS_PULSE_ACTIVE_START\`, \`TARS_PULSE_ACTIVE_END\`)
+(Env overrides: \`HEARTBEAT_INTERVAL_SEC\`, \`TARS_PULSE_ENABLED\`, \`TARS_PULSE_FLOOR_SEC\`, \`TARS_PULSE_CEILING_SEC\`, \`TARS_PULSE_ACTIVE_START\`, \`TARS_PULSE_ACTIVE_END\`, \`TARS_PULSE_MAX_WAKES\`, \`TARS_PULSE_DREAM_ENABLED\`, \`TARS_PULSE_DREAM_HOUR\`)
 The legacy \`heartbeatRunAgent: false\` setting is honored as \`pulse.enabled: false\`.
+
+**Guardrails:** wakes stop after \`pulse.maxWakesPerDay\` (default 60) agent turns per day, and
+5 consecutive wake errors park the loop until the next day (the owner is notified once).
+**Dream:** once per day at/after \`pulse.dreamHour\` (default 3), a silent background turn
+consolidates MEMORY/USER entries and flushes durable facts from the last 24h of chats.
 
 ## Tick Execution Flow
 

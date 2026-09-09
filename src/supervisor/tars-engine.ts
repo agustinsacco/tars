@@ -936,6 +936,24 @@ export class TarsEngine extends EventEmitter {
     }
 
     /**
+     * Flushes durable facts from a session that is about to be discarded
+     * (owner /reset). Trivial sessions are skipped; failures never block the
+     * reset. The workspace snapshot refreshes so the next session sees the
+     * flushed facts.
+     */
+    public async flushSessionMemory(sessionId: string): Promise<void> {
+        const MIN_FLUSH_MESSAGES = 4;
+        try {
+            const history = await this.loadHistory(sessionId);
+            if (history.length < MIN_FLUSH_MESSAGES) return;
+            await this.flushMemoryBeforeCompression(history);
+            this.workspacePromptSnapshot = null;
+        } catch (error: unknown) {
+            logger.warn(`⚠️ Session-end memory flush skipped: ${getErrorMessage(error)}`);
+        }
+    }
+
+    /**
      * Runs an ephemeral background review over turns that are about to be
      * summarized away, instructing the model to persist anything durable via
      * the memory tool. Failures never block compression.

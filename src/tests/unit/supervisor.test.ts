@@ -78,7 +78,12 @@ describe('Supervisor', () => {
         expect(mockGemini.runSync).toHaveBeenCalledWith(
             'background prompt',
             '00000000-0000-4000-8000-000000000001',
-            { allowNotifications: false, ephemeral: true, modelRole: 'background' }
+            {
+                allowMemoryWrites: false,
+                allowNotifications: false,
+                ephemeral: true,
+                modelRole: 'background'
+            }
         );
     });
 
@@ -87,7 +92,12 @@ describe('Supervisor', () => {
         expect(mockGemini.runSync).toHaveBeenCalledWith(
             'heartbeat prompt',
             '00000000-0000-4000-8000-000000000001',
-            { allowNotifications: true, ephemeral: true, modelRole: 'background' }
+            {
+                allowMemoryWrites: false,
+                allowNotifications: true,
+                ephemeral: true,
+                modelRole: 'background'
+            }
         );
     });
 

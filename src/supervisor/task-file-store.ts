@@ -19,6 +19,8 @@ const TaskSchema: z.ZodType<Task> = z.object({
     source: z.enum(['user', 'system']),
     failedCount: z.number().int().nonnegative(),
     lastOutcomeFingerprint: z.string().length(64).optional(),
+    monitorScript: z.string().min(1).max(4_000).optional(),
+    lastMonitorHash: z.string().length(64).optional(),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime()
 });
