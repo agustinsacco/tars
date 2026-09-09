@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { RuntimeConfigSchema } from '../../config/schema.js';
 import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
 import { migrateMcpPoliciesInteractively } from './extensions.js';
+import { createModelRuntime, getAuthStoragePath } from '../../supervisor/model-manager.js';
 
 const ExistingSetupConfigSchema = z
     .object({
@@ -26,7 +27,7 @@ const ExistingSetupConfigSchema = z
         piBaseUrl: z.string().optional(),
         piModel: z.string().optional(),
         piProvider: z.string().optional(),
-        channels: z.record(z.unknown()).optional()
+        channels: z.record(z.unknown()).optional(),
     })
     .passthrough();
 
@@ -52,7 +53,7 @@ async function writePrivateJson(filePath: string, value: unknown): Promise<void>
         await fs.writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
             encoding: 'utf8',
             flag: 'wx',
-            mode: 0o600
+            mode: 0o600,
         });
         await fs.rename(temporaryPath, filePath);
     } catch (error: unknown) {
@@ -118,14 +119,42 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 { name: 'OpenAI (GPT-4o, etc.)', value: 'openai' },
                 { name: 'Anthropic (Claude 3.5 Sonnet, etc.)', value: 'anthropic' },
                 { name: 'Local (Llama.cpp, Ollama, LM Studio, etc.)', value: 'local' },
-                { name: 'Custom (OpenAI-compatible proxy/local endpoint)', value: 'custom' }
+                { name: 'Custom (OpenAI-compatible proxy/local endpoint)', value: 'custom' },
             ],
             default:
                 existingConfig.piProvider === 'local-stark'
                     ? 'local'
-                    : existingConfig.piProvider || 'google'
-        }
+                    : existingConfig.piProvider || 'google',
+        },
     ]);
+
+    // ══════════════════════════════════════════════════════════
+    // ── Fetch-mode: live provider model list via stored auth ────
+    // ══════════════════════════════════════════════════════════
+    let fetchedModels: string[] = [];
+    let fetchedDefaultModel = defaultModel;
+    if (piProvider === 'openai-codex') {
+        const fetchSpinner = ora('Fetching available Codex models...').start();
+        try {
+            const runtime = await createModelRuntime(tarsHome);
+            const available = await runtime.getAvailable();
+            fetchedModels = available
+                .filter((m: any) => m.provider === 'openai-codex')
+                .map((m: any) => String(m.id));
+            if (fetchedModels.length > 0) {
+                fetchedDefaultModel = fetchedModels.includes('gpt-5.5')
+                    ? 'gpt-5.5'
+                    : fetchedModels[0];
+                fetchSpinner.succeed(
+                    `Found ${fetchedModels.length} model(s) (default: ${fetchedDefaultModel})`
+                );
+            } else {
+                fetchSpinner.info('No remote catalog found; falling back to installed default');
+            }
+        } catch (e: unknown) {
+            fetchSpinner.fail('Could not fetch remote models; using installed catalog');
+        }
+    }
 
     // ══════════════════════════════════════════════════════════
     // ── Step 2: Credentials & Model Configuration ─────────────
@@ -149,8 +178,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                     process.env.TARS_API_KEY ||
                     process.env.GEMINI_API_KEY ||
                     '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
+                validate: (input) => input.length > 0 || 'API Key is required',
+            },
         ]);
         piApiKey = answers.apiKey;
         secretsManager.set('TARS_API_KEY', piApiKey);
@@ -165,8 +194,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 name: 'apiKey',
                 message: 'Enter OPENAI_API_KEY:',
                 default: secrets.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
+                validate: (input) => input.length > 0 || 'API Key is required',
+            },
         ]);
         piApiKey = answers.apiKey;
         secretsManager.set('OPENAI_API_KEY', piApiKey);
@@ -179,8 +208,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 name: 'apiKey',
                 message: 'Enter ANTHROPIC_API_KEY:',
                 default: secrets.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
+                validate: (input) => input.length > 0 || 'API Key is required',
+            },
         ]);
         piApiKey = answers.apiKey;
         secretsManager.set('ANTHROPIC_API_KEY', piApiKey);
@@ -195,14 +224,14 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
                 validate: (input) =>
                     RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
-                    'Enter an HTTP or HTTPS URL'
+                    'Enter an HTTP or HTTPS URL',
             },
             {
                 type: 'password',
                 name: 'apiKey',
                 message: 'Local API Key (press Enter to skip):',
-                default: secrets.LOCAL_API_KEY || secrets.STARK_API_KEY || ''
-            }
+                default: secrets.LOCAL_API_KEY || secrets.STARK_API_KEY || '',
+            },
         ]);
         piBaseUrl = answers.baseUrl;
         piApiKey = answers.apiKey;
@@ -218,14 +247,14 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
                 validate: (input) =>
                     RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
-                    'Enter an HTTP or HTTPS URL'
+                    'Enter an HTTP or HTTPS URL',
             },
             {
                 type: 'password',
                 name: 'apiKey',
                 message: 'Custom Endpoint API Key (press Enter to skip):',
-                default: secrets.CUSTOM_API_KEY || ''
-            }
+                default: secrets.CUSTOM_API_KEY || '',
+            },
         ]);
         piBaseUrl = answers.baseUrl;
         piApiKey = answers.apiKey;
@@ -234,15 +263,29 @@ async function setupWithLease(tarsHome: string): Promise<void> {
         defaultModel = 'custom-model';
     }
 
-    const { piModel } = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'piModel',
-            message: `Enter Model ID (default recommended: ${defaultModel}):`,
-            default: existingConfig.piModel || defaultModel,
-            validate: (input) => input.length > 0 || 'Model ID is required'
-        }
-    ]);
+    const { piModel } =
+        fetchedModels.length > 0
+            ? await inquirer.prompt([
+                  {
+                      type: 'list',
+                      name: 'piModel',
+                      message: `Select Codex Model (default: ${fetchedDefaultModel}):`,
+                      choices: fetchedModels.map((id) => ({
+                          name: `${id}${id === fetchedDefaultModel ? ' (recommended)' : ''}`,
+                          value: id,
+                      })),
+                      default: fetchedDefaultModel,
+                  },
+              ])
+            : await inquirer.prompt([
+                  {
+                      type: 'input',
+                      name: 'piModel',
+                      message: `Enter Model ID (default recommended: ${defaultModel}):`,
+                      default: existingConfig.piModel || defaultModel,
+                      validate: (input) => input.length > 0 || 'Model ID is required',
+                  },
+              ]);
 
     // ══════════════════════════════════════════════════════════
     // ── Step 2.5: Context Window & Compaction Settings ───────
@@ -261,8 +304,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             default: existingConfig.contextWindowTokens || defaultContextWindow,
             validate: (input: unknown) =>
                 RuntimeConfigSchema.shape.contextWindowTokens.safeParse(input).success ||
-                'Must be an integer from 1 to 10000000'
-        }
+                'Must be an integer from 1 to 10000000',
+        },
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -287,8 +330,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 type: 'confirm',
                 name: 'reAuthDiscord',
                 message: 'Do you want to update the Discord Bot Token?',
-                default: false
-            }
+                default: false,
+            },
         ]);
         if (!reAuthDiscord) skipDiscord = true;
     }
@@ -301,8 +344,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 message: 'Enter Discord Bot Token:',
                 validate: (input) =>
                     input.length > 50 ||
-                    'Token too short — paste the full token from the Developer Portal'
-            }
+                    'Token too short — paste the full token from the Developer Portal',
+            },
         ]);
         discordToken = answers.discordToken;
 
@@ -313,8 +356,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                     GatewayIntentBits.Guilds,
                     GatewayIntentBits.GuildMessages,
                     GatewayIntentBits.MessageContent,
-                    GatewayIntentBits.DirectMessages
-                ]
+                    GatewayIntentBits.DirectMessages,
+                ],
             });
             await client.login(discordToken);
             const botName = client.user?.tag;
@@ -339,8 +382,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             message: 'Discord owner user ID (enable Developer Mode, then Copy User ID):',
             default: configuredOwnerId,
             validate: (input: string) =>
-                /^\d{17,20}$/.test(input.trim()) || 'Enter a valid 17-20 digit Discord user ID'
-        }
+                /^\d{17,20}$/.test(input.trim()) || 'Enter a valid 17-20 digit Discord user ID',
+        },
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -357,7 +400,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             default: existingConfig.assistantName || 'Tars',
             validate: (input: unknown) =>
                 RuntimeConfigSchema.shape.assistantName.safeParse(input).success ||
-                'Assistant name must contain 1-100 characters'
+                'Assistant name must contain 1-100 characters',
         },
         {
             type: 'list',
@@ -368,11 +411,11 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                 { name: '1 Hour', value: 60 },
                 { name: '2 Hours', value: 120 },
                 { name: '4 Hours', value: 240 },
-                { name: 'Custom', value: 'custom' }
+                { name: 'Custom', value: 'custom' },
             ],
             default: existingConfig.heartbeatIntervalSec
                 ? Math.floor(existingConfig.heartbeatIntervalSec / 60)
-                : 30
+                : 30,
         },
         {
             type: 'input',
@@ -386,8 +429,8 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                         RuntimeConfigSchema.shape.heartbeatIntervalSec.safeParse(n * 60).success) ||
                     'Must be between 1 and 1440 minutes'
                 );
-            }
-        }
+            },
+        },
     ]);
 
     // ══════════════════════════════════════════════════════════
@@ -412,7 +455,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             type: 'confirm',
             name: 'enableDash',
             message: 'Enable Tars Dashboard (Web UI)?',
-            default: secrets.DASH_ENABLED === 'true'
+            default: secrets.DASH_ENABLED === 'true',
         },
         {
             type: 'input',
@@ -420,7 +463,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             message: 'Dashboard Host:',
             default: secrets.DASH_HOST || '127.0.0.1',
             when: (a) => a.enableDash,
-            validate: (input) => input.trim().length > 0 || 'Host is required'
+            validate: (input) => input.trim().length > 0 || 'Host is required',
         },
         {
             type: 'input',
@@ -434,7 +477,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                     (Number.isInteger(value) && value >= 1 && value <= 65_535) ||
                     'Port must be an integer between 1 and 65535'
                 );
-            }
+            },
         },
         {
             type: 'password',
@@ -447,15 +490,16 @@ async function setupWithLease(tarsHome: string): Promise<void> {
                     return 'Choose a password other than a known default';
                 }
                 return input.trim().length >= 16 || 'Password must contain at least 16 characters';
-            }
+            },
         },
         {
             type: 'confirm',
             name: 'updateDash',
             message: 'Dashboard already installed. Reinstall/overwrite with latest version?',
             default: false,
-            when: (a) => a.enableDash && fsSync.existsSync(path.join(tarsHome, 'apps', 'dashboard'))
-        }
+            when: (a) =>
+                a.enableDash && fsSync.existsSync(path.join(tarsHome, 'apps', 'dashboard')),
+        },
     ]);
 
     if (dashConfig.enableDash) {
@@ -522,10 +566,10 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             discord: {
                 ...preservedDiscord,
                 enabled: true,
-                ownerId: discordOwnerId.trim()
-            }
+                ownerId: discordOwnerId.trim(),
+            },
         },
-        primaryChannel: existingConfig.primaryChannel ?? 'discord'
+        primaryChannel: existingConfig.primaryChannel ?? 'discord',
     };
 
     RuntimeConfigSchema.parse({ ...configData, discordToken });
