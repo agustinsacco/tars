@@ -47,6 +47,7 @@ async function createManager(
         piModel: anthropicModel.id,
         piBaseUrl: '',
         piApi: '',
+        piSupportsImages: false,
         models: {},
         contextWindowTokens: 128000,
         ...overrides
@@ -160,6 +161,23 @@ describe('ModelManager.getModel', () => {
             baseUrl: 'http://localhost:8080/v1',
             contextWindow: 32000
         });
+        expect(model.input).toEqual(['text']);
+    });
+
+    it('advertises image input for multimodal custom endpoints', async () => {
+        // ARRANGE
+        const { manager } = await createManager({
+            piProvider: 'local',
+            piModel: 'qwen3-vision',
+            piBaseUrl: 'http://localhost:8080/v1',
+            piSupportsImages: true
+        });
+
+        // ACT
+        const model = await manager.getModel('chat');
+
+        // ASSERT
+        expect(model.input).toEqual(['text', 'image']);
     });
 
     it('honors piBaseUrl and the configured API shape for catalog models', async () => {

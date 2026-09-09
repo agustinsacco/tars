@@ -68,6 +68,10 @@ export const RuntimeConfigSchema = z.object({
             ])
         )
         .default(''),
+    // Declares image input for custom inference endpoints. Only valid when the
+    // endpoint truly accepts multimodal payloads; Pi silently drops image
+    // blocks for models that do not advertise `input: ['image']`.
+    piSupportsImages: BooleanLikeSchema.default(false),
     models: z
         .object({
             background: ModelReferenceSchema.optional(),

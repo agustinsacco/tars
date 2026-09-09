@@ -21,6 +21,12 @@ export interface ModelManagerConfig {
     readonly piModel: string;
     readonly piBaseUrl: string;
     readonly piApi: '' | 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
+    /**
+     * Declares that the custom endpoint accepts image input. Pi drops image
+     * blocks for models whose `input` list omits `"image"`, so multimodal
+     * endpoints must advertise it explicitly.
+     */
+    readonly piSupportsImages: boolean;
     readonly models: { readonly background?: string; readonly summarizer?: string };
     readonly contextWindowTokens: number;
 }
@@ -140,7 +146,8 @@ export class ModelManager implements ModelSource {
      * unregistered so `getChatModel` reports the typo instead.
      */
     private registerCustomChatProvider(runtime: ModelRuntime): void {
-        const { contextWindowTokens, piApi, piBaseUrl, piModel, piProvider } = this.config;
+        const { contextWindowTokens, piApi, piBaseUrl, piModel, piProvider, piSupportsImages } =
+            this.config;
         if (runtime.getModel(piProvider, piModel)) return;
         const providerKnown = runtime.getProvider(piProvider) !== undefined;
         if (!piBaseUrl && providerKnown) return;
@@ -165,7 +172,7 @@ export class ModelManager implements ModelSource {
                         id: piModel,
                         name: piModel,
                         reasoning: false,
-                        input: ['text'],
+                        input: piSupportsImages ? ['text', 'image'] : ['text'],
                         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
                         contextWindow: contextWindowTokens || 128000,
                         maxTokens: 32000
