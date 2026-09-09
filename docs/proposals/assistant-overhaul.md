@@ -1,6 +1,6 @@
 # Assistant Overhaul: Auth, Memory, Autonomy
 
-Status: accepted; Phase 1 (auth and models) is implemented alongside this document
+Status: accepted; Phase 1 (auth and models), Phase 2 (memory workspace, frozen snapshot injection, pre-compaction flush), and Phase 3 (pulse autonomy service) are implemented alongside this document
 Date: 2026-09-07
 Scope: `src/supervisor`, `src/memory`, `src/initiative`, `extensions/memory`, CLI
 

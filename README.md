@@ -110,6 +110,7 @@ Channel manager ──► Supervisor ──► Tars engine / model
                          │                    └── MCP extensions
                          ├── active session
                          ├── cron service
+                         ├── pulse service (autonomous wakes)
                          └── maintenance heartbeat
 
 ~/.tars/
@@ -117,6 +118,7 @@ Channel manager ──► Supervisor ──► Tars engine / model
 ├── .env                 local secrets (restricted permissions)
 ├── system.md            system instructions
 ├── skills/              trusted instruction packages
+├── workspace/           curated memory (SOUL, MEMORY, USER, HEARTBEAT)
 ├── extensions/          trusted MCP servers
 ├── chats/               conversation history
 ├── data/                sessions, tasks, memory, and indexes
@@ -143,6 +145,10 @@ Build the documentation locally with `npm run docs:build` or run it with `npm ru
 - Foreground chat uses the same `TARS_HOME`; daemon/chat and chat/mutation exclusivity are enforced.
 - Heartbeat maintenance continues while the owner is idle. The initiative service can observe,
   propose, or apply registered safe repairs from explicit objectives and runtime findings.
+- Autonomous agent wakes are driven by `~/.tars/workspace/HEARTBEAT.md` (pulse service): an empty
+  checklist costs zero API calls, unchanged results back off exponentially, quiet wakes stay silent.
+- Curated memory (`workspace/MEMORY.md`, `workspace/USER.md`) is budget-capped, injected into the
+  system prompt as a frozen snapshot, and flushed to before context compression discards turns.
 - Scheduled tasks are explicit and poll on a separate cron loop.
 - Tars has one active agent and does not implement sub-agent orchestration.
 - Multiple PM2 process names can be created, but the convenience lifecycle commands are not fully

@@ -7,7 +7,9 @@ import { type SessionManager } from './session-manager.js';
 import { type InitiativeService } from '../initiative/initiative-service.js';
 
 /**
- * HeartbeatService - Manages background maintenance and autonomous health checks.
+ * HeartbeatService - Manages background maintenance: memory sync, filesystem
+ * cleanup, session GC, and the initiative doctor pass. Autonomous agent wakes
+ * are owned by PulseService (driven by workspace/HEARTBEAT.md).
  */
 export class HeartbeatService {
     private interval: NodeJS.Timeout | null = null;
@@ -73,10 +75,8 @@ export class HeartbeatService {
             await this.syncMemoryIfNeeded();
 
             // 3. Goal-grounded initiative runs independently of user activity.
+            // Autonomous agent wakes live in PulseService, not here.
             await this.runInitiativeSafely();
-
-            // 4. Optional: invoke the agent every heartbeat to manage tasks and do work.
-            await this.runAgentSafely();
 
             logger.debug('💓 Heartbeat tick completed successfully');
         } catch (error: unknown) {
@@ -93,32 +93,6 @@ export class HeartbeatService {
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             logger.warn(`Initiative check failed; heartbeat will continue: ${message}`);
-        }
-    }
-
-    /**
-     * Optional autonomous agent invocation on every heartbeat tick.
-     * Gated by config.heartbeatRunAgent (default off). Runs after maintenance and
-     * initiative so the agent sees freshly synced memory. Failures — including the
-     * supervisor being busy with a live run — never abort the heartbeat.
-     */
-    private async runAgentSafely(): Promise<void> {
-        if (!this.config.heartbeatRunAgent) return;
-        try {
-            logger.debug('💓 Heartbeat agent invocation starting');
-            // allowNotifications: true exposes the send_notification tool so the agent can
-            // reach the owner when it judges something important; otherwise it stays quiet.
-            await this.supervisor.executeTask(this.config.heartbeatAgentPrompt, {
-                allowNotifications: true
-            });
-            logger.debug('💓 Heartbeat agent invocation completed');
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (message.toLowerCase().includes('busy')) {
-                logger.debug('💓 Heartbeat agent invocation skipped: supervisor busy');
-                return;
-            }
-            logger.warn(`Heartbeat agent invocation failed; heartbeat will continue: ${message}`);
         }
     }
 

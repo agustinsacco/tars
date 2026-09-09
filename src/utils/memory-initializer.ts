@@ -13,51 +13,45 @@ const INITIAL_MEMORY_FILES = [
 
 ## Overview
 
-The Heartbeat Service is Tars' autonomous background engine. It runs on a configurable interval and manages:
+The Heartbeat Service is Tars' background maintenance engine. It runs on a configurable interval and manages:
 
 - **Memory Synchronization** - Re-indexes facts, skills, and session histories
 - **Filesystem Cleanup** - Removes stale temp files and attachments
 - **Stale Run Watchdog** - Warns (advisory only) when a live run exceeds 10 minutes
 - **Initiative Check** - Runs the autonomous doctor / repair / notification pass
-- **Agent Work (on by default)** - Runs an agent turn to manage tasks, do already-authorized work, and notify you if something is important
+
+Autonomous **agent wakes** are separate: the Pulse Service reads
+\`~/.tars/workspace/HEARTBEAT.md\` and runs your checklist as an agent turn. An
+empty checklist (only \`#\` comment lines) costs zero API calls. Wakes pace
+themselves: while the result is unchanged the delay doubles up to \`ceilingSec\`;
+any change snaps back to \`floorSec\`. Quiet wakes reply \`[SILENT]\` and never
+message you; the agent uses \`send_notification\` only for genuinely important
+findings.
 
 ## Configuration
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| \`heartbeatIntervalSec\` | 300s (5 min) | How frequently the heartbeat tick runs |
-| \`heartbeatRunAgent\` | \`true\` | Run an agent turn every heartbeat to manage tasks / do work |
-| \`heartbeatAgentPrompt\` | (built-in directive) | The directive passed to the agent when \`heartbeatRunAgent\` is on |
+| \`heartbeatIntervalSec\` | 300s (5 min) | How frequently the maintenance tick runs |
+| \`pulse.enabled\` | \`true\` | Enable autonomous agent wakes |
+| \`pulse.floorSec\` | 300s | Minimum delay between wakes |
+| \`pulse.ceilingSec\` | 3600s | Maximum backoff while nothing changes |
+| \`pulse.activeHoursStart/End\` | 7 / 23 | Local hours when wakes may run (start=end disables the window) |
 | \`SYNC_INTERVAL_MS\` | 1 hour | Minimum time between memory syncs |
 
-**Edit:** \`~/.tars/config.json\` → \`heartbeatIntervalSec\`, \`heartbeatRunAgent\`, \`heartbeatAgentPrompt\`
-(Env overrides: \`HEARTBEAT_INTERVAL_SEC\`, \`HEARTBEAT_RUN_AGENT\`, \`HEARTBEAT_AGENT_PROMPT\`)
-
-### Autonomous agent turns
-
-On by default: when \`heartbeatRunAgent\` is enabled, each heartbeat tick invokes the
-agent with \`heartbeatAgentPrompt\` after maintenance and the initiative pass, so it sees
-freshly synced memory. This runs regardless of user activity. Because every enabled tick
-is a full inference run, mind your \`heartbeatIntervalSec\` and rate limits (set
-\`heartbeatRunAgent: false\` to return to code-only maintenance). The invocation never
-interrupts a live conversation: if the supervisor is busy the agent turn is skipped for
-that tick, and agent failures never abort the heartbeat.
-
-Heartbeat agent turns may send you a proactive message (via the \`send_notification\`
-tool) when the agent judges something genuinely important or attention-worthy; it stays
-silent otherwise. This notification ability is specific to heartbeat turns — scheduled
-cron tasks keep their own per-task notification policy and are unaffected.
+**Edit:** \`~/.tars/config.json\` → \`heartbeatIntervalSec\`, \`pulse.*\`
+(Env overrides: \`HEARTBEAT_INTERVAL_SEC\`, \`TARS_PULSE_ENABLED\`, \`TARS_PULSE_FLOOR_SEC\`, \`TARS_PULSE_CEILING_SEC\`, \`TARS_PULSE_ACTIVE_START\`, \`TARS_PULSE_ACTIVE_END\`)
+The legacy \`heartbeatRunAgent: false\` setting is honored as \`pulse.enabled: false\`.
 
 ## Tick Execution Flow
 
 \`\`\`
-heartbeat.tick()
-  ├── Check: Already executing? → Skip (concurrency guard)
-  ├── Warn: Supervisor busy >10min? → Log advisory (live run stays locked)
-  ├── Cleanup: Remove stale temp files (>1h) and uploads (>24h)
-  ├── Sync: Memory re-index + session GC (rate-limited to 1h minimum)
-  ├── Initiative: Run doctor / repairs / notifications
-  └── Agent (default on): manage tasks, do authorized work, notify only if important
+heartbeat.tick()                       pulse wake (self-paced)
+  ├── Already executing? → Skip         ├── HEARTBEAT.md empty? → Skip (no API call)
+  ├── Busy >10min? → Log advisory       ├── Outside active hours? → Skip
+  ├── Cleanup temp files                ├── Supervisor busy? → Skip (owner wins)
+  ├── Memory re-index + session GC      ├── Run checklist + previous-wake marker
+  └── Initiative doctor pass            └── [SILENT]/unchanged → back off; changed → floor
 \`\`\`
 
 ## Logging & Traceability

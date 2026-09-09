@@ -47,6 +47,7 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
     const discord = getRecord(channels.discord);
     const initiative = getRecord(jsonConfig.initiative);
     const models = getRecord(jsonConfig.models);
+    const pulse = getRecord(jsonConfig.pulse);
 
     return RuntimeConfigSchema.parse({
         assistantName: process.env.ASSISTANT_NAME ?? jsonConfig.assistantName,
@@ -82,6 +83,23 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
         heartbeatAgentPrompt:
             getNonEmptyEnvironmentValue(process.env.HEARTBEAT_AGENT_PROMPT) ??
             jsonConfig.heartbeatAgentPrompt,
+        pulse: {
+            // Owners who disabled the legacy heartbeat agent keep autonomy off.
+            enabled:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_ENABLED) ??
+                pulse.enabled ??
+                jsonConfig.heartbeatRunAgent,
+            floorSec:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_FLOOR_SEC) ?? pulse.floorSec,
+            ceilingSec:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_CEILING_SEC) ?? pulse.ceilingSec,
+            activeHoursStart:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_ACTIVE_START) ??
+                pulse.activeHoursStart,
+            activeHoursEnd:
+                getNonEmptyEnvironmentValue(process.env.TARS_PULSE_ACTIVE_END) ??
+                pulse.activeHoursEnd
+        },
         initiative: {
             mode: process.env.TARS_INITIATIVE_MODE ?? initiative.mode,
             intervalSec: process.env.TARS_INITIATIVE_INTERVAL_SEC ?? initiative.intervalSec,
@@ -137,6 +155,8 @@ export class Config {
     public readonly heartbeatRunAgent: boolean;
     public readonly heartbeatAgentPrompt: string;
     public readonly initiative: RuntimeConfig['initiative'];
+    public readonly pulse: RuntimeConfig['pulse'];
+    public readonly workspaceDir: string;
     public readonly piProvider: string;
     public readonly piModel: string;
     public readonly piBaseUrl: string;
@@ -193,6 +213,7 @@ export class Config {
         this.heartbeatRunAgent = config.heartbeatRunAgent;
         this.heartbeatAgentPrompt = config.heartbeatAgentPrompt;
         this.initiative = config.initiative;
+        this.pulse = config.pulse;
         this.contextWindowTokens = config.contextWindowTokens;
         this.compressionThreshold = config.compressionThreshold;
         this.preflightCompressionThreshold = config.preflightCompressionThreshold;
@@ -213,6 +234,7 @@ export class Config {
         this.taskFilePath = path.join(this.homeDir, 'data', 'tasks.json');
         this.sessionFilePath = path.join(this.homeDir, 'data', 'session.json');
         this.systemPromptPath = path.join(this.homeDir, 'system.md');
+        this.workspaceDir = path.join(this.homeDir, 'workspace');
         this.memoryDbPath = path.join(this.homeDir, 'data', 'knowledge.db');
 
         if (

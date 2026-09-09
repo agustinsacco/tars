@@ -16,9 +16,11 @@ import { BrainAuditor } from '../utils/brain-audit.js';
 import { initializeMemoryFiles } from '../utils/memory-initializer.js';
 import logger, { configureDaemonLogging } from '../utils/logger.js';
 import { DLPService } from '../utils/dlp-service.js';
+import { WorkspaceStore } from '../memory/workspace-store.js';
 import { CronService } from './cron-service.js';
 import { DashboardService } from './dashboard-service.js';
 import { HeartbeatService } from './heartbeat-service.js';
+import { PulseService } from './pulse-service.js';
 import { SessionManager } from './session-manager.js';
 import { Supervisor } from './supervisor.js';
 import { TarsEngine } from './tars-engine.js';
@@ -212,6 +214,7 @@ export interface BootstrapResult {
     supervisor: Supervisor;
     channelManager: ChannelManager;
     heartbeat: HeartbeatService;
+    pulse: PulseService;
     cron: CronService;
     dashboard: DashboardService;
 }
@@ -743,6 +746,9 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     // Initialize memory/directive files if they don't exist
     await initializeMemoryFiles(config.homeDir);
 
+    // Seed the curated memory workspace (SOUL/MEMORY/USER/HEARTBEAT/BOOTSTRAP)
+    await new WorkspaceStore(config.homeDir).ensure();
+
     logger.info('🚀 Tars Starting...');
 
     const auditor = new BrainAuditor(config.homeDir);
@@ -774,6 +780,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     // 6. Initialize Background Services
     const initiative = new InitiativeService(config, channelManager);
     const heartbeat = new HeartbeatService(supervisor, config, sessionManager, initiative);
+    const pulse = new PulseService(supervisor, config);
     const cron = new CronService(supervisor, config, channelManager);
     const dashboard = new DashboardService(config);
 
@@ -784,6 +791,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
         supervisor,
         channelManager,
         heartbeat,
+        pulse,
         cron,
         dashboard
     };
