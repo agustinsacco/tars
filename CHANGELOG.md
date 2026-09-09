@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.47.0](https://github.com/agustinsacco/tars/compare/v1.46.0...v1.47.0) (2026-09-09)
+
+
+### Features
+
+* memory workspace and pulse autonomy service (phases 2-3) ([#174](https://github.com/agustinsacco/tars/issues/174)) ([0615292](https://github.com/agustinsacco/tars/commit/06152924097a14e39180047608d6def8f0c5bddc))
+
 ## [1.46.0](https://github.com/agustinsacco/tars/compare/v1.45.0...v1.46.0) (2026-09-08)
 
 
