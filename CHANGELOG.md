@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.48.1](https://github.com/agustinsacco/tars/compare/v1.48.0...v1.48.1) (2026-09-09)
+
+
+### Bug Fixes
+
+* **model:** let custom endpoints advertise image input ([#179](https://github.com/agustinsacco/tars/issues/179)) ([5da605a](https://github.com/agustinsacco/tars/commit/5da605a09d3b23f8003ccdd730d6325746754f6a))
+
 ## [1.48.0](https://github.com/agustinsacco/tars/compare/v1.47.0...v1.48.0) (2026-09-09)
 
 
