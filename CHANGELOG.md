@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.48.0](https://github.com/agustinsacco/tars/compare/v1.47.0...v1.48.0) (2026-09-09)
+
+
+### Features
+
+* session flush, dream consolidation, monitor gates, and pulse budgets ([#176](https://github.com/agustinsacco/tars/issues/176)) ([1203f05](https://github.com/agustinsacco/tars/commit/1203f05ef6b7aac7e66b75942534192497743f0f))
+
+
+### Bug Fixes
+
+* **deps:** resolve js-yaml and astro/sharp security advisories ([#177](https://github.com/agustinsacco/tars/issues/177)) ([244739c](https://github.com/agustinsacco/tars/commit/244739c5aea1c028f70376bdd886ad7e53c080cf))
+
 ## [1.47.0](https://github.com/agustinsacco/tars/compare/v1.46.0...v1.47.0) (2026-09-09)
 
 
