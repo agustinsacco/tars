@@ -115,5 +115,8 @@
     },
     "lint-staged": {
         "**/*": "prettier --write --ignore-unknown"
+    },
+    "overrides": {
+        "js-yaml": "4.3.2"
     }
 }
