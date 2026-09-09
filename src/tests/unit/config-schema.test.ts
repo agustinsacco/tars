@@ -46,6 +46,14 @@ describe('RuntimeConfigSchema', () => {
         expect(() => RuntimeConfigSchema.parse({ piApi: 'grpc' })).toThrow();
     });
 
+    it('treats endpoint image input as opt-in', () => {
+        // ARRANGE / ACT / ASSERT
+        expect(RuntimeConfigSchema.parse({}).piSupportsImages).toBe(false);
+        expect(RuntimeConfigSchema.parse({ piSupportsImages: 'true' }).piSupportsImages).toBe(true);
+        expect(RuntimeConfigSchema.parse({ piSupportsImages: '1' }).piSupportsImages).toBe(true);
+        expect(() => RuntimeConfigSchema.parse({ piSupportsImages: 'yes' })).toThrow();
+    });
+
     it('validates role model references as provider/model-id', () => {
         // ARRANGE / ACT
         const parsed = RuntimeConfigSchema.parse({

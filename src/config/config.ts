@@ -58,6 +58,9 @@ function resolveRuntimeConfig(jsonConfig: Record<string, unknown>): RuntimeConfi
         piModel: process.env.PI_MODEL ?? jsonConfig.piModel,
         piBaseUrl: process.env.PI_BASE_URL ?? jsonConfig.piBaseUrl,
         piApi: process.env.PI_API ?? jsonConfig.piApi,
+        piSupportsImages:
+            getNonEmptyEnvironmentValue(process.env.PI_SUPPORTS_IMAGES) ??
+            jsonConfig.piSupportsImages,
         models: {
             background:
                 getNonEmptyEnvironmentValue(process.env.TARS_BACKGROUND_MODEL) ?? models.background,
@@ -161,6 +164,7 @@ export class Config {
     public readonly piModel: string;
     public readonly piBaseUrl: string;
     public readonly piApi: RuntimeConfig['piApi'];
+    public readonly piSupportsImages: boolean;
     public readonly models: RuntimeConfig['models'];
     public readonly inferenceBackend: 'tars' | 'llamacpp';
     public readonly localInferenceUrl: string;
@@ -205,6 +209,7 @@ export class Config {
         this.piModel = config.piModel;
         this.piBaseUrl = config.piBaseUrl;
         this.piApi = config.piApi;
+        this.piSupportsImages = config.piSupportsImages;
         this.models = config.models;
         this.inferenceBackend = config.inferenceBackend;
         this.localInferenceUrl = config.localInferenceUrl;
