@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.49.0](https://github.com/agustinsacco/tars/compare/v1.48.1...v1.49.0) (2026-09-10)
+
+
+### Features
+
+* **cli:** guided provider sign-in, model discovery, and thinking level ([#182](https://github.com/agustinsacco/tars/issues/182)) ([093698a](https://github.com/agustinsacco/tars/commit/093698a7f72543388828357d1cb2ab204d38e0eb))
+
 ## [1.48.1](https://github.com/agustinsacco/tars/compare/v1.48.0...v1.48.1) (2026-09-09)
 
 
