@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    chooseLoginMethod,
     formatAuthStatusLine,
     resolveOAuthProvider,
+    type LoginProviderChoice,
     type OAuthProviderChoice
 } from '../../cli/commands/auth.js';
 
@@ -19,6 +21,37 @@ describe('resolveOAuthProvider', () => {
     it('returns undefined for missing or unknown ids', () => {
         expect(resolveOAuthProvider(providers, undefined)).toBeUndefined();
         expect(resolveOAuthProvider(providers, 'copilot')).toBeUndefined();
+    });
+});
+
+describe('chooseLoginMethod', () => {
+    const oauthOnly: LoginProviderChoice = {
+        id: 'github-copilot',
+        name: 'GitHub Copilot',
+        oauth: true,
+        apiKey: false
+    };
+    const keyOnly: LoginProviderChoice = {
+        id: 'openai',
+        name: 'OpenAI',
+        oauth: false,
+        apiKey: true
+    };
+    const both: LoginProviderChoice = {
+        id: 'anthropic',
+        name: 'Anthropic',
+        oauth: true,
+        apiKey: true
+    };
+
+    it('uses the only available method without prompting', async () => {
+        expect(await chooseLoginMethod(oauthOnly, undefined)).toBe('oauth');
+        expect(await chooseLoginMethod(keyOnly, undefined)).toBe('api_key');
+    });
+
+    it('honors an explicit method and rejects unsupported ones', async () => {
+        expect(await chooseLoginMethod(both, 'api_key')).toBe('api_key');
+        await expect(chooseLoginMethod(oauthOnly, 'api_key')).rejects.toThrow(/does not support/);
     });
 });
 

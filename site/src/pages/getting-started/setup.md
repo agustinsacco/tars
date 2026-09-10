@@ -13,11 +13,35 @@ tars setup
 
 ## Model provider
 
-Choose Google, OpenAI, Anthropic, a local endpoint, or another OpenAI-compatible endpoint. The wizard
-stores the provider and model ID in `~/.tars/config.json`; API credentials go to `~/.tars/.env`.
+The first step offers every provider in the pi model registry (OpenAI Codex/ChatGPT, Anthropic,
+OpenAI, Google, GitHub Copilot, OpenRouter, and more) plus local and custom OpenAI-compatible
+endpoints. For the selected provider the wizard shows which sign-in methods exist and whether you
+are already signed in:
 
-Set the context-window size to the actual limit of the selected model. Tars validates and bounds
-context, compression, rate-limit, and heartbeat values when configuration loads.
+- **OAuth** — providers with a native pi OAuth flow (ChatGPT Plus/Pro, Claude Pro/Max, GitHub
+  Copilot) open a browser sign-in and store the token in `~/.tars/auth.json`.
+- **API key** — any other registry provider stores the key in `~/.tars/auth.json`.
+- **Import from pi** — if you already signed in with the standalone `pi` CLI, the wizard offers to
+  copy that credential.
+
+After credentials are confirmed the wizard discovers the models your account can use and lets you
+pick one from the list. Reasoning-capable models then ask for a thinking level (`off`, `minimal`,
+`low`, `medium`, `high`, `xhigh`, `max`; `medium` is suggested). The context window is taken from
+the model catalog.
+
+Local and custom endpoints ask for the base URL and an optional key, query the endpoint's `/models`
+listing, and fall back to manual model entry when the endpoint does not list models.
+
+Change the provider or model later without repeating the rest of the wizard:
+
+```bash
+tars model
+tars model --provider openai-codex --model gpt-5.6-luna --thinking medium
+tars restart
+```
+
+Tars validates and bounds context, compression, rate-limit, and heartbeat values when configuration
+loads.
 
 ## Discord
 

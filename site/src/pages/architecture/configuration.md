@@ -24,6 +24,7 @@ schema, and numeric intervals, context sizes, thresholds, and rate limits are bo
 | `assistantName`                     | `ASSISTANT_NAME`                    | Display identity           |
 | `piProvider`                        | `PI_PROVIDER`                       | Model provider             |
 | `piModel`                           | `PI_MODEL`                          | Provider model ID          |
+| `piThinkingLevel`                   | `PI_THINKING_LEVEL`                 | Reasoning effort (`off`…)  |
 | `piBaseUrl`                         | `PI_BASE_URL`                       | Compatible custom endpoint |
 | `heartbeatIntervalSec`              | `HEARTBEAT_INTERVAL_SEC`            | Maintenance cadence        |
 | `initiative.mode`                   | `TARS_INITIATIVE_MODE`              | Initiative authority mode  |
@@ -35,9 +36,10 @@ schema, and numeric intervals, context sizes, thresholds, and rate limits are bo
 | `channels.discord.enabled`          | —                                   | Explicit channel toggle    |
 | `channels.discord.ownerId`          | `DISCORD_OWNER_ID`                  | Authorized Discord owner   |
 
-Provider credentials and `DISCORD_TOKEN` belong in `.env` through `tars secret set`, not in
-`config.json`. An explicit `channels.discord.enabled: false` takes precedence over a configured
-token.
+Provider credentials belong in `~/.tars/auth.json` through `tars model` or `tars auth login`
+(OAuth tokens and API keys), or in `.env` through `tars secret set` for legacy environment
+variables and `DISCORD_TOKEN`. Never place them in `config.json`. An explicit
+`channels.discord.enabled: false` takes precedence over a configured token.
 
 ## Filesystem layout
 

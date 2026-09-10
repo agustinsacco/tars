@@ -463,6 +463,9 @@ export class TarsEngine extends EventEmitter {
         const systemPrompt = this.getSystemPrompt();
 
         const model = await this.modelSource.getModel(options.modelRole ?? 'chat');
+        // Models without reasoning support ignore the effort parameter; keep the
+        // request identical to the historical no-reasoning payload for them.
+        const thinkingLevel = model.reasoning ? (this.tarsConfig.piThinkingLevel ?? 'off') : 'off';
 
         // Build target Agent
         const allowMemoryWrites = options.allowMemoryWrites ?? !options.ephemeral;
@@ -476,6 +479,7 @@ export class TarsEngine extends EventEmitter {
             initialState: {
                 systemPrompt,
                 model,
+                thinkingLevel,
                 tools,
                 messages: history
             },

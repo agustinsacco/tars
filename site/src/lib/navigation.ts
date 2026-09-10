@@ -60,6 +60,12 @@ export const NAV_SECTIONS = [
                 summary: 'Inspect and synchronize durable memory.'
             },
             {
+                title: 'Models and Sign-in',
+                href: '/cli/models',
+                summary: 'Sign in to a provider and pick a discovered model and thinking level.',
+                keywords: ['auth', 'oauth', 'api key', 'model', 'thinking', 'reasoning']
+            },
+            {
                 title: 'Secrets',
                 href: '/cli/secrets',
                 summary: 'Store provider and channel credentials with the Tars CLI.'

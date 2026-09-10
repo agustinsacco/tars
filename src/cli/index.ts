@@ -143,13 +143,25 @@ program
     .action(discord);
 
 program
+    .command('model')
+    .description('Choose the provider, sign in, and pick a discovered model and thinking level')
+    .option('--provider <id>', 'Provider id (for example openai-codex, anthropic, local)')
+    .option('--model <id>', 'Model id; requires --provider')
+    .option('--thinking <level>', 'Thinking level (off, minimal, low, medium, high, xhigh, max)')
+    .action(async (options: { provider?: string; model?: string; thinking?: string }) => {
+        const { model } = await import('./commands/model.js');
+        if (!(await model(options))) process.exitCode = 1;
+    });
+
+program
     .command('auth')
-    .description('Manage model provider authentication (OAuth login, logout, status)')
+    .description('Manage model provider authentication (OAuth or API-key login, logout, status)')
     .argument('<action>', 'Action to perform (login, logout, status)')
-    .argument('[provider]', 'Provider id (anthropic, openai-codex, github-copilot)')
-    .action(async (action: string, provider?: string) => {
+    .argument('[provider]', 'Provider id (for example openai-codex, anthropic, github-copilot)')
+    .option('--api-key', 'Store an API key instead of signing in with OAuth')
+    .action(async (action: string, provider: string | undefined, options: { apiKey?: boolean }) => {
         const { auth } = await import('./commands/auth.js');
-        if (!(await auth(action, provider))) process.exitCode = 1;
+        if (!(await auth(action, provider, options))) process.exitCode = 1;
     });
 
 program
