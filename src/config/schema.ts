@@ -45,6 +45,19 @@ export const ModelReferenceSchema = z
 
 export const ConfigFileSchema = z.record(z.unknown());
 
+/**
+ * Reasoning effort requested from the chat model. Mirrors pi's agent thinking
+ * levels; `off` sends no reasoning parameter and is the historical behaviour.
+ */
+export const THINKING_LEVELS = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const;
+
+export const ThinkingLevelSchema = z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+    z.enum(THINKING_LEVELS)
+);
+
+export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+
 export const RuntimeConfigSchema = z.object({
     assistantName: z.string().trim().min(1).max(100).default('Tars'),
     instanceName: z
@@ -72,6 +85,9 @@ export const RuntimeConfigSchema = z.object({
     // endpoint truly accepts multimodal payloads; Pi silently drops image
     // blocks for models that do not advertise `input: ['image']`.
     piSupportsImages: BooleanLikeSchema.default(false),
+    // Reasoning effort for the chat model. Ignored by models that do not
+    // advertise reasoning support; `off` keeps the legacy no-reasoning request.
+    piThinkingLevel: ThinkingLevelSchema.default('off'),
     models: z
         .object({
             background: ModelReferenceSchema.optional(),

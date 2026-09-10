@@ -39,6 +39,25 @@ Common provider keys include `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `TARS_AP
 `DISCORD_TOKEN`. Never place a secret value in a command argument, prompt, memory, or log. Ask the
 operator to restart after a secret change.
 
+## Model provider and sign-in
+
+Ask the operator to run these in their own interactive shell; OAuth opens a browser and API keys
+are typed into a hidden prompt.
+
+```bash
+tars model
+tars model --provider openai-codex --model gpt-5.6-luna --thinking medium
+tars auth login PROVIDER
+tars auth login PROVIDER --api-key
+tars auth status
+tars restart
+```
+
+`tars model` lists every pi registry provider with its sign-in methods, discovers the models the
+signed-in account can use, and stores the model plus thinking level (`piThinkingLevel`) in
+`config.json`. Credentials live in `~/.tars/auth.json`. The status command prints sources only,
+never values.
+
 ## Memory
 
 ```bash

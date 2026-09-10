@@ -1,6 +1,11 @@
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { type AuthEvent, type AuthInteraction, type AuthPrompt } from '@earendil-works/pi-ai';
+import {
+    type AuthEvent,
+    type AuthInteraction,
+    type AuthPrompt,
+    type AuthType
+} from '@earendil-works/pi-ai';
 import { type ModelRuntime } from '@earendil-works/pi-coding-agent';
 
 import { Config } from '../../config/config.js';
@@ -92,33 +97,97 @@ function printAuthEvent(event: AuthEvent): void {
     console.log(chalk.dim(event.message));
 }
 
-function createLoginInteraction(): AuthInteraction {
+/** Terminal prompt/notification bridge for pi's provider login flows. */
+export function createLoginInteraction(): AuthInteraction {
     return {
         prompt: promptForInput,
         notify: printAuthEvent
     };
 }
 
-function getOAuthProviders(runtime: ModelRuntime): OAuthProviderChoice[] {
+/** Provider that offers at least one interactive login method. */
+export interface LoginProviderChoice extends OAuthProviderChoice {
+    readonly oauth: boolean;
+    readonly apiKey: boolean;
+    readonly oauthLabel?: string;
+}
+
+function getLoginProviders(runtime: ModelRuntime): LoginProviderChoice[] {
     return runtime
         .getProviders()
-        .filter((provider) => provider.auth.oauth !== undefined)
-        .map((provider) => ({ id: provider.id, name: provider.name }));
+        .map((provider) => ({
+            id: provider.id,
+            name: provider.name,
+            oauth: provider.auth.oauth !== undefined,
+            apiKey: provider.auth.apiKey?.login !== undefined,
+            oauthLabel: provider.auth.oauth?.loginLabel ?? provider.auth.oauth?.name
+        }))
+        .filter((provider) => provider.oauth || provider.apiKey);
 }
 
-function printAvailableProviders(providers: readonly OAuthProviderChoice[]): void {
-    console.log(chalk.cyan('Available OAuth providers:'));
+function getOAuthProviders(runtime: ModelRuntime): OAuthProviderChoice[] {
+    return getLoginProviders(runtime).filter((provider) => provider.oauth);
+}
+
+function formatLoginMethods(provider: LoginProviderChoice): string {
+    if (provider.oauth && provider.apiKey) return 'OAuth or API key';
+    return provider.oauth ? 'OAuth' : 'API key';
+}
+
+function printAvailableProviders(providers: readonly LoginProviderChoice[]): void {
+    console.log(chalk.cyan('Available providers:'));
     for (const provider of providers) {
-        console.log(`- ${provider.id} (${provider.name})`);
+        console.log(`- ${provider.id} (${provider.name}) — ${formatLoginMethods(provider)}`);
     }
-    console.log(chalk.dim('API-key providers are configured with `tars secret set` instead.'));
+    console.log(
+        chalk.dim(
+            'Providers without a login method read ambient credentials (environment variables or cloud profiles).'
+        )
+    );
 }
 
-async function runLogin(runtime: ModelRuntime, providerId: string | undefined): Promise<boolean> {
-    const providers = getOAuthProviders(runtime);
+/** Picks the login method for a provider: OAuth wins unless the user opts for a key. */
+export async function chooseLoginMethod(
+    provider: LoginProviderChoice,
+    requested: AuthType | undefined
+): Promise<AuthType> {
+    if (requested) {
+        const supported = requested === 'oauth' ? provider.oauth : provider.apiKey;
+        if (!supported) {
+            throw new Error(`${provider.name} does not support ${requested} login`);
+        }
+        return requested;
+    }
+    if (!provider.oauth) return 'api_key';
+    if (!provider.apiKey) return 'oauth';
+    const answers = await inquirer.prompt<{ value: AuthType }>([
+        {
+            type: 'list',
+            name: 'value',
+            message: `How do you want to authenticate with ${provider.name}?`,
+            choices: [
+                {
+                    name: provider.oauthLabel
+                        ? `Sign in with ${provider.oauthLabel} (OAuth)`
+                        : 'Sign in with OAuth',
+                    value: 'oauth'
+                },
+                { name: 'Enter an API key', value: 'api_key' }
+            ]
+        }
+    ]);
+    return answers.value;
+}
+
+async function runLogin(
+    runtime: ModelRuntime,
+    providerId: string | undefined,
+    requestedMethod: AuthType | undefined
+): Promise<boolean> {
+    const providers = getLoginProviders(runtime);
     let provider = resolveOAuthProvider(providers, providerId);
     if (!provider && providerId) {
-        console.log(chalk.red(`❌ Unknown OAuth provider: ${providerId}`));
+        console.log(chalk.red(`❌ Unknown provider or no interactive login: ${providerId}`));
         printAvailableProviders(providers);
         return false;
     }
@@ -128,8 +197,9 @@ async function runLogin(runtime: ModelRuntime, providerId: string | undefined): 
                 type: 'list',
                 name: 'value',
                 message: 'Which provider do you want to log in to?',
+                pageSize: 15,
                 choices: providers.map((candidate) => ({
-                    name: `${candidate.name} (${candidate.id})`,
+                    name: `${candidate.name} (${candidate.id}) — ${formatLoginMethods(candidate)}`,
                     value: candidate.id
                 }))
             }
@@ -138,13 +208,15 @@ async function runLogin(runtime: ModelRuntime, providerId: string | undefined): 
         if (!provider) return false;
     }
 
-    await runtime.login(provider.id, 'oauth', createLoginInteraction());
+    const method = await chooseLoginMethod(provider, requestedMethod);
+    await runtime.login(provider.id, method, createLoginInteraction());
     console.log(chalk.green(`\n✅ Logged in to ${provider.name}.`));
     console.log(
         chalk.dim(
             'Credentials are stored in auth.json inside your Tars home. The supervisor picks them up on the next message; no restart is required.'
         )
     );
+    console.log(chalk.dim(`Pick a model for this provider with: ${chalk.cyan('tars model')}`));
     return true;
 }
 
@@ -201,12 +273,21 @@ function runStatus(config: Config, runtime: ModelRuntime): boolean {
     return true;
 }
 
+export interface AuthCommandOptions {
+    /** Force the API-key flow instead of OAuth for providers that offer both. */
+    readonly apiKey?: boolean;
+}
+
 /**
- * tars auth login [provider]
+ * tars auth login [provider] [--api-key]
  * tars auth logout <provider>
  * tars auth status
  */
-export async function auth(action: string, providerId?: string): Promise<boolean> {
+export async function auth(
+    action: string,
+    providerId?: string,
+    options: AuthCommandOptions = {}
+): Promise<boolean> {
     const config = Config.getInstance();
 
     try {
@@ -216,7 +297,7 @@ export async function auth(action: string, providerId?: string): Promise<boolean
                 return await withTarsHomeMutationLease(
                     config.homeDir,
                     'modify Tars provider credentials',
-                    () => runLogin(runtime, providerId)
+                    () => runLogin(runtime, providerId, options.apiKey ? 'api_key' : undefined)
                 );
             case 'logout':
                 return await withTarsHomeMutationLease(

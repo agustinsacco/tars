@@ -4,6 +4,7 @@ import { ModelRuntime } from '@earendil-works/pi-coding-agent';
 import { type Api, type Model } from '@earendil-works/pi-ai';
 import { type StreamFn } from '@earendil-works/pi-agent-core';
 
+import { type ThinkingLevel } from '../config/schema.js';
 import logger from '../utils/logger.js';
 
 /** Which part of the runtime a model serves. */
@@ -27,6 +28,12 @@ export interface ModelManagerConfig {
      * endpoints must advertise it explicitly.
      */
     readonly piSupportsImages: boolean;
+    /**
+     * Reasoning effort requested for the chat model. Custom endpoints are
+     * registered with `reasoning: true` whenever a level other than `off` is
+     * configured so pi forwards the effort parameter to them.
+     */
+    readonly piThinkingLevel?: ThinkingLevel;
     readonly models: { readonly background?: string; readonly summarizer?: string };
     readonly contextWindowTokens: number;
 }
@@ -146,8 +153,15 @@ export class ModelManager implements ModelSource {
      * unregistered so `getChatModel` reports the typo instead.
      */
     private registerCustomChatProvider(runtime: ModelRuntime): void {
-        const { contextWindowTokens, piApi, piBaseUrl, piModel, piProvider, piSupportsImages } =
-            this.config;
+        const {
+            contextWindowTokens,
+            piApi,
+            piBaseUrl,
+            piModel,
+            piProvider,
+            piSupportsImages,
+            piThinkingLevel
+        } = this.config;
         if (runtime.getModel(piProvider, piModel)) return;
         const providerKnown = runtime.getProvider(piProvider) !== undefined;
         if (!piBaseUrl && providerKnown) return;
@@ -171,7 +185,7 @@ export class ModelManager implements ModelSource {
                     {
                         id: piModel,
                         name: piModel,
-                        reasoning: false,
+                        reasoning: (piThinkingLevel ?? 'off') !== 'off',
                         input: piSupportsImages ? ['text', 'image'] : ['text'],
                         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
                         contextWindow: contextWindowTokens || 128000,

@@ -29,6 +29,15 @@ describe('RuntimeConfigSchema', () => {
         ).toBe('https://api.example.com/v1');
     });
 
+    it('defaults the thinking level to off and normalizes supported levels', () => {
+        // ACT / ASSERT
+        expect(RuntimeConfigSchema.parse({}).piThinkingLevel).toBe('off');
+        expect(RuntimeConfigSchema.parse({ piThinkingLevel: ' Medium ' }).piThinkingLevel).toBe(
+            'medium'
+        );
+        expect(() => RuntimeConfigSchema.parse({ piThinkingLevel: 'ultra' })).toThrow();
+    });
+
     it('rejects unsafe scheduler and context limits', () => {
         // ARRANGE / ACT / ASSERT
         expect(() => RuntimeConfigSchema.parse({ heartbeatIntervalSec: 0 })).toThrow();

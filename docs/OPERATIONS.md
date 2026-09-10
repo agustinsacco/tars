@@ -16,7 +16,19 @@ process should ask the operator to restart so it is not terminated mid-response.
 
 ## Configuration and secrets
 
-Run `tars setup` for supported configuration. Use the secrets command for credential values:
+Run `tars setup` for supported configuration. To switch the model provider, sign in, or change the
+model and thinking level without the full wizard:
+
+```bash
+tars model
+tars model --provider openai-codex --model gpt-5.6-luna --thinking medium
+tars auth login openai-codex
+tars auth status
+tars restart
+```
+
+Provider OAuth tokens and API keys entered through these commands live in `~/.tars/auth.json`.
+Use the secrets command for other credential values:
 
 ```bash
 read -rs TARS_SECRET_VALUE

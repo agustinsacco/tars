@@ -15,22 +15,13 @@ import { z } from 'zod';
 import { RuntimeConfigSchema } from '../../config/schema.js';
 import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
 import { migrateMcpPoliciesInteractively } from './extensions.js';
-
-const ExistingSetupConfigSchema = z
-    .object({
-        assistantName: z.string().optional(),
-        contextWindowTokens: z.coerce.number().optional(),
-        discordOwnerId: z.string().nullable().optional(),
-        discordToken: z.string().optional(),
-        heartbeatIntervalSec: z.coerce.number().optional(),
-        piBaseUrl: z.string().optional(),
-        piModel: z.string().optional(),
-        piProvider: z.string().optional(),
-        channels: z.record(z.unknown()).optional()
-    })
-    .passthrough();
-
-type ExistingSetupConfig = z.infer<typeof ExistingSetupConfigSchema>;
+import {
+    getConfigFilePath,
+    readExistingConfig,
+    writePrivateJson,
+    type ExistingSetupConfig
+} from '../config-file.js';
+import { printModelSelection, runModelSetup } from '../model-setup.js';
 
 function getDiscordConfig(config: ExistingSetupConfig): Record<string, unknown> {
     const discord = config.channels?.discord;
@@ -43,22 +34,6 @@ export function removeLegacyDiscordToken(
 ): Record<string, unknown> {
     const { token: _legacyToken, ...safeConfig } = discordConfig;
     return safeConfig;
-}
-
-async function writePrivateJson(filePath: string, value: unknown): Promise<void> {
-    const temporaryPath = `${filePath}.${process.pid}.${crypto.randomUUID()}.tmp`;
-    try {
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, {
-            encoding: 'utf8',
-            flag: 'wx',
-            mode: 0o600
-        });
-        await fs.rename(temporaryPath, filePath);
-    } catch (error: unknown) {
-        await fs.rm(temporaryPath, { force: true }).catch(() => undefined);
-        throw error;
-    }
 }
 
 /**
@@ -90,185 +65,33 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     await migrateLegacyConfig(tarsHome);
 
     // Load existing config for defaults
-    let existingConfig: ExistingSetupConfig = {};
-    const existingConfigPath = path.join(tarsHome, 'config.json');
-    if (fsSync.existsSync(existingConfigPath)) {
-        const data = await fs.readFile(existingConfigPath, 'utf-8');
-        const parsed: unknown = JSON.parse(data);
-        existingConfig = ExistingSetupConfigSchema.parse(parsed);
-    }
+    const existingConfig = await readExistingConfig(tarsHome);
 
     const secretsManager = new SecretsManager(tarsHome);
     const secrets = secretsManager.load();
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 1: Model Provider ────────────────────────────────
+    // ── Step 1: Model Provider, Credentials & Model ───────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 1: Model Provider'));
-    console.log(chalk.dim('──────────────────────'));
-    console.log(chalk.dim('  Choose the AI provider and API configurations for Tars.'));
-
-    const { piProvider } = await inquirer.prompt([
-        {
-            type: 'list',
-            name: 'piProvider',
-            message: 'Select AI Model Provider:',
-            choices: [
-                { name: 'Google (Gemini SDK / API Key)', value: 'google' },
-                { name: 'OpenAI (GPT-4o, etc.)', value: 'openai' },
-                { name: 'Anthropic (Claude 3.5 Sonnet, etc.)', value: 'anthropic' },
-                { name: 'Local (Llama.cpp, Ollama, LM Studio, etc.)', value: 'local' },
-                { name: 'Custom (OpenAI-compatible proxy/local endpoint)', value: 'custom' }
-            ],
-            default:
-                existingConfig.piProvider === 'local-stark'
-                    ? 'local'
-                    : existingConfig.piProvider || 'google'
-        }
-    ]);
-
-    // ══════════════════════════════════════════════════════════
-    // ── Step 2: Credentials & Model Configuration ─────────────
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 2: Credentials & Model ID'));
+    console.log(chalk.bold('\nStep 1: Model Provider & Model'));
     console.log(chalk.dim('──────────────────────────────'));
+    console.log(
+        chalk.dim(
+            '  Pick any provider from the pi registry. Sign in with OAuth where the provider offers it\n  (ChatGPT, Claude Pro/Max, GitHub Copilot, ...) or store an API key; models are then discovered\n  automatically. Rerun this step later with `tars model`.'
+        )
+    );
 
-    let piBaseUrl = '';
-    let piApiKey = '';
-    let defaultModel = '';
-
-    if (piProvider === 'google') {
-        const answers = await inquirer.prompt([
-            {
-                type: 'password',
-                name: 'apiKey',
-                message: 'Enter TARS_API_KEY (Google Cloud API Key):',
-                default:
-                    secrets.TARS_API_KEY ||
-                    secrets.GEMINI_API_KEY ||
-                    process.env.TARS_API_KEY ||
-                    process.env.GEMINI_API_KEY ||
-                    '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
-        ]);
-        piApiKey = answers.apiKey;
-        secretsManager.set('TARS_API_KEY', piApiKey);
-        process.env.TARS_API_KEY = piApiKey;
-        secretsManager.set('GEMINI_API_KEY', piApiKey);
-        process.env.GEMINI_API_KEY = piApiKey;
-        defaultModel = 'gemini-2.5-flash';
-    } else if (piProvider === 'openai') {
-        const answers = await inquirer.prompt([
-            {
-                type: 'password',
-                name: 'apiKey',
-                message: 'Enter OPENAI_API_KEY:',
-                default: secrets.OPENAI_API_KEY || process.env.OPENAI_API_KEY || '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
-        ]);
-        piApiKey = answers.apiKey;
-        secretsManager.set('OPENAI_API_KEY', piApiKey);
-        process.env.OPENAI_API_KEY = piApiKey;
-        defaultModel = 'gpt-4o';
-    } else if (piProvider === 'anthropic') {
-        const answers = await inquirer.prompt([
-            {
-                type: 'password',
-                name: 'apiKey',
-                message: 'Enter ANTHROPIC_API_KEY:',
-                default: secrets.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY || '',
-                validate: (input) => input.length > 0 || 'API Key is required'
-            }
-        ]);
-        piApiKey = answers.apiKey;
-        secretsManager.set('ANTHROPIC_API_KEY', piApiKey);
-        process.env.ANTHROPIC_API_KEY = piApiKey;
-        defaultModel = 'claude-3-5-sonnet-latest';
-    } else if (piProvider === 'local' || piProvider === 'local-stark') {
-        const answers = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'baseUrl',
-                message: 'Local Endpoint URL:',
-                default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
-                validate: (input) =>
-                    RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
-                    'Enter an HTTP or HTTPS URL'
-            },
-            {
-                type: 'password',
-                name: 'apiKey',
-                message: 'Local API Key (press Enter to skip):',
-                default: secrets.LOCAL_API_KEY || secrets.STARK_API_KEY || ''
-            }
-        ]);
-        piBaseUrl = answers.baseUrl;
-        piApiKey = answers.apiKey;
-        secretsManager.set('LOCAL_API_KEY', piApiKey);
-        process.env.LOCAL_API_KEY = piApiKey;
-        defaultModel = 'qwen2.5-coder-7b';
-    } else {
-        const answers = await inquirer.prompt([
-            {
-                type: 'input',
-                name: 'baseUrl',
-                message: 'Custom Endpoint Base URL:',
-                default: existingConfig.piBaseUrl || 'http://localhost:8080/v1',
-                validate: (input) =>
-                    RuntimeConfigSchema.shape.piBaseUrl.safeParse(input).success ||
-                    'Enter an HTTP or HTTPS URL'
-            },
-            {
-                type: 'password',
-                name: 'apiKey',
-                message: 'Custom Endpoint API Key (press Enter to skip):',
-                default: secrets.CUSTOM_API_KEY || ''
-            }
-        ]);
-        piBaseUrl = answers.baseUrl;
-        piApiKey = answers.apiKey;
-        secretsManager.set('CUSTOM_API_KEY', piApiKey);
-        process.env.CUSTOM_API_KEY = piApiKey;
-        defaultModel = 'custom-model';
-    }
-
-    const { piModel } = await inquirer.prompt([
-        {
-            type: 'input',
-            name: 'piModel',
-            message: `Enter Model ID (default recommended: ${defaultModel}):`,
-            default: existingConfig.piModel || defaultModel,
-            validate: (input) => input.length > 0 || 'Model ID is required'
-        }
-    ]);
+    const modelSelection = await runModelSetup({
+        tarsHome,
+        existing: existingConfig,
+        secretsManager,
+        secrets
+    });
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 2.5: Context Window & Compaction Settings ───────
+    // ── Step 2: Communication Channel ─────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 2.5: Context Window & Compaction'));
-    console.log(chalk.dim('─────────────────────────────────────'));
-
-    const isCloud = ['google', 'openai', 'anthropic'].includes(piProvider);
-    const defaultContextWindow = isCloud ? 128000 : 8192;
-
-    const limitAnswers = await inquirer.prompt([
-        {
-            type: 'number',
-            name: 'contextWindowTokens',
-            message: 'Context Window Size (in tokens):',
-            default: existingConfig.contextWindowTokens || defaultContextWindow,
-            validate: (input: unknown) =>
-                RuntimeConfigSchema.shape.contextWindowTokens.safeParse(input).success ||
-                'Must be an integer from 1 to 10000000'
-        }
-    ]);
-
-    // ══════════════════════════════════════════════════════════
-    // ── Step 3: Communication Channel ─────────────────────────
-    // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 3: Communication Channel'));
+    console.log(chalk.bold('\nStep 2: Communication Channel'));
     console.log(chalk.dim('─────────────────────────────'));
 
     const existingDiscord = getDiscordConfig(existingConfig);
@@ -344,9 +167,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     ]);
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 4: Identity ──────────────────────────────────────
+    // ── Step 3: Identity ──────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 4: Identity'));
+    console.log(chalk.bold('\nStep 3: Identity'));
     console.log(chalk.dim('────────────────'));
 
     const identityConfig = await inquirer.prompt([
@@ -391,9 +214,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     ]);
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 5: Tars Dashboard ────────────────────────────────
+    // ── Step 4: Tars Dashboard ────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 5: Tars Dashboard'));
+    console.log(chalk.bold('\nStep 4: Tars Dashboard'));
     console.log(chalk.dim('──────────────────────'));
 
     const generatedDashPassword = crypto.randomBytes(24).toString('base64url');
@@ -469,9 +292,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     }
 
     // ══════════════════════════════════════════════════════════
-    // ── Step 6: Installing ────────────────────────────────────
+    // ── Step 5: Installing ────────────────────────────────────
     // ══════════════════════════════════════════════════════════
-    console.log(chalk.bold('\nStep 6: Installing'));
+    console.log(chalk.bold('\nStep 5: Installing'));
     console.log(chalk.dim('──────────────────'));
 
     // Provision isolated environment
@@ -511,12 +334,9 @@ async function setupWithLease(tarsHome: string): Promise<void> {
         ...preservedConfig,
         assistantName: identityConfig.assistantName,
         discordOwnerId: discordOwnerId.trim(),
-        piProvider,
-        piModel,
-        piBaseUrl,
+        ...modelSelection,
         heartbeatIntervalSec: intervalSec,
         inferenceBackend: 'tars',
-        contextWindowTokens: limitAnswers.contextWindowTokens,
         channels: {
             ...(existingConfig.channels ?? {}),
             discord: {
@@ -529,7 +349,7 @@ async function setupWithLease(tarsHome: string): Promise<void> {
     };
 
     RuntimeConfigSchema.parse({ ...configData, discordToken });
-    await writePrivateJson(path.join(tarsHome, 'config.json'), configData);
+    await writePrivateJson(getConfigFilePath(tarsHome), configData);
     saveSpinner.succeed('Configuration saved.');
 
     // Hydrate extensions
@@ -562,12 +382,10 @@ async function setupWithLease(tarsHome: string): Promise<void> {
             chalk.yellow.bold('\n⚠️ Core setup is complete; custom extensions need review.')
         );
     }
-    console.log(chalk.dim(`\n  Provider:       ${piProvider}`));
-    console.log(chalk.dim(`  Model:          ${piModel}`));
-    if (piBaseUrl) {
-        console.log(chalk.dim(`  Base URL:       ${piBaseUrl}`));
-    }
+    console.log('');
+    printModelSelection(modelSelection);
     console.log(`\n  Start Tars:     ${chalk.cyan('tars start')}`);
+    console.log(`  Change model:   ${chalk.cyan('tars model')}`);
     console.log(`  Check status:   ${chalk.cyan('tars status')}`);
     console.log(`  View logs:      ${chalk.cyan('tars logs')}`);
     if (!extensionPolicyMigration.ready) {

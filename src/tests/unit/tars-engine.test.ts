@@ -312,6 +312,52 @@ describe('TarsEngine', () => {
         });
     });
 
+    describe('thinking level', () => {
+        async function runWithThinkingLevel(
+            level: string,
+            reasoning: boolean
+        ): Promise<AgentOptions['initialState']> {
+            let captured: AgentOptions['initialState'];
+            const agentFactory = (options: AgentOptions): Agent => {
+                captured = options.initialState;
+                const agent = new Agent(options);
+                vi.spyOn(agent, 'prompt').mockResolvedValue(undefined);
+                return agent;
+            };
+            const modelSource: ModelSource = {
+                getModel: async () => ({ ...stubModel, reasoning }),
+                stream: stubModelSource.stream
+            };
+            const thinkingEngine = new TarsEngine(
+                { ...mockTarsConfig, piThinkingLevel: level } as any,
+                agentFactory,
+                modelSource
+            );
+            Reflect.set(thinkingEngine, 'initialized', true);
+            Reflect.set(thinkingEngine, 'loadHistory', vi.fn().mockResolvedValue([]));
+            Reflect.set(thinkingEngine, 'saveHistory', vi.fn().mockResolvedValue(undefined));
+            vi.mocked(loadSkills).mockReturnValue({ skills: [], diagnostics: [] });
+            await thinkingEngine.run('hello', vi.fn(), '00000000-0000-4000-8000-000000000002');
+            return captured;
+        }
+
+        it('passes the configured level to reasoning models', async () => {
+            // ACT
+            const state = await runWithThinkingLevel('medium', true);
+
+            // ASSERT
+            expect(state?.thinkingLevel).toBe('medium');
+        });
+
+        it('keeps reasoning off for models without reasoning support', async () => {
+            // ACT
+            const state = await runWithThinkingLevel('medium', false);
+
+            // ASSERT
+            expect(state?.thinkingLevel).toBe('off');
+        });
+    });
+
     describe('migrateLegacyConversation', () => {
         it('should convert user and assistant messages', () => {
             const conversation = {

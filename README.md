@@ -18,9 +18,10 @@ their multi-agent, mobile, voice, or broad multi-channel ecosystems.
 - Discord and interactive terminal interfaces backed by one active agent.
 - Every provider in the pi model registry (Google, OpenAI, Anthropic, OpenRouter, and more), plus
   local and custom OpenAI-compatible endpoints.
-- Subscription OAuth via `tars auth login` for Anthropic (Claude Pro/Max), OpenAI (ChatGPT), and
-  GitHub Copilot, alongside API keys. Optional per-role models route background and summarizer work
-  to a cheaper model.
+- Guided provider sign-in from `tars setup` and `tars model`: native pi OAuth for Anthropic (Claude
+  Pro/Max), OpenAI (ChatGPT), and GitHub Copilot, or an API key for any other registry provider.
+  Models are discovered from the signed-in account and the reasoning (thinking) level is chosen
+  per model. Optional per-role models route background and summarizer work to a cheaper model.
 - Durable facts, searchable notes, and scheduled tasks through built-in MCP extensions.
 - A PM2-managed supervisor with explicit cron execution, maintenance, and bounded initiative modes.
 - Local skills and explicitly enabled MCP servers with restricted subprocess environments.
@@ -58,25 +59,26 @@ writes, or memory index operations; those commands refuse a live lease.
 
 ## Common commands
 
-| Command                            | Purpose                                                    |
-| ---------------------------------- | ---------------------------------------------------------- |
-| `tars setup`                       | Create or update the local configuration.                  |
-| `tars start` / `tars stop`         | Start or stop PM2 processes for the configured Tars home.  |
-| `tars restart`                     | Review policies if needed, then restart active processes.  |
-| `tars status`                      | Show process and active-session metrics.                   |
-| `tars doctor`                      | Run read-only health and security diagnostics.             |
-| `tars repair plan`                 | Show registered safe repairs without changing state.       |
-| `tars logs`                        | Follow logs for the configured supervisor.                 |
-| `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.       |
-| `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`. |
-| `tars auth login PROVIDER`         | Log in to a provider subscription with OAuth (auth.json).  |
-| `tars auth status`                 | Show configured provider credentials without values.       |
-| `tars extensions audit`            | Inspect custom MCP environment and working-dir policies.   |
-| `tars extensions migrate`          | Interactively migrate legacy custom extension policies.    |
-| `tars memory search QUERY`         | Search the local knowledge index.                          |
-| `tars export` / `tars import FILE` | Back up or restore the Tars workspace.                     |
-| `tars update`                      | Stage, validate, install, and restart an available update. |
-| `tars refresh`                     | Rebuild packaged dashboard and extensions transactionally. |
+| Command                            | Purpose                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `tars setup`                       | Create or update the local configuration.                          |
+| `tars start` / `tars stop`         | Start or stop PM2 processes for the configured Tars home.          |
+| `tars restart`                     | Review policies if needed, then restart active processes.          |
+| `tars status`                      | Show process and active-session metrics.                           |
+| `tars doctor`                      | Run read-only health and security diagnostics.                     |
+| `tars repair plan`                 | Show registered safe repairs without changing state.               |
+| `tars logs`                        | Follow logs for the configured supervisor.                         |
+| `tars chat --no-discord`           | Start foreground chat without Discord or schedulers.               |
+| `tars secret set KEY`              | Store a secret read from standard input in `~/.tars/.env`.         |
+| `tars model`                       | Sign in to a provider, pick a discovered model and thinking level. |
+| `tars auth login PROVIDER`         | Log in to a provider with OAuth or an API key (auth.json).         |
+| `tars auth status`                 | Show configured provider credentials without values.               |
+| `tars extensions audit`            | Inspect custom MCP environment and working-dir policies.           |
+| `tars extensions migrate`          | Interactively migrate legacy custom extension policies.            |
+| `tars memory search QUERY`         | Search the local knowledge index.                                  |
+| `tars export` / `tars import FILE` | Back up or restore the Tars workspace.                             |
+| `tars update`                      | Stage, validate, install, and restart an available update.         |
+| `tars refresh`                     | Rebuild packaged dashboard and extensions transactionally.         |
 
 Run `tars --help` for the complete command reference.
 

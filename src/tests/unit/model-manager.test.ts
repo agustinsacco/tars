@@ -164,6 +164,22 @@ describe('ModelManager.getModel', () => {
         expect(model.input).toEqual(['text']);
     });
 
+    it('advertises reasoning for custom endpoints when a thinking level is configured', async () => {
+        // ARRANGE
+        const { manager } = await createManager({
+            piProvider: 'local',
+            piModel: 'qwen3-30b',
+            piBaseUrl: 'http://localhost:8080/v1',
+            piThinkingLevel: 'medium'
+        });
+
+        // ACT
+        const model = await manager.getModel('chat');
+
+        // ASSERT
+        expect(model.reasoning).toBe(true);
+    });
+
     it('advertises image input for multimodal custom endpoints', async () => {
         // ARRANGE
         const { manager } = await createManager({
