@@ -21,6 +21,7 @@ import {
     readPiCredential,
     resolveDefaultContextWindow,
     resolveDefaultThinkingLevel,
+    shouldKeepCredentials,
     sortProviders,
     summarizeProvider,
     type ProviderSummary
@@ -288,5 +289,11 @@ describe('tars model flags', () => {
         });
         expect(() => parseModelCommandOptions({ thinking: 'ultra' })).toThrow(/thinking level/);
         expect(() => parseModelCommandOptions({ model: 'gpt-5.6-luna' })).toThrow(/--provider/);
+    });
+
+    it('keeps working credentials only when the provider is preset', () => {
+        expect(shouldKeepCredentials({ configured: true }, 'openai-codex')).toBe(true);
+        expect(shouldKeepCredentials({ configured: true }, undefined)).toBe(false);
+        expect(shouldKeepCredentials({ configured: false }, 'openai-codex')).toBe(false);
     });
 });

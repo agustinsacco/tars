@@ -31,8 +31,9 @@ Apply the change with `tars restart`.
 
 ### Non-interactive use
 
-Flags pre-answer prompts, which is handy over SSH or in scripts. Credentials must already exist
-(`tars auth login` first) for the command to finish without prompting:
+Flags pre-answer prompts, which is handy over SSH or in scripts. With `--provider`, stored
+credentials for that provider are kept as they are (re-authenticate with `tars auth login`), so the
+command finishes without prompting once you are signed in.
 
 ```bash
 tars model --provider openai-codex --model gpt-5.6-luna --thinking medium

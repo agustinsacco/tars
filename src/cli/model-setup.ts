@@ -115,6 +115,17 @@ export interface ModelSetupOptions {
 
 type AuthAction = 'keep' | 'oauth' | 'api_key' | 'import' | 'skip';
 
+/**
+ * Non-interactive runs (`--provider` given) keep credentials that already
+ * work; re-authentication is an explicit `tars auth login`.
+ */
+export function shouldKeepCredentials(
+    status: Pick<ProviderAuthStatus, 'configured'>,
+    providerPreset: string | undefined
+): boolean {
+    return status.configured && providerPreset !== undefined;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure helpers (unit tested)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -466,11 +477,20 @@ async function promptAuthAction(
 async function ensureRegistryCredentials(
     runtime: ModelRuntime,
     providerId: string,
-    tarsHome: string
+    tarsHome: string,
+    providerPreset: string | undefined
 ): Promise<ModelRuntime> {
     const provider = runtime.getProvider(providerId);
     if (!provider) throw new Error(`Provider ${providerId} is not in the model registry`);
     const summary = summarizeProvider(provider, runtime.getProviderAuthStatus(providerId));
+    if (shouldKeepCredentials(summary.status, providerPreset)) {
+        console.log(
+            chalk.dim(
+                `  Using stored ${summary.name} credentials (${formatAuthStatus(summary.status)}).`
+            )
+        );
+        return runtime;
+    }
     const piAuthPath = getPiAuthStoragePath();
     const piCredential = summary.status.configured
         ? undefined
@@ -634,7 +654,12 @@ async function setupRegistryProvider(
     options: ModelSetupOptions
 ): Promise<ModelSelection> {
     const { existing, tarsHome, answers = {} } = options;
-    const runtime = await ensureRegistryCredentials(initialRuntime, providerId, tarsHome);
+    const runtime = await ensureRegistryCredentials(
+        initialRuntime,
+        providerId,
+        tarsHome,
+        answers.provider
+    );
     const { models } = await discoverRegistryModels(runtime, providerId);
     const sameProvider = normalizeProviderId(existing.piProvider) === providerId;
     const piModel = await promptModel(models, existing, sameProvider, answers.model);
