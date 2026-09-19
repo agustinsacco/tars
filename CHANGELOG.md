@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.1](https://github.com/agustinsacco/tars/compare/v1.50.0...v1.50.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* load voice relay token from environment ([#186](https://github.com/agustinsacco/tars/issues/186)) ([96be415](https://github.com/agustinsacco/tars/commit/96be41586d7dce8a5c0c6333d011064e98867e49))
+
 ## [1.50.0](https://github.com/agustinsacco/tars/compare/v1.49.0...v1.50.0) (2026-09-19)
 
 
