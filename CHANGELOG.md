@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.0](https://github.com/agustinsacco/tars/compare/v1.49.0...v1.50.0) (2026-09-19)
+
+
+### Features
+
+* add loopback voice relay channel ([#184](https://github.com/agustinsacco/tars/issues/184)) ([c641932](https://github.com/agustinsacco/tars/commit/c641932c5ff166168e464350049c7ecbac975a93))
+
 ## [1.49.0](https://github.com/agustinsacco/tars/compare/v1.48.1...v1.49.0) (2026-09-10)
 
 
