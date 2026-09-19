@@ -1,5 +1,6 @@
 import type { CommunicationChannel, ChannelMessage } from './types.js';
 import { DiscordChannel } from './discord/discord-channel.js';
+import { VoiceRelayChannel } from './voice-relay/voice-relay-channel.js';
 import logger from '../utils/logger.js';
 import { Config } from '../config/config.js';
 import { DLPService } from '../utils/dlp-service.js';
@@ -32,6 +33,11 @@ export class ChannelManager {
         const discord = new DiscordChannel();
         if (discord.isEnabled) {
             this.channels.set(discord.id, discord);
+        }
+        // The relay is loopback-only and remains disabled until explicitly configured.
+        const voiceRelay = new VoiceRelayChannel();
+        if (voiceRelay.isEnabled) {
+            this.channels.set(voiceRelay.id, voiceRelay);
         }
     }
 
