@@ -37,12 +37,13 @@ export class VoiceRelayChannel implements CommunicationChannel {
         this.config = config;
     }
 
+    /** Prefer the protected supervisor environment over persisted config. */
+    private get token(): string {
+        return process.env.VOICE_RELAY_TOKEN ?? this.config.token ?? '';
+    }
+
     public get isEnabled(): boolean {
-        return (
-            this.config.enabled === true &&
-            typeof this.config.token === 'string' &&
-            this.config.token.length >= 24
-        );
+        return this.config.enabled === true && this.token.length >= 24;
     }
 
     public async start(): Promise<void> {
@@ -130,7 +131,7 @@ export class VoiceRelayChannel implements CommunicationChannel {
 
     private authorized(request: IncomingMessage): boolean {
         const given = request.headers.authorization?.replace(/^Bearer\s+/i, '') ?? '';
-        const expected = this.config.token ?? '';
+        const expected = this.token;
         const a = Buffer.from(given),
             b = Buffer.from(expected);
         return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
