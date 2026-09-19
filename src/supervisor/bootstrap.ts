@@ -885,6 +885,9 @@ export function wireMessageRouting(
 
         // Determine if the message came from the TUI channel
         const isTui = message.channelId === 'tui' && tuiChannel;
+        // Voice clients render their own compact session state; never append a
+        // text-channel context footer to speech-bound answers.
+        const isVoiceRelay = message.metadata?.voice === true;
 
         let responseBuffer = '';
 
@@ -906,7 +909,7 @@ export function wireMessageRouting(
 
             let finalContent = text;
 
-            if (isDone) {
+            if (isDone && !isVoiceRelay) {
                 const stats = sessionManager.getStats();
                 if (stats && stats.lastInputTokens > 0) {
                     const limit = config.contextWindowTokens;
