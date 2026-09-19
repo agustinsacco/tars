@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.50.2](https://github.com/agustinsacco/tars/compare/v1.50.1...v1.50.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* suppress context footer for voice relay replies ([#188](https://github.com/agustinsacco/tars/issues/188)) ([097520e](https://github.com/agustinsacco/tars/commit/097520e941b734929ea0b8556d891b57c2a5fa5d))
+
 ## [1.50.1](https://github.com/agustinsacco/tars/compare/v1.50.0...v1.50.1) (2026-09-19)
 
 
