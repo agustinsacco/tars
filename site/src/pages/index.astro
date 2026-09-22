@@ -1,139 +1,409 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Footer from '../components/Footer.astro';
 import { Header } from '../components/Header';
-import { Sidebar } from '../components/Sidebar';
 import { TarsLogo } from '../components/TarsLogo';
-import { Brain, Clock, MessageSquare, Puzzle, Shield, Terminal } from 'lucide-react';
+import { GitHubIcon } from '../components/GitHubIcon';
+import {
+  ArrowRight,
+  Brain,
+  Check,
+  Clock,
+  Copy,
+  HeartPulse,
+  MessageSquare,
+  Puzzle,
+  ShieldCheck,
+  Terminal,
+} from 'lucide-react';
+
+const INSTALL_COMMANDS = ['npm install -g @saccolabs/tars', 'tars setup', 'tars start'];
+
+const PROVIDERS = [
+  { name: 'Claude Pro / Max', note: 'OAuth' },
+  { name: 'ChatGPT Plus / Pro', note: 'OAuth' },
+  { name: 'GitHub Copilot', note: 'OAuth' },
+  { name: 'Anthropic API', note: 'key' },
+  { name: 'OpenAI API', note: 'key' },
+  { name: 'Google Gemini', note: 'key' },
+  { name: 'OpenRouter', note: 'key' },
+  { name: 'Ollama / any OpenAI-compatible endpoint', note: 'local' },
+];
+
+const FEATURES = [
+  {
+    icon: Brain,
+    title: 'Memory that survives restarts',
+    body: 'Curated workspace files are loaded into every prompt, so Tars knows you before you say a word. Facts, dated notes, and a local full-text index fill in the rest. Durable memory is flushed before context is compressed and consolidated every night.',
+  },
+  {
+    icon: HeartPulse,
+    title: 'Background work you can audit',
+    body: 'Scheduled tasks run on cron or a timestamp, each with an explicit delivery policy. Autonomous wakes follow a checklist you write. An empty checklist costs zero API calls, unchanged results back off, and quiet wakes stay silent.',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Discord, terminal, and voice',
+    body: 'An owner-locked Discord bot with streaming replies and constrained attachments. A stateful terminal chat with token streaming. A loopback relay so a realtime voice gateway can talk to the same assistant.',
+  },
+  {
+    icon: Puzzle,
+    title: 'Skills and MCP tools',
+    body: 'Drop a SKILL.md for a repeatable workflow. Enable an MCP server with an explicit environment allowlist and bounded timeouts. Specialized tool schemas load on demand from a compact catalog so context stays lean.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Secure by default, honest about limits',
+    body: 'Owner-only channel, loopback dashboard, SSRF-safe fetching, redacted logs, secret-free backups, minimal subprocess environments. Tars is not a sandbox, and the docs say exactly where the boundaries are.',
+  },
+  {
+    icon: Terminal,
+    title: 'Operable from one CLI',
+    body: 'Setup, doctor, repair plans, staged updates with preflight and rollback, transactional export and import. PM2 keeps it running and tars logs tells you what happened.',
+  },
+];
+
+const FLOW = [
+  {
+    step: '01',
+    title: 'Channels',
+    items: ['Discord (owner only)', 'Terminal TUI', 'Voice relay (loopback)'],
+  },
+  {
+    step: '02',
+    title: 'Supervisor',
+    items: ['One active session', 'Cron tasks', 'Pulse wakes', 'Maintenance heartbeat'],
+  },
+  {
+    step: '03',
+    title: 'Engine',
+    items: ['pi Agent SDK', 'Any registry provider', 'Token-aware compression'],
+  },
+  {
+    step: '04',
+    title: 'Tools and memory',
+    items: ['Bundled MCP extensions', 'Your MCP servers', 'Skills', 'Workspace files'],
+  },
+];
+
+const BOUNDARIES = [
+  'Tars runs with the permissions of its operating-system user. There is no filesystem, shell, or network sandbox.',
+  'One active agent. Tars does not orchestrate sub-agents.',
+  'Discord is the supported daemon channel. Terminal chat runs in the foreground and holds an exclusive lease on the workspace.',
+  'Redaction reduces accidental leaks in logs and events. It is not data-loss prevention or prompt-injection immunity.',
+  'A local workspace does not mean local inference. Cloud providers receive what you send them unless you point Tars at a local endpoint.',
+];
+
+const USE_CASES = [
+  {
+    title: 'Personal assistant',
+    body: 'Reminders, notes, and research from Discord with memory that carries across days.',
+    href: '/use-cases/personal-assistant',
+  },
+  {
+    title: 'Host operations',
+    body: 'Supervised checks and repairs on a machine you own, from a least-privilege account.',
+    href: '/use-cases/host-manager',
+  },
+  {
+    title: 'Security reviews',
+    body: 'An analysis aid for logs and configuration, never an autonomous security boundary.',
+    href: '/use-cases/security-auditor',
+  },
+  {
+    title: 'DevOps workflows',
+    body: 'Explicit build, deployment, and diagnostics workflows with every step logged.',
+    href: '/use-cases/devops-engineer',
+  },
+];
 ---
 
 <BaseLayout
-  title="Local-first AI assistant"
-  description="Tars is a compact, self-hosted AI assistant for Discord and terminal workflows, with provider choice, MCP tools, durable memory, and scheduled tasks."
+  title="Tars: a personal AI assistant that lives on your machine"
+  bareTitle
+  description="Tars is a self-hosted personal AI assistant. Chat from Discord, the terminal, or a voice gateway, bring your own model, and keep every memory, task, and log in one folder you can read."
 >
-  <Header client:load />
+  <Header client:load showMenuButton={false} />
 
-  <div class="mx-auto flex max-w-[1440px] pt-14">
-    <Sidebar currentPath="/" client:load />
+  <main id="main-content" tabindex="-1" class="pt-14">
+    <!-- Hero -->
+    <section class="relative overflow-hidden border-b border-zinc-900">
+      <div class="hero-grid pointer-events-none absolute inset-0" aria-hidden="true"></div>
+      <div class="relative mx-auto grid max-w-6xl items-center gap-12 px-6 pb-20 pt-16 md:px-8 md:pb-28 md:pt-24 lg:grid-cols-[1.15fr_0.85fr]">
+        <div>
+          <p class="eyebrow mb-5">self-hosted · local-first · MIT</p>
+          <h1 class="font-display text-4xl font-bold leading-[1.08] tracking-tight text-zinc-50 sm:text-5xl md:text-6xl">
+            A personal AI assistant that lives on <span class="text-accent">your</span> machine.
+          </h1>
+          <p class="mt-6 max-w-xl font-display text-base leading-relaxed text-zinc-400 md:text-lg">
+            Tars runs as a plain Node.js process on hardware you control. Chat from Discord or the
+            terminal, bring the model you already pay for, and keep every memory, task, and log in
+            one folder you can read.
+          </p>
 
-    <main id="main-content" tabindex="-1" class="min-w-0 flex-1 px-4 py-8 md:px-8 md:py-12 lg:px-12">
-      <div class="mx-auto max-w-4xl">
-        <div class="mb-6 flex items-center gap-4">
-          <TarsLogo size={48} />
-          <div>
-            <h1 class="font-display text-3xl font-bold tracking-tight text-zinc-100">TARS</h1>
-            <p class="text-xs uppercase tracking-widest text-text-secondary">Local-first AI assistant</p>
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <a
+              href="/getting-started/installation"
+              class="inline-flex items-center gap-2 rounded-md bg-accent-strong px-5 py-2.5 text-sm font-bold text-zinc-950 transition-colors hover:bg-accent"
+            >
+              Get started
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            <a
+              href="https://github.com/agustinsacco/tars"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-2 rounded-md border border-zinc-800 px-5 py-2.5 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-50"
+            >
+              <GitHubIcon className="h-4 w-4" />
+              View on GitHub
+            </a>
+          </div>
+
+          <div class="mt-10 max-w-xl overflow-hidden rounded-lg border border-zinc-800 bg-surface-raised">
+            <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
+              <div class="flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full bg-zinc-700"></span>
+                <span class="h-2 w-2 rounded-full bg-zinc-700"></span>
+                <span class="h-2 w-2 rounded-full bg-zinc-700"></span>
+                <span class="ml-2 text-[10px] tracking-tight text-text-muted">install</span>
+              </div>
+              <button
+                type="button"
+                class="copy-button inline-flex items-center gap-1.5 rounded px-2 py-1 text-[10px] uppercase tracking-widest text-text-secondary transition-colors hover:text-zinc-100"
+                data-copy={INSTALL_COMMANDS.join('\n')}
+                aria-label="Copy install commands"
+              >
+                <Copy className="copy-icon h-3 w-3" />
+                <Check className="check-icon hidden h-3 w-3" />
+                <span class="copy-label">copy</span>
+              </button>
+            </div>
+            <pre class="overflow-x-auto p-4 text-[13px] leading-7 text-zinc-200"><code>{INSTALL_COMMANDS.map((command) => <span class="block"><span class="select-none text-accent">$ </span>{command}</span>)}</code></pre>
           </div>
         </div>
 
-        <p class="mb-4 max-w-2xl text-sm leading-relaxed text-zinc-400">
-          Tars is a compact Node.js assistant that runs on your machine under PM2. It connects a
-          single active agent to Discord or a terminal, supports multiple model providers, and adds
-          durable memory, explicit scheduled tasks, local skills, and MCP extensions.
-        </p>
-
-        <p class="mb-8 max-w-2xl text-xs leading-relaxed text-text-secondary">
-          It is aimed at operators who prefer a smaller bare-metal deployment and a clear local
-          workspace. Projects such as <a class="text-blue-400 hover:underline" href="https://docs.openclaw.ai/">OpenClaw</a>
-          cover a broader gateway and channel ecosystem; Tars does not claim feature parity with
-          multi-agent, mobile, voice, or broad multi-channel platforms.
-        </p>
-
-        <div class="mb-10 flex flex-wrap items-center gap-3">
-          <a href="/getting-started/installation" class="rounded border border-blue-500/20 bg-blue-500/10 px-4 py-2 text-xs text-blue-400 transition-colors hover:bg-blue-500/20">
-            Install Tars →
-          </a>
-          <a href="/getting-started/what-is-tars" class="rounded border border-zinc-800 px-4 py-2 text-xs text-text-secondary transition-colors hover:border-zinc-700 hover:text-zinc-300">
-            Read the overview
-          </a>
-          <a href="/capabilities/security" class="rounded border border-zinc-800 px-4 py-2 text-xs text-text-secondary transition-colors hover:border-zinc-700 hover:text-zinc-300">
-            Review the security model
-          </a>
-        </div>
-
-        <div class="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <MessageSquare className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Discord and terminal</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Use one assistant from Discord or run a foreground terminal chat without starting
-              duplicate daemon services.
-            </p>
-          </section>
-
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <Brain className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Provider choice</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Configure supported cloud providers or an OpenAI-compatible local endpoint through a
-              validated configuration model.
-            </p>
-          </section>
-
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <Puzzle className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Skills and MCP</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Add trusted local instruction packages and explicitly enabled MCP servers. Extension
-              subprocesses receive a restricted environment.
-            </p>
-          </section>
-
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Durable memory and tasks</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Keep selected facts and notes across restarts. Scheduled work runs only when a task is
-              explicitly created; the heartbeat itself performs maintenance.
-            </p>
-          </section>
-
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Defensive defaults</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Discord owner checks, dashboard loopback binding, safer backup handling, outbound-fetch
-              restrictions, and sensitive log redaction reduce common risks.
-            </p>
-          </section>
-
-          <section class="rounded-md border border-zinc-800 p-4 transition-colors hover:border-zinc-700">
-            <div class="mb-2 flex items-center gap-2">
-              <Terminal className="h-4 w-4 text-blue-400" />
-              <h2 class="text-sm font-bold text-zinc-200">Operator-controlled</h2>
-            </div>
-            <p class="text-xs leading-relaxed text-text-secondary">
-              Tars runs with the permissions of its operating-system user. It is not a sandbox, so
-              least-privilege accounts and review of tools and extensions remain essential.
-            </p>
-          </section>
-        </div>
-
-        <div class="mt-10 overflow-hidden rounded-md border border-zinc-800">
-          <div class="flex items-center gap-2 border-b border-zinc-800 bg-[#0e0e10] px-4 py-2">
-            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
-            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
-            <div class="h-2 w-2 rounded-full bg-zinc-700"></div>
-            <span class="ml-2 font-mono text-[10px] tracking-tighter text-text-muted">terminal</span>
-          </div>
-          <div class="bg-[#0e0e10] p-4">
-            <code class="font-mono text-sm text-zinc-300">
-              <span class="text-text-secondary">$</span> npm install -g @saccolabs/tars<br />
-              <span class="text-text-secondary">$</span> tars setup<br />
-              <span class="text-text-secondary">$</span> tars start
-            </code>
+        <div class="relative mx-auto hidden aspect-square w-full max-w-[420px] lg:block" aria-hidden="true">
+          <div class="hero-glow absolute inset-0 scale-125"></div>
+          <div class="relative flex h-full items-center justify-center">
+            <TarsLogo size={360} priority className="drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)]" />
           </div>
         </div>
       </div>
-    </main>
-  </div>
+    </section>
+
+    <!-- Providers -->
+    <section class="border-b border-zinc-900">
+      <div class="mx-auto max-w-6xl px-6 py-14 md:px-8">
+        <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:items-start">
+          <div>
+            <p class="eyebrow mb-3">bring your own model</p>
+            <h2 class="font-display text-2xl font-bold text-zinc-50 md:text-3xl">
+              Sign in with the subscription you already have.
+            </h2>
+            <p class="mt-4 font-display text-sm leading-relaxed text-zinc-400 md:text-base">
+              Native OAuth for Claude, ChatGPT, and GitHub Copilot. An API key for any other provider
+              in the pi model registry. Or a local endpoint when inference has to stay on your network.
+              Models are discovered from your account, and you can route background work to a cheaper
+              one.
+            </p>
+          </div>
+          <ul class="flex flex-wrap gap-2" aria-label="Supported providers">
+            {PROVIDERS.map((provider) => (
+              <li class="inline-flex items-center gap-2 rounded-md border border-zinc-800 bg-surface-raised px-3 py-1.5 text-xs text-zinc-300">
+                {provider.name}
+                <span class="rounded bg-zinc-900 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-accent">{provider.note}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="border-b border-zinc-900">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-8">
+        <p class="eyebrow mb-3">what you get</p>
+        <h2 class="max-w-2xl font-display text-2xl font-bold text-zinc-50 md:text-3xl">
+          Everything a personal assistant needs. Nothing you cannot inspect.
+        </h2>
+        <div class="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {FEATURES.map(({ icon: Icon, title, body }) => (
+            <article class="card p-6">
+              <div class="mb-4 inline-flex h-9 w-9 items-center justify-center rounded-md border border-accent/20 bg-accent-dim">
+                <Icon className="h-4 w-4 text-accent" />
+              </div>
+              <h3 class="font-display text-base font-bold text-zinc-100">{title}</h3>
+              <p class="mt-2 text-[13px] leading-relaxed text-text-secondary">{body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="border-b border-zinc-900">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-8">
+        <p class="eyebrow mb-3">how it works</p>
+        <h2 class="max-w-2xl font-display text-2xl font-bold text-zinc-50 md:text-3xl">
+          One process. One session. One folder.
+        </h2>
+        <p class="mt-4 max-w-2xl font-display text-sm leading-relaxed text-zinc-400 md:text-base">
+          A PM2-managed supervisor serializes everything through a single active agent, so scheduled
+          work, background wakes, and your messages never trample each other.
+        </p>
+
+        <ol class="mt-12 grid gap-px overflow-hidden rounded-lg border border-zinc-800 bg-zinc-800 md:grid-cols-4">
+          {FLOW.map((stage) => (
+            <li class="bg-surface p-6">
+              <span class="text-[11px] tracking-widest text-accent">{stage.step}</span>
+              <h3 class="mt-2 font-display text-base font-bold text-zinc-100">{stage.title}</h3>
+              <ul class="mt-3 space-y-1.5 text-[13px] text-text-secondary">
+                {stage.items.map((item) => (
+                  <li class="flex items-start gap-2">
+                    <span class="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-zinc-600"></span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ol>
+
+        <div class="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-center">
+          <div>
+            <h3 class="font-display text-lg font-bold text-zinc-100">Everything lives under ~/.tars</h3>
+            <p class="mt-3 text-[13px] leading-relaxed text-text-secondary">
+              Non-secret settings in JSON, secrets in an owner-readable env file, memory in Markdown,
+              logs redacted. Back the whole thing up with one command, restore it with another, and
+              read it with whatever editor you already use.
+            </p>
+            <a href="/architecture/configuration" class="mt-4 inline-flex items-center gap-1.5 text-xs text-accent hover:underline">
+              Configuration and layout <ArrowRight className="h-3 w-3" />
+            </a>
+          </div>
+          <pre class="overflow-x-auto rounded-lg border border-zinc-800 bg-surface-raised p-5 text-[12.5px] leading-6 text-zinc-300"><code>~/.tars/
+├── config.json      <span class="text-text-muted">non-secret settings</span>
+├── .env             <span class="text-text-muted">secrets, owner-readable only</span>
+├── auth.json        <span class="text-text-muted">provider sign-ins</span>
+├── system.md        <span class="text-text-muted">your instructions</span>
+├── workspace/       <span class="text-text-muted">SOUL, MEMORY, USER, HEARTBEAT</span>
+├── skills/          <span class="text-text-muted">SKILL.md packages</span>
+├── extensions/      <span class="text-text-muted">enabled MCP servers</span>
+├── chats/           <span class="text-text-muted">conversation history</span>
+├── data/            <span class="text-text-muted">sessions, tasks, notes, index</span>
+└── logs/            <span class="text-text-muted">redacted operational logs</span></code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Boundaries -->
+    <section class="border-b border-zinc-900">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-8">
+        <div class="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+          <div>
+            <p class="eyebrow mb-3">trust boundaries</p>
+            <h2 class="font-display text-2xl font-bold text-zinc-50 md:text-3xl">
+              Built to be trusted, so it tells you what it cannot do.
+            </h2>
+            <p class="mt-4 font-display text-sm leading-relaxed text-zinc-400 md:text-base">
+              Defensive defaults reduce risk. They do not turn an AI agent into a security boundary.
+              Run Tars as a dedicated least-privilege user and read the security model before
+              granting access to anything sensitive.
+            </p>
+            <a href="/capabilities/security" class="mt-6 inline-flex items-center gap-2 rounded-md border border-zinc-800 px-4 py-2 text-xs text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-50">
+              Read the security model <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+          <ul class="space-y-3">
+            {BOUNDARIES.map((line) => (
+              <li class="flex items-start gap-3 rounded-md border border-zinc-900 bg-surface-raised px-4 py-3 text-[13px] leading-relaxed text-zinc-300">
+                <Clock className="mt-[3px] h-3.5 w-3.5 shrink-0 text-accent" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Use cases -->
+    <section class="border-b border-zinc-900">
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-8">
+        <p class="eyebrow mb-3">ways people run it</p>
+        <h2 class="max-w-2xl font-display text-2xl font-bold text-zinc-50 md:text-3xl">
+          Start with one job. Add more as you trust it.
+        </h2>
+        <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {USE_CASES.map((useCase) => (
+            <a href={useCase.href} class="card group flex flex-col p-5">
+              <h3 class="font-display text-sm font-bold text-zinc-100 group-hover:text-accent">{useCase.title}</h3>
+              <p class="mt-2 flex-1 text-[13px] leading-relaxed text-text-secondary">{useCase.body}</p>
+              <span class="mt-4 inline-flex items-center gap-1 text-[11px] uppercase tracking-widest text-text-muted group-hover:text-accent">
+                Guide <ArrowRight className="h-3 w-3" />
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section>
+      <div class="mx-auto max-w-6xl px-6 py-20 md:px-8">
+        <div class="relative overflow-hidden rounded-xl border border-zinc-800 bg-surface-raised px-6 py-12 text-center md:px-12 md:py-16">
+          <div class="hero-glow pointer-events-none absolute -top-1/2 left-1/2 h-[600px] w-[600px] -translate-x-1/2" aria-hidden="true"></div>
+          <div class="relative">
+            <p class="eyebrow mb-4">ready in minutes</p>
+            <h2 class="font-display text-3xl font-bold text-zinc-50 md:text-4xl">Install it. Own it.</h2>
+            <p class="mx-auto mt-4 max-w-lg font-display text-sm text-zinc-400 md:text-base">
+              Node.js 22.19 or newer, a Discord bot, and a model provider. That is the whole list.
+            </p>
+            <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <a
+                href="/getting-started/installation"
+                class="inline-flex items-center gap-2 rounded-md bg-accent-strong px-5 py-2.5 text-sm font-bold text-zinc-950 transition-colors hover:bg-accent"
+              >
+                Installation guide <ArrowRight className="h-4 w-4" />
+              </a>
+              <a
+                href="/getting-started/what-is-tars"
+                class="inline-flex items-center gap-2 rounded-md border border-zinc-800 px-5 py-2.5 text-sm text-zinc-300 transition-colors hover:border-zinc-600 hover:text-zinc-50"
+              >
+                Read the overview
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
 </BaseLayout>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.copy-button');
+  for (const button of buttons) {
+    button.addEventListener('click', async () => {
+      const text = button.dataset.copy ?? '';
+      if (!text || !navigator.clipboard) return;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        return;
+      }
+      button.dataset.copied = 'true';
+      button.querySelector('.copy-icon')?.classList.add('hidden');
+      button.querySelector('.check-icon')?.classList.remove('hidden');
+      const label = button.querySelector('.copy-label');
+      if (label) label.textContent = 'copied';
+      window.setTimeout(() => {
+        delete button.dataset.copied;
+        button.querySelector('.copy-icon')?.classList.remove('hidden');
+        button.querySelector('.check-icon')?.classList.add('hidden');
+        if (label) label.textContent = 'copy';
+      }, 1800);
+    });
+  }
+</script>

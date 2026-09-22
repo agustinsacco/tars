@@ -1,27 +1,27 @@
 @import 'tailwindcss';
 
-/* ─── Design Tokens ─── */
+/* ─── Design tokens ───
+   Palette derived from the Tars logo: brushed chrome on near-black with a
+   single orange signal color. Orange is the only hue on the site. */
 @theme {
     --color-surface: #050505;
-    --color-surface-raised: #0e0e10;
+    --color-surface-raised: #0c0c0e;
     --color-border-subtle: #27272a;
     --color-text-primary: #e4e4e7;
     --color-text-secondary: #8b8b95;
     --color-text-muted: #7f7f89;
-    --color-accent: #60a5fa;
-    --color-accent-dim: rgba(59, 130, 246, 0.05);
+    --color-accent: #fb923c;
+    --color-accent-strong: #f97316;
+    --color-accent-dim: rgba(249, 115, 22, 0.08);
+    --breakpoint-xs: 30rem;
+    --font-display:
+        'Space Grotesk Variable', 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-mono:
+        'JetBrains Mono Variable', 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono',
+        monospace;
 }
 
-/* ─── Global Reset: Default to Monospace ─── */
-body {
-    font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-}
-
-.font-display {
-    font-family: 'Space Grotesk', Inter, ui-sans-serif, system-ui, sans-serif;
-}
-
-/* ─── Base Styles ─── */
+/* ─── Base ─── */
 html {
     background-color: #050505;
     color: #e4e4e7;
@@ -35,6 +35,9 @@ body {
     min-height: 100vh;
     line-height: 1.7;
     font-size: 14px;
+    font-family: var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
 }
 
 .skip-link {
@@ -55,7 +58,7 @@ body {
 }
 
 :focus-visible {
-    outline: 2px solid #60a5fa;
+    outline: 2px solid #fb923c;
     outline-offset: 3px;
 }
 
@@ -64,7 +67,52 @@ h3[id] {
     scroll-margin-top: 5rem;
 }
 
-/* ─── Custom Scrollbar ─── */
+/* ─── Landing helpers ─── */
+.hero-grid {
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 100%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 20%, transparent 100%);
+}
+
+.hero-glow {
+    background: radial-gradient(
+        circle at center,
+        rgba(249, 115, 22, 0.22) 0%,
+        rgba(249, 115, 22, 0.06) 40%,
+        transparent 70%
+    );
+}
+
+.eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #fb923c;
+}
+
+.card {
+    border: 1px solid #1f1f23;
+    border-radius: 0.5rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
+    transition:
+        border-color 0.2s ease,
+        transform 0.2s ease;
+}
+
+.card:hover {
+    border-color: rgba(251, 146, 60, 0.35);
+    transform: translateY(-1px);
+}
+
+.copy-button[data-copied='true'] {
+    color: #fb923c;
+}
+
+/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
     width: 5px;
     height: 5px;
@@ -83,17 +131,20 @@ h3[id] {
     background: #52525b;
 }
 
-/* ─── Markdown Prose Styles ─── */
+/* ─── Markdown prose ─── */
 .prose h1 {
-    font-size: 1.75rem;
+    font-family: var(--font-display);
+    font-size: 2rem;
     font-weight: 700;
+    letter-spacing: -0.01em;
     color: #fafafa;
     margin-bottom: 0.5rem;
-    line-height: 1.3;
+    line-height: 1.25;
 }
 
 .prose h2 {
-    font-size: 1.25rem;
+    font-family: var(--font-display);
+    font-size: 1.3rem;
     font-weight: 700;
     color: #fafafa;
     margin-top: 2.5rem;
@@ -103,7 +154,8 @@ h3[id] {
 }
 
 .prose h3 {
-    font-size: 1rem;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
     font-weight: 700;
     color: #e4e4e7;
     margin-top: 2rem;
@@ -116,14 +168,14 @@ h3[id] {
 }
 
 .prose a {
-    color: #60a5fa;
+    color: #fb923c;
     text-decoration: none;
     border-bottom: 1px solid transparent;
     transition: border-color 0.15s;
 }
 
 .prose a:hover {
-    border-bottom-color: #60a5fa;
+    border-bottom-color: #fb923c;
 }
 
 .prose strong {
@@ -147,11 +199,10 @@ h3[id] {
 }
 
 .prose blockquote {
-    border-left: 2px solid #60a5fa;
-    padding-left: 1rem;
+    border-left: 2px solid #fb923c;
     color: #a1a1aa;
     margin: 1rem 0;
-    background: rgba(59, 130, 246, 0.05);
+    background: rgba(249, 115, 22, 0.06);
     padding: 0.75rem 1rem;
     border-radius: 0 4px 4px 0;
 }
@@ -161,9 +212,9 @@ h3[id] {
     margin: 2rem 0;
 }
 
-/* ─── Code Blocks ─── */
+/* ─── Code ─── */
 .prose pre {
-    background: #0e0e10 !important;
+    background: #0c0c0e !important;
     border: 1px solid #27272a;
     border-radius: 6px;
     padding: 1rem;
@@ -174,14 +225,15 @@ h3[id] {
 }
 
 .prose code {
-    font-family: 'JetBrains Mono', monospace !important;
+    font-family: var(--font-mono) !important;
     font-size: 13px;
 }
 
 .prose :not(pre) > code {
-    background: #27272a;
+    background: #1c1c1f;
+    border: 1px solid #27272a;
     color: #e4e4e7;
-    padding: 0.15rem 0.4rem;
+    padding: 0.1rem 0.4rem;
     border-radius: 3px;
     font-size: 0.85em;
 }
@@ -212,10 +264,10 @@ h3[id] {
 }
 
 .prose tr:hover td {
-    background: rgba(59, 130, 246, 0.03);
+    background: rgba(249, 115, 22, 0.04);
 }
 
-/* ─── Admonitions / Notes ─── */
+/* ─── Admonitions ─── */
 .admonition {
     border-left: 2px solid;
     padding: 0.75rem 1rem;
@@ -225,8 +277,8 @@ h3[id] {
 }
 
 .admonition.note {
-    border-color: #60a5fa;
-    background: rgba(59, 130, 246, 0.05);
+    border-color: #fb923c;
+    background: rgba(249, 115, 22, 0.06);
 }
 
 .admonition.warning {
@@ -249,7 +301,7 @@ h3[id] {
 
 /* ─── Selection ─── */
 ::selection {
-    background: rgba(96, 165, 250, 0.3);
+    background: rgba(251, 146, 60, 0.3);
     color: #fafafa;
 }
 

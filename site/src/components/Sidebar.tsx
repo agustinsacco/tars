@@ -80,7 +80,7 @@ export function Sidebar({ currentPath }: SidebarProps): ReactElement {
                             block px-2 py-1.5 text-[13px] rounded-sm transition-colors cursor-pointer
                             ${
                                 isActive
-                                    ? 'text-blue-400 bg-blue-500/5 border-l-2 border-blue-400 pl-[calc(0.5rem-2px)]'
+                                    ? 'text-accent bg-accent/5 border-l-2 border-accent pl-[calc(0.5rem-2px)]'
                                     : 'text-text-secondary hover:text-zinc-200 hover:bg-zinc-800/30 border-l-2 border-transparent pl-[calc(0.5rem-2px)]'
                             }
                           `}

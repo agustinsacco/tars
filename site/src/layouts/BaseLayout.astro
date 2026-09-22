@@ -1,14 +1,23 @@
 ---
+import '@fontsource-variable/jetbrains-mono';
+import '@fontsource-variable/space-grotesk';
+
 interface Props {
   title: string;
   description?: string;
+  /** Render `title` verbatim instead of appending the site suffix. */
+  bareTitle?: boolean;
 }
 
 const {
   title,
-  description = 'Documentation for Tars, a local-first AI assistant for Discord and terminal workflows.',
+  description = 'Tars is a self-hosted personal AI assistant that runs on your machine. Discord, terminal, and voice channels, bring-your-own model, durable memory, scheduled tasks, skills, and MCP tools.',
+  bareTitle = false,
 } = Astro.props;
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin);
+const origin = Astro.site ?? Astro.url.origin;
+const canonicalUrl = new URL(Astro.url.pathname, origin);
+const ogImage = new URL('/logo.png', origin);
+const pageTitle = bareTitle ? title : `${title} | Tars Docs`;
 ---
 
 <!DOCTYPE html>
@@ -19,13 +28,21 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin)
 		<meta name="description" content={description} />
 		<meta name="theme-color" content="#050505" />
 		<link rel="canonical" href={canonicalUrl} />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+		<link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+		<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 		<meta property="og:type" content="website" />
-		<meta property="og:title" content={`${title} | TARS Docs`} />
+		<meta property="og:site_name" content="Tars" />
+		<meta property="og:title" content={pageTitle} />
 		<meta property="og:description" content={description} />
 		<meta property="og:url" content={canonicalUrl} />
+		<meta property="og:image" content={ogImage} />
+		<meta property="og:image:alt" content="Tars logo" />
 		<meta name="twitter:card" content="summary" />
-		<title>{title} | TARS Docs</title>
+		<meta name="twitter:title" content={pageTitle} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={ogImage} />
+		<title>{pageTitle}</title>
 	</head>
 	<body>
 		<a class="skip-link" href="#main-content">Skip to content</a>
