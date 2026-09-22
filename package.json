@@ -1,7 +1,7 @@
 {
     "name": "@saccolabs/tars",
     "version": "1.50.2",
-    "description": "Tars — a local-first, self-hosted personal AI assistant",
+    "description": "A self-hosted personal AI assistant that lives on your machine. Discord, terminal, and voice channels, bring-your-own model, durable memory, scheduled tasks, skills, and MCP tools.",
     "license": "MIT",
     "homepage": "https://github.com/agustinsacco/tars#readme",
     "repository": {
