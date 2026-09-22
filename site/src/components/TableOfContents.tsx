@@ -61,7 +61,7 @@ export function TableOfContents({ headings }: TableOfContentsProps): ReactElemen
                   ${heading.depth === 3 ? 'pl-5' : 'pl-3'}
                   ${
                       isActive
-                          ? 'text-blue-400 border-blue-400'
+                          ? 'text-accent border-accent'
                           : 'text-text-secondary border-transparent hover:text-zinc-300 hover:border-zinc-600'
                   }
                 `}

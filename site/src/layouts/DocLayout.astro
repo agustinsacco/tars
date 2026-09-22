@@ -1,5 +1,6 @@
 ---
 import BaseLayout from './BaseLayout.astro';
+import Footer from '../components/Footer.astro';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
 import { TableOfContents } from '../components/TableOfContents';
@@ -43,17 +44,17 @@ const nextItem = currentIndex >= 0 ? (NAV_ITEMS[currentIndex + 1] ?? null) : nul
 <BaseLayout title={frontmatter.title} description={frontmatter.description}>
   <Header client:load />
 
-  <div class="flex pt-14 max-w-[1440px] mx-auto">
+  <div class="mx-auto flex max-w-[1440px] pt-14">
     <Sidebar currentPath={currentPath} client:load />
 
-    <main id="main-content" tabindex="-1" class="flex-1 min-w-0 px-6 py-10 lg:px-8">
-      <div class="max-w-4xl mx-auto">
+    <main id="main-content" tabindex="-1" class="min-w-0 flex-1 px-6 py-10 lg:px-8">
+      <div class="mx-auto max-w-4xl">
         <Breadcrumbs items={breadcrumbItems} />
 
-        <article class="prose max-w-none mt-8 border-b border-zinc-900 pb-16">
+        <article class="prose mt-8 max-w-none border-b border-zinc-900 pb-16">
           <h1>{frontmatter.title}</h1>
           {frontmatter.description && (
-            <p class="mt-1 mb-8 text-sm text-text-secondary !text-[14px]">{frontmatter.description}</p>
+            <p class="mt-1 mb-8 font-display text-[15px] text-text-secondary">{frontmatter.description}</p>
           )}
           <slot />
         </article>
@@ -63,24 +64,24 @@ const nextItem = currentIndex >= 0 ? (NAV_ITEMS[currentIndex + 1] ?? null) : nul
             {previousItem ? (
               <a
                 href={previousItem.href}
-                class="group flex min-w-[220px] flex-col items-start gap-2 rounded-lg border border-zinc-800 p-6 no-underline transition-all hover:border-blue-500/50 hover:bg-blue-500/5"
+                class="group flex min-w-[220px] flex-col items-start gap-2 rounded-lg border border-zinc-800 p-6 no-underline transition-all hover:border-accent/50 hover:bg-accent/5"
               >
                 <span class="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Previous</span>
-                <span class="font-bold text-zinc-100 transition-colors group-hover:text-blue-400">
+                <span class="font-display font-bold text-zinc-100 transition-colors group-hover:text-accent">
                   ← {previousItem.title}
                 </span>
               </a>
             ) : <span />}
             {nextItem && (
-            <a 
-              href={nextItem.href}
-              class="group flex flex-col items-end gap-2 p-6 border border-zinc-800 rounded-lg hover:border-blue-500/50 hover:bg-blue-500/5 transition-all cursor-pointer no-underline min-w-[240px]"
-            >
-              <span class="text-[10px] text-text-secondary uppercase tracking-widest font-bold">Next Up</span>
-              <span class="text-zinc-100 font-bold group-hover:text-blue-400 transition-colors">
-                {nextItem.title} →
-              </span>
-            </a>
+              <a
+                href={nextItem.href}
+                class="group flex min-w-[240px] cursor-pointer flex-col items-end gap-2 rounded-lg border border-zinc-800 p-6 no-underline transition-all hover:border-accent/50 hover:bg-accent/5"
+              >
+                <span class="text-[10px] font-bold uppercase tracking-widest text-text-secondary">Next Up</span>
+                <span class="font-display font-bold text-zinc-100 transition-colors group-hover:text-accent">
+                  {nextItem.title} →
+                </span>
+              </a>
             )}
           </nav>
         )}
@@ -89,4 +90,6 @@ const nextItem = currentIndex >= 0 ? (NAV_ITEMS[currentIndex + 1] ?? null) : nul
 
     <TableOfContents headings={headings} client:load />
   </div>
+
+  <Footer />
 </BaseLayout>

@@ -17,7 +17,7 @@ export const NAV_SECTIONS = [
             {
                 title: 'Home',
                 href: '/',
-                summary: 'Tars documentation and project overview.'
+                summary: 'Tars overview, quick start, and supported providers.'
             },
             {
                 title: 'Introduction',
