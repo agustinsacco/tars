@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.0](https://github.com/agustinsacco/tars/compare/v1.50.2...v1.51.0) (2026-09-22)
+
+
+### Features
+
+* rework marketing content and refresh site design ([#191](https://github.com/agustinsacco/tars/issues/191)) ([41d8325](https://github.com/agustinsacco/tars/commit/41d832542764614e367c634c25de5d07d6d3cce4))
+
 ## [1.50.2](https://github.com/agustinsacco/tars/compare/v1.50.1...v1.50.2) (2026-09-19)
 
 
