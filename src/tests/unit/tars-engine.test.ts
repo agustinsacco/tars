@@ -435,6 +435,45 @@ describe('TarsEngine', () => {
             });
         });
 
+        it('places placeholders after the results an assistant turn did receive', () => {
+            // ARRANGE
+            const multiCall: AgentMessage = {
+                ...assistantCall('c1'),
+                content: [
+                    { type: 'toolCall', id: 'c1', name: 'bash', arguments: {} },
+                    { type: 'toolCall', id: 'c2', name: 'bash', arguments: {} }
+                ]
+            } as AgentMessage;
+            const history = [user('go'), multiCall, toolResult('c1'), user('next')];
+
+            // ACT
+            const { history: repaired, repairs } = repairToolCallPairing(history);
+
+            // ASSERT
+            expect(repairs).toBe(1);
+            expect(
+                repaired.map((m) => (m.role === 'toolResult' ? `result:${m.toolCallId}` : m.role))
+            ).toEqual(['user', 'assistant', 'result:c1', 'result:c2', 'user']);
+        });
+
+        it.each(['error', 'aborted'] as const)(
+            'leaves a %s assistant turn alone, since the Pi SDK drops it before sending',
+            (stopReason) => {
+                // ARRANGE: pi-ai's transformMessages strips errored/aborted turns
+                // before the request is built, so a placeholder result for their
+                // calls would reach the provider as an orphan.
+                const failed = { ...assistantCall('c1'), stopReason } as AgentMessage;
+                const history = [user('go'), failed, user('try again')];
+
+                // ACT
+                const { history: repaired, repairs } = repairToolCallPairing(history);
+
+                // ASSERT
+                expect(repairs).toBe(0);
+                expect(repaired).toBe(history);
+            }
+        );
+
         it('returns well-formed history untouched', () => {
             const history = longToolChain(3);
             const result = repairToolCallPairing(history);

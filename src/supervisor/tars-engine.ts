@@ -4,7 +4,7 @@ import {
     type AgentMessage,
     type AgentOptions
 } from '@earendil-works/pi-agent-core';
-import { type ImageContent, type Message } from '@earendil-works/pi-ai';
+import { type ImageContent, type Message, type ToolCall } from '@earendil-works/pi-ai';
 import {
     createCodingTools,
     loadSkills,
@@ -257,10 +257,16 @@ export function parseAgentHistory(value: unknown): AgentMessage[] {
     return AgentHistorySchema.parse(value);
 }
 
-function toolCallIdsOf(message: AgentMessage): string[] {
+/**
+ * Tool calls a message contributes to the provider request. The Pi SDK drops
+ * errored/aborted assistant turns wholesale before sending, so their calls
+ * must not be paired with results that would then be orphaned.
+ */
+function liveToolCallsOf(message: AgentMessage): ToolCall[] {
     if (message.role !== 'assistant') return [];
+    if (message.stopReason === 'error' || message.stopReason === 'aborted') return [];
     if (!Array.isArray(message.content)) return [];
-    return message.content.flatMap((part) => (part.type === 'toolCall' ? [part.id] : []));
+    return message.content.flatMap((part) => (part.type === 'toolCall' ? [part] : []));
 }
 
 /**
@@ -294,8 +300,11 @@ export function findCompactionCutIndex(history: AgentMessage[], keepCount: numbe
  *
  * - A tool result whose call is missing becomes a user message carrying the
  *   same output, so the facts stay in context without a dangling call id.
- * - A tool call with no result gets a placeholder error result right after
- *   its assistant message.
+ * - A tool call with no result gets a placeholder error result after the
+ *   results its assistant message did receive.
+ *
+ * Errored/aborted assistant turns are treated as absent, matching the Pi SDK,
+ * which strips them before the request is sent.
  *
  * Returns the input array unchanged when nothing needed repair.
  */
@@ -303,14 +312,37 @@ export function repairToolCallPairing(history: AgentMessage[]): {
     history: AgentMessage[];
     repairs: number;
 } {
-    const callIds = new Set(history.flatMap(toolCallIdsOf));
+    const callIds = new Set(
+        history.flatMap((message) => liveToolCallsOf(message).map((c) => c.id))
+    );
     const resultIds = new Set(
         history.flatMap((message) => (message.role === 'toolResult' ? [message.toolCallId] : []))
     );
 
     let repairs = 0;
     const repaired: AgentMessage[] = [];
+    // Calls from the latest assistant turn still awaiting a placeholder; flushed
+    // once its run of real results ends so placeholders never precede them.
+    let pending: { calls: ToolCall[]; timestamp: number } | undefined;
+    const flushPending = (): void => {
+        if (!pending) return;
+        for (const call of pending.calls) {
+            repaired.push({
+                role: 'toolResult',
+                toolCallId: call.id,
+                toolName: call.name,
+                content: [{ type: 'text', text: '[No result was recorded for this tool call.]' }],
+                isError: true,
+                timestamp: pending.timestamp
+            });
+            repairs++;
+        }
+        pending = undefined;
+    };
+
     for (const message of history) {
+        if (message.role !== 'toolResult') flushPending();
+
         if (message.role === 'toolResult' && !callIds.has(message.toolCallId)) {
             const text = extractTextContent(message.content);
             repaired.push({
@@ -324,20 +356,10 @@ export function repairToolCallPairing(history: AgentMessage[]): {
 
         repaired.push(message);
 
-        if (message.role !== 'assistant' || !Array.isArray(message.content)) continue;
-        for (const part of message.content) {
-            if (part.type !== 'toolCall' || resultIds.has(part.id)) continue;
-            repaired.push({
-                role: 'toolResult',
-                toolCallId: part.id,
-                toolName: part.name,
-                content: [{ type: 'text', text: '[No result was recorded for this tool call.]' }],
-                isError: true,
-                timestamp: message.timestamp
-            });
-            repairs++;
-        }
+        const unanswered = liveToolCallsOf(message).filter((call) => !resultIds.has(call.id));
+        if (unanswered.length > 0) pending = { calls: unanswered, timestamp: message.timestamp };
     }
+    flushPending();
 
     return repairs === 0 ? { history, repairs } : { history: repaired, repairs };
 }
@@ -919,9 +941,9 @@ export class TarsEngine extends EventEmitter {
 
                     const model = await this.modelSource.getModel('summarizer');
 
-                    // Convert historyToCompress to Message[] for streamSimple. Its
-                    // last assistant turn may still lack results (they live in the
-                    // tail), so pairing is repaired before the provider sees it.
+                    // Convert historyToCompress to Message[] for streamSimple. The cut
+                    // never splits a call from its results; the repair is a guard for
+                    // history that was already malformed before this compaction.
                     const llmMessages = repairToolCallPairing(historyToCompress).history.filter(
                         (m) => ['user', 'assistant', 'toolResult'].includes(m.role)
                     ) as Message[];
