@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.51.1](https://github.com/agustinsacco/tars/compare/v1.51.0...v1.51.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* keep tool calls and results paired across session compaction ([#193](https://github.com/agustinsacco/tars/issues/193)) ([cff9beb](https://github.com/agustinsacco/tars/commit/cff9beb7d2172677f55b755aa6799cd1afdc957e))
+
 ## [1.51.0](https://github.com/agustinsacco/tars/compare/v1.50.2...v1.51.0) (2026-09-22)
 
 
