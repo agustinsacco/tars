@@ -4,7 +4,7 @@ import {
     type AgentMessage,
     type AgentOptions
 } from '@earendil-works/pi-agent-core';
-import { type ImageContent, type Message } from '@earendil-works/pi-ai';
+import { type ImageContent, type Message, type ToolCall } from '@earendil-works/pi-ai';
 import {
     createCodingTools,
     loadSkills,
@@ -255,6 +255,113 @@ interface ResumedSessionData {
 
 export function parseAgentHistory(value: unknown): AgentMessage[] {
     return AgentHistorySchema.parse(value);
+}
+
+/**
+ * Tool calls a message contributes to the provider request. The Pi SDK drops
+ * errored/aborted assistant turns wholesale before sending, so their calls
+ * must not be paired with results that would then be orphaned.
+ */
+function liveToolCallsOf(message: AgentMessage): ToolCall[] {
+    if (message.role !== 'assistant') return [];
+    if (message.stopReason === 'error' || message.stopReason === 'aborted') return [];
+    if (!Array.isArray(message.content)) return [];
+    return message.content.flatMap((part) => (part.type === 'toolCall' ? [part] : []));
+}
+
+/**
+ * Picks where compaction splits history into "summarize" and "keep".
+ *
+ * The kept tail must never open with a tool result: its tool call would be
+ * summarized away and providers reject the orphan ("No tool call found for
+ * function call output with call_id ..."), wedging the session. A long
+ * agentic run can leave no user message after the target, so after looking
+ * forward for a user turn the cut falls back to the next assistant message,
+ * which opens a complete call/result exchange. Searching backward for a user
+ * turn instead could reach the start of the run and compress almost nothing.
+ */
+export function findCompactionCutIndex(history: AgentMessage[], keepCount: number): number {
+    const target = Math.max(1, history.length - keepCount);
+
+    for (let i = target; i < history.length; i++) {
+        if (history[i]?.role === 'user') return i;
+    }
+    for (let i = target; i < history.length; i++) {
+        if (history[i]?.role === 'assistant') return i;
+    }
+    for (let i = target - 1; i > 0; i--) {
+        if (history[i]?.role !== 'toolResult') return i;
+    }
+    return -1;
+}
+
+/**
+ * Restores the call/result pairing providers require.
+ *
+ * - A tool result whose call is missing becomes a user message carrying the
+ *   same output, so the facts stay in context without a dangling call id.
+ * - A tool call with no result gets a placeholder error result after the
+ *   results its assistant message did receive.
+ *
+ * Errored/aborted assistant turns are treated as absent, matching the Pi SDK,
+ * which strips them before the request is sent.
+ *
+ * Returns the input array unchanged when nothing needed repair.
+ */
+export function repairToolCallPairing(history: AgentMessage[]): {
+    history: AgentMessage[];
+    repairs: number;
+} {
+    const callIds = new Set(
+        history.flatMap((message) => liveToolCallsOf(message).map((c) => c.id))
+    );
+    const resultIds = new Set(
+        history.flatMap((message) => (message.role === 'toolResult' ? [message.toolCallId] : []))
+    );
+
+    let repairs = 0;
+    const repaired: AgentMessage[] = [];
+    // Calls from the latest assistant turn still awaiting a placeholder; flushed
+    // once its run of real results ends so placeholders never precede them.
+    let pending: { calls: ToolCall[]; timestamp: number } | undefined;
+    const flushPending = (): void => {
+        if (!pending) return;
+        for (const call of pending.calls) {
+            repaired.push({
+                role: 'toolResult',
+                toolCallId: call.id,
+                toolName: call.name,
+                content: [{ type: 'text', text: '[No result was recorded for this tool call.]' }],
+                isError: true,
+                timestamp: pending.timestamp
+            });
+            repairs++;
+        }
+        pending = undefined;
+    };
+
+    for (const message of history) {
+        if (message.role !== 'toolResult') flushPending();
+
+        if (message.role === 'toolResult' && !callIds.has(message.toolCallId)) {
+            const text = extractTextContent(message.content);
+            repaired.push({
+                role: 'user',
+                content: `[Recovered output of an earlier \`${message.toolName}\` tool call whose originating call was compacted away]\n\n${text}`,
+                timestamp: message.timestamp
+            });
+            repairs++;
+            continue;
+        }
+
+        repaired.push(message);
+
+        const unanswered = liveToolCallsOf(message).filter((call) => !resultIds.has(call.id));
+        if (unanswered.length > 0) pending = { calls: unanswered, timestamp: message.timestamp };
+    }
+    flushPending();
+
+    return repairs === 0 ? { history, repairs } : { history: repaired, repairs };
 }
 
 export function resolveSessionHistoryPath(chatsDir: string, sessionId: string): string {
@@ -808,16 +915,7 @@ export class TarsEngine extends EventEmitter {
 
             if (shouldCompress && history.length >= 4) {
                 const keepCount = Math.max(2, Math.ceil(history.length * 0.6));
-                let cutIndex = history.length - keepCount;
-
-                // Walk forward to find a 'user' role entry for clean boundary
-                while (cutIndex < history.length && history[cutIndex]?.role !== 'user') {
-                    cutIndex++;
-                }
-
-                if (cutIndex >= history.length) {
-                    cutIndex = history.length - keepCount;
-                }
+                const cutIndex = findCompactionCutIndex(history, keepCount);
 
                 if (cutIndex > 0 && cutIndex < history.length) {
                     const historyToCompress = history.slice(0, cutIndex);
@@ -843,9 +941,11 @@ export class TarsEngine extends EventEmitter {
 
                     const model = await this.modelSource.getModel('summarizer');
 
-                    // Convert historyToCompress to Message[] for streamSimple
-                    const llmMessages = historyToCompress.filter((m) =>
-                        ['user', 'assistant', 'toolResult'].includes(m.role)
+                    // Convert historyToCompress to Message[] for streamSimple. The cut
+                    // never splits a call from its results; the repair is a guard for
+                    // history that was already malformed before this compaction.
+                    const llmMessages = repairToolCallPairing(historyToCompress).history.filter(
+                        (m) => ['user', 'assistant', 'toolResult'].includes(m.role)
                     ) as Message[];
                     llmMessages.push({
                         role: 'user',
@@ -1032,17 +1132,32 @@ export class TarsEngine extends EventEmitter {
         const newChatPath = resolveSessionHistoryPath(chatsDir, sessionId);
 
         if (fs.existsSync(newChatPath)) {
+            let history: AgentMessage[];
             try {
                 logger.info(`📂 Loading session history from Pi format: ${newChatPath}`);
                 const data = await fs.promises.readFile(newChatPath, 'utf-8');
                 const parsed: unknown = JSON.parse(data);
-                return parseAgentHistory(parsed);
+                history = parseAgentHistory(parsed);
             } catch (error: unknown) {
                 const message = DLPService.scrub(getErrorMessage(error));
                 throw new Error(
                     `Session history is invalid and was preserved unchanged (${newChatPath}): ${message}`
                 );
             }
+
+            // Sessions broken by earlier compactions would otherwise fail every
+            // request with "No tool call found for function call output".
+            const { history: repaired, repairs } = repairToolCallPairing(history);
+            if (repairs > 0) {
+                logger.warn(`🩹 Repaired ${repairs} unpaired tool call/result(s) in ${sessionId}`);
+                try {
+                    await this.saveHistory(sessionId, repaired);
+                } catch (error: unknown) {
+                    // The in-memory repair still lets this run proceed.
+                    logger.warn(`⚠️ Could not persist history repair: ${getErrorMessage(error)}`);
+                }
+            }
+            return repaired;
         }
 
         // Fallback: load and migrate from legacy format

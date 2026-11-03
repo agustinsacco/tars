@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+    findCompactionCutIndex,
     parseAgentHistory,
+    repairToolCallPairing,
     resolveSessionHistoryPath,
     TarsEngine
 } from '../../supervisor/tars-engine.js';
@@ -9,7 +11,7 @@ import { type ModelSource } from '../../supervisor/model-manager.js';
 import fs from 'fs';
 import path from 'path';
 import { loadSkills, formatSkillsForPrompt } from '@earendil-works/pi-coding-agent';
-import { Agent, type AgentOptions } from '@earendil-works/pi-agent-core';
+import { Agent, type AgentMessage, type AgentOptions } from '@earendil-works/pi-agent-core';
 import { type Api, type Model } from '@earendil-works/pi-ai';
 
 const stubModel: Model<Api> = {
@@ -41,6 +43,59 @@ vi.mock('@earendil-works/pi-coding-agent', async (importOriginal) => {
         formatSkillsForPrompt: vi.fn()
     };
 });
+
+const user = (text: string): AgentMessage => ({ role: 'user', content: text, timestamp: 1 });
+const assistantCall = (id: string): AgentMessage =>
+    ({
+        role: 'assistant',
+        content: [{ type: 'toolCall', id, name: 'bash', arguments: {} }],
+        api: 'openai-codex-responses',
+        provider: 'openai-codex',
+        model: 'stub',
+        usage: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+            totalTokens: 0,
+            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+        },
+        stopReason: 'toolUse',
+        timestamp: 1
+    }) as AgentMessage;
+const toolResult = (id: string): AgentMessage => ({
+    role: 'toolResult',
+    toolCallId: id,
+    toolName: 'bash',
+    content: [{ type: 'text', text: `output of ${id}` }],
+    isError: false,
+    timestamp: 1
+});
+
+/** A user turn followed by one long tool chain, the shape that broke compaction. */
+function longToolChain(steps: number): AgentMessage[] {
+    const history: AgentMessage[] = [user('install the model')];
+    for (let i = 0; i < steps; i++)
+        history.push(assistantCall(`call_${i}`), toolResult(`call_${i}`));
+    return history;
+}
+
+function unpaired(history: AgentMessage[]): string[] {
+    const calls = new Set(
+        history.flatMap((m) =>
+            m.role === 'assistant'
+                ? m.content.flatMap((p) => (p.type === 'toolCall' ? [p.id] : []))
+                : []
+        )
+    );
+    const results = new Set(
+        history.flatMap((m) => (m.role === 'toolResult' ? [m.toolCallId] : []))
+    );
+    return [
+        ...[...results].filter((id) => !calls.has(id)),
+        ...[...calls].filter((id) => !results.has(id))
+    ];
+}
 
 describe('TarsEngine', () => {
     let engine: TarsEngine;
@@ -309,6 +364,156 @@ describe('TarsEngine', () => {
             // ASSERT
             expect(loadHistory).not.toHaveBeenCalled();
             expect(saveHistory).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('compaction tool pairing', () => {
+        it('never starts the kept tail on a tool result during a long tool chain', () => {
+            // ARRANGE
+            const history = longToolChain(10); // no user message after index 0
+
+            // ACT
+            const cut = findCompactionCutIndex(history, Math.ceil(history.length * 0.6));
+
+            // ASSERT
+            expect(cut).toBeGreaterThan(0);
+            expect(history[cut]?.role).toBe('assistant');
+            expect(unpaired(history.slice(cut))).toEqual([]);
+        });
+
+        it('prefers a user boundary, then the next assistant turn', () => {
+            // ARRANGE
+            const history = [
+                user('a'),
+                assistantCall('c1'),
+                toolResult('c1'),
+                user('b'),
+                assistantCall('c2'),
+                toolResult('c2'),
+                assistantCall('c3'),
+                toolResult('c3')
+            ];
+
+            // ACT / ASSERT
+            expect(findCompactionCutIndex(history, 6)).toBe(3); // user ahead of index 2
+            expect(findCompactionCutIndex(history, 3)).toBe(6); // no user ahead of index 5
+            expect(findCompactionCutIndex(history, 1)).toBe(6); // only results ahead of 7
+        });
+
+        it('turns an orphaned tool result into a user message that keeps its output', () => {
+            // ARRANGE
+            const history = [
+                user('snapshot'),
+                toolResult('gone'),
+                assistantCall('c1'),
+                toolResult('c1')
+            ];
+
+            // ACT
+            const { history: repaired, repairs } = repairToolCallPairing(history);
+
+            // ASSERT
+            expect(repairs).toBe(1);
+            expect(repaired[1]).toMatchObject({ role: 'user' });
+            expect(repaired[1]?.role === 'user' && repaired[1].content).toContain('output of gone');
+            expect(unpaired(repaired)).toEqual([]);
+        });
+
+        it('adds a placeholder result for a tool call that never got one', () => {
+            // ARRANGE
+            const history = [user('go'), assistantCall('c1')];
+
+            // ACT
+            const { history: repaired, repairs } = repairToolCallPairing(history);
+
+            // ASSERT
+            expect(repairs).toBe(1);
+            expect(repaired[2]).toMatchObject({
+                role: 'toolResult',
+                toolCallId: 'c1',
+                isError: true
+            });
+        });
+
+        it('places placeholders after the results an assistant turn did receive', () => {
+            // ARRANGE
+            const multiCall: AgentMessage = {
+                ...assistantCall('c1'),
+                content: [
+                    { type: 'toolCall', id: 'c1', name: 'bash', arguments: {} },
+                    { type: 'toolCall', id: 'c2', name: 'bash', arguments: {} }
+                ]
+            } as AgentMessage;
+            const history = [user('go'), multiCall, toolResult('c1'), user('next')];
+
+            // ACT
+            const { history: repaired, repairs } = repairToolCallPairing(history);
+
+            // ASSERT
+            expect(repairs).toBe(1);
+            expect(
+                repaired.map((m) => (m.role === 'toolResult' ? `result:${m.toolCallId}` : m.role))
+            ).toEqual(['user', 'assistant', 'result:c1', 'result:c2', 'user']);
+        });
+
+        it.each(['error', 'aborted'] as const)(
+            'leaves a %s assistant turn alone, since the Pi SDK drops it before sending',
+            (stopReason) => {
+                // ARRANGE: pi-ai's transformMessages strips errored/aborted turns
+                // before the request is built, so a placeholder result for their
+                // calls would reach the provider as an orphan.
+                const failed = { ...assistantCall('c1'), stopReason } as AgentMessage;
+                const history = [user('go'), failed, user('try again')];
+
+                // ACT
+                const { history: repaired, repairs } = repairToolCallPairing(history);
+
+                // ASSERT
+                expect(repairs).toBe(0);
+                expect(repaired).toBe(history);
+            }
+        );
+
+        it('returns well-formed history untouched', () => {
+            const history = longToolChain(3);
+            const result = repairToolCallPairing(history);
+            expect(result.repairs).toBe(0);
+            expect(result.history).toBe(history);
+        });
+
+        it('compresses a long tool chain into history with no unpaired tool calls', async () => {
+            // ARRANGE
+            const summarizerInputs: AgentMessage[][] = [];
+            const modelSource: ModelSource = {
+                getModel: async () => stubModel,
+                stream: (async (_model: unknown, context: { messages: AgentMessage[] }) => {
+                    summarizerInputs.push(context.messages);
+                    return (async function* () {
+                        yield { type: 'text_delta', delta: 'summary' };
+                    })();
+                }) as unknown as ModelSource['stream']
+            };
+            const compactingEngine = new TarsEngine(mockTarsConfig, undefined, modelSource);
+            const history = [user('<state_snapshot>old</state_snapshot>'), ...longToolChain(36)];
+            let saved: AgentMessage[] = [];
+            Reflect.set(compactingEngine, 'loadHistory', vi.fn().mockResolvedValue(history));
+            Reflect.set(
+                compactingEngine,
+                'saveHistory',
+                vi.fn(async (_sid: string, messages: AgentMessage[]) => {
+                    saved = messages;
+                })
+            );
+            Reflect.set(compactingEngine, 'flushMemoryBeforeCompression', vi.fn());
+
+            // ACT
+            const compressed = await compactingEngine.compressSession(true, 'session-123');
+
+            // ASSERT
+            expect(compressed).toBe(true);
+            expect(saved.length).toBeLessThan(history.length);
+            expect(unpaired(saved)).toEqual([]);
+            expect(summarizerInputs[0] && unpaired(summarizerInputs[0])).toEqual([]);
         });
     });
 
