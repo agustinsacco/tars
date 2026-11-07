@@ -101,6 +101,27 @@ describe('Supervisor', () => {
         );
     });
 
+    it('runs worker events plan-only and signals idle on success and failure', async () => {
+        const idle = vi.fn();
+        supervisor.on('idle', idle);
+        await supervisor.executeWorkerEvent('Untrusted worker event');
+        expect(mockGemini.runSync).toHaveBeenCalledWith(
+            expect.any(String),
+            expect.any(String),
+            expect.objectContaining({
+                allowedToolNames: [],
+                allowMemoryWrites: false,
+                allowNotifications: false,
+                ephemeral: true
+            })
+        );
+        expect(idle).toHaveBeenCalledOnce();
+        mockGemini.runSync.mockRejectedValueOnce(new Error('inference failed'));
+        await expect(supervisor.executeWorkerEvent('event')).rejects.toThrow('inference failed');
+        expect(idle).toHaveBeenCalledTimes(2);
+        expect(supervisor.isBusy()).toBe(false);
+    });
+
     it('should track user activity on run', async () => {
         await supervisor.run('hello', vi.fn());
         expect(mockSessionManager.touchActivity).toHaveBeenCalled();

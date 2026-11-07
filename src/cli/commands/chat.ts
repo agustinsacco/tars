@@ -28,10 +28,11 @@ export async function chat(options: { discord?: boolean } = {}): Promise<void> {
         });
         const skipDiscord = options.discord === false;
 
-        const { config, tarsEngine, sessionManager, supervisor, channelManager } = await bootstrap({
-            skipDashboard: true,
-            skipDiscord
-        });
+        const { config, tarsEngine, sessionManager, supervisor, channelManager, workers } =
+            await bootstrap({
+                skipDashboard: true,
+                skipDiscord
+            });
 
         let shutdownPromise: Promise<void> | undefined;
         const shutdown = (): Promise<void> => {
@@ -39,6 +40,7 @@ export async function chat(options: { discord?: boolean } = {}): Promise<void> {
             shutdownPromise = (async (): Promise<void> => {
                 removeShutdownListeners();
                 try {
+                    await workers.stop();
                     await channelManager.stop();
                 } finally {
                     try {
@@ -75,6 +77,9 @@ export async function chat(options: { discord?: boolean } = {}): Promise<void> {
         // The foreground client owns channels only. Heartbeat and Cron remain
         // single-owner services in the PM2 daemon.
         await channelManager.start();
+        await workers
+            .start()
+            .catch(() => logger.warn('Worker manager unavailable; chat remains active.'));
 
         const handleSignal = async (): Promise<void> => {
             console.log(chalk.dim('\n\n👋 Goodbye.\n'));

@@ -17,6 +17,7 @@ import { initializeMemoryFiles } from '../utils/memory-initializer.js';
 import logger, { configureDaemonLogging } from '../utils/logger.js';
 import { DLPService } from '../utils/dlp-service.js';
 import { WorkspaceStore } from '../memory/workspace-store.js';
+import { WorkerRuntime } from '../workers/worker-runtime.js';
 import { CronService } from './cron-service.js';
 import { DashboardService } from './dashboard-service.js';
 import { HeartbeatService } from './heartbeat-service.js';
@@ -217,6 +218,7 @@ export interface BootstrapResult {
     pulse: PulseService;
     cron: CronService;
     dashboard: DashboardService;
+    workers: WorkerRuntime;
 }
 
 function normalizeLegacyBundledPrompt(content: string): string {
@@ -772,6 +774,11 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     // 4. Initialize Multi-Channel Interface
     const channelManager = new ChannelManager({ skipDiscord: options.skipDiscord });
 
+    const workers = new WorkerRuntime(config.homeDir, supervisor, channelManager, (message) =>
+        logger.warn(message)
+    );
+    tarsEngine.setWorkerClient(workers.client);
+
     // 5. Inject Interface into Engine
     tarsEngine.setChannelManager(channelManager);
     tarsEngine.setSessionManager(sessionManager);
@@ -793,7 +800,8 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
         heartbeat,
         pulse,
         cron,
-        dashboard
+        dashboard,
+        workers
     };
 }
 

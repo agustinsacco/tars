@@ -22,6 +22,8 @@ import path from 'path';
 import { type AttachmentContext, type TarsEvent } from '../types/index.js';
 
 import { SendNotificationTool, type NotificationChannel } from '../tools/send-notification.js';
+import { ManageWorkersTool } from '../tools/manage-workers.js';
+import type { BrokerClient } from '../workers/broker-client.js';
 import { ManageTarsTool } from '../tools/manage-tars.js';
 import { MemoryTool } from '../tools/memory-tool.js';
 import { routeMcpTools } from '../tools/mcp-tool-router.js';
@@ -39,6 +41,7 @@ export type TarsEngineOutputHandler = (event: TarsEngineEvent) => unknown | Prom
 
 interface EngineRunOptions {
     readonly allowNotifications?: boolean;
+    readonly allowedToolNames?: readonly string[];
     readonly ephemeral?: boolean;
     readonly modelRole?: ModelRole;
     /**
@@ -384,6 +387,7 @@ export class TarsEngine extends EventEmitter {
     private initialized = false;
     private currentSessionId: string | null = null;
     private channelManager?: NotificationChannel;
+    private workerClient?: BrokerClient;
     private sessionManager?: SessionManager;
     private rateLimiter: LocalRateLimiter;
     private mcpBridge!: McpBridge;
@@ -408,6 +412,10 @@ export class TarsEngine extends EventEmitter {
     /**
      * Provide the ChannelManager instance to the engine so it can build proactive notification tools
      */
+    public setWorkerClient(client: BrokerClient): void {
+        this.workerClient = client;
+    }
+
     public setChannelManager(channelManager: NotificationChannel): void {
         this.channelManager = channelManager;
     }
@@ -453,6 +461,8 @@ export class TarsEngine extends EventEmitter {
                 `🔌 Exposed ${routedMcpTools.directTools.length} core MCP tools directly and ${mcpTools.length - routedMcpTools.directTools.length} through the extension catalog.`
             );
         }
+        if (this.workerClient)
+            nativeTools.push(new ManageWorkersTool(this.workerClient) as RuntimeTool);
         if (this.channelManager) {
             nativeTools.push(new SendNotificationTool(this.channelManager) as RuntimeTool);
             logger.info('🔌 Registered native tool: send_notification');
@@ -577,6 +587,7 @@ export class TarsEngine extends EventEmitter {
         // Build target Agent
         const allowMemoryWrites = options.allowMemoryWrites ?? !options.ephemeral;
         const tools = this.allTools.filter(({ name }) => {
+            if (options.allowedToolNames && !options.allowedToolNames.includes(name)) return false;
             if (name === 'send_notification' && options.allowNotifications === false) return false;
             if (name === 'memory' && !allowMemoryWrites) return false;
             return true;

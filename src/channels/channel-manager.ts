@@ -128,6 +128,13 @@ export class ChannelManager {
         }
     }
 
+    /** Explicit routing for worker outbox; never falls back to the last voice/TUI channel. */
+    public async notifyTo(channelId: string, content: string): Promise<void> {
+        const channel = this.channels.get(channelId);
+        if (!channel) throw new Error(`Notification channel unavailable: ${channelId}`);
+        await channel.notify(DLPService.scrubTextOrJson(content));
+    }
+
     /**
      * Send a transient status notification that may be edited in place.
      */

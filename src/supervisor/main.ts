@@ -15,7 +15,8 @@ async function main(): Promise<void> {
             heartbeat,
             pulse,
             cron,
-            dashboard
+            dashboard,
+            workers
         } = await bootstrap();
 
         // Wire message routing (shared slash commands + event handling)
@@ -23,6 +24,11 @@ async function main(): Promise<void> {
 
         // Start everything
         await channelManager.start();
+        await workers
+            .start()
+            .catch(() =>
+                logger.warn('Worker manager unavailable; other Tars services remain active.')
+            );
         await heartbeat.start();
         await pulse.start();
         await cron.start();
@@ -33,6 +39,7 @@ async function main(): Promise<void> {
         // Graceful shutdown
         process.on('SIGINT', async () => {
             logger.info('🛑 Shutting down...');
+            await workers.stop();
             await channelManager.stop();
             heartbeat.stop();
             pulse.stop();

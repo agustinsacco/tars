@@ -17,7 +17,14 @@ const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_TOOL_TIMEOUT_MS = 60_000;
 const MAX_TIMEOUT_MS = 10 * 60_000;
 const BUNDLED_EXTENSION_DIRECTORIES = new Set(['tars-memory', 'tars-search', 'tars-tasks']);
-const RESERVED_AGENT_TOOL_NAMES = ['read', 'bash', 'edit', 'write', 'send_notification'];
+const RESERVED_AGENT_TOOL_NAMES = [
+    'read',
+    'bash',
+    'edit',
+    'write',
+    'send_notification',
+    'manage_workers'
+];
 
 const TimeoutSchema = z.number().int().positive().max(MAX_TIMEOUT_MS);
 const EnvironmentNameSchema = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/);

@@ -79,18 +79,24 @@ describe('foreground chat safety', () => {
         const tarsEngine = {
             shutdown: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
         };
+        const workers = {
+            start: vi.fn().mockResolvedValue(undefined),
+            stop: vi.fn().mockResolvedValue(undefined)
+        };
         chatMocks.bootstrap.mockResolvedValue({
             config: {},
             tarsEngine,
             sessionManager: {},
             supervisor: {},
-            channelManager
+            channelManager,
+            workers
         });
 
         // ACT
         await chat({ discord: false });
 
         // ASSERT
+        expect(workers.start).toHaveBeenCalledOnce();
         expect(chatMocks.acquireForegroundChatLease).toHaveBeenCalledOnce();
         expect(chatMocks.releaseLease).not.toHaveBeenCalled();
         const registeredChannel: unknown = channelManager.registerChannel.mock.calls[0]?.[0];
@@ -100,6 +106,7 @@ describe('foreground chat safety', () => {
                 : undefined;
         if (typeof onExit !== 'function') throw new Error('Expected a TUI exit callback.');
         await onExit();
+        expect(workers.stop).toHaveBeenCalledOnce();
         expect(channelManager.stop).toHaveBeenCalledOnce();
         expect(tarsEngine.shutdown).toHaveBeenCalledOnce();
         expect(chatMocks.releaseLease).toHaveBeenCalledOnce();
