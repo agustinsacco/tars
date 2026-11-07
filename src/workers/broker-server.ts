@@ -98,9 +98,15 @@ export class BrokerServer {
                     const data = this.execute(request.data.operation);
                     this.write(peer, { id: request.data.id, ok: true, data });
                     if (
-                        !['list', 'get', 'messages', 'next', 'deliveries', 'commands'].includes(
-                            request.data.operation.op
-                        )
+                        ![
+                            'list',
+                            'get',
+                            'messages',
+                            'next',
+                            'deliveries',
+                            'commands',
+                            'trace'
+                        ].includes(request.data.operation.op)
                     )
                         this.changed();
                 } catch (error) {
@@ -116,12 +122,16 @@ export class BrokerServer {
     }
     private execute(operation: WorkerOperation): unknown {
         switch (operation.op) {
+            case 'import_legacy':
+                return this.store.importLegacy(operation.input, operation.legacy, operation.dryRun);
             case 'register':
                 return this.store.register(operation.input);
             case 'list':
                 return this.store.list();
             case 'get':
                 return this.store.get(operation.workerId);
+            case 'process_stopped':
+                return this.store.processStopped(operation.workerId);
             case 'remove':
                 return this.store.remove(operation.workerId);
             case 'send':
@@ -131,6 +141,14 @@ export class BrokerServer {
                     operation.mode,
                     operation.text
                 );
+            case 'reconcile_command':
+                return this.store.reconcileCommand(
+                    operation.id,
+                    operation.state,
+                    operation.evidence
+                );
+            case 'trace':
+                return this.store.trace(operation.workerId);
             case 'messages':
                 return this.store.messages(operation.workerId);
             case 'begin_run':

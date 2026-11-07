@@ -53,6 +53,7 @@
         "test": "vitest run",
         "test:canary": "node scripts/canary.mjs",
         "test:workers:smoke": "node dist/scripts/smoke-worker-runtime.js",
+        "test:workers:lifecycle": "node dist/scripts/smoke-worker-lifecycle.js",
         "test:coverage": "vitest run --coverage",
         "test:extensions": "npm test --prefix extensions/memory && npm test --prefix extensions/search && npm test --prefix extensions/tasks",
         "test:watch": "vitest",

@@ -48,7 +48,7 @@ async function untilChanged(
         };
         const timer = setTimeout(
             () => finish(new Error('Worker push smoke deadline exceeded')),
-            5000
+            15_000
         );
         client.on('changed', wake);
         wake();

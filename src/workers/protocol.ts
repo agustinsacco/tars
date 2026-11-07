@@ -22,7 +22,16 @@ export const RegisterWorker = z
         allowFollowUp: z.boolean().default(false)
     })
     .strict();
+export const LegacyReference = z
+    .object({
+        sourceId: z.string().min(1).max(200),
+        artifactDirectory: z.string().min(1).max(1000),
+        sessionFile: z.string().min(1).max(1000).optional(),
+        modelId: z.string().min(1).max(1000).optional()
+    })
+    .strict();
 export const Worker = RegisterWorker.extend({
+    legacy: LegacyReference.optional(),
     id: Id,
     state: z.enum([
         'registered',
@@ -70,14 +79,26 @@ export const Command = z.object({
     workerId: Id,
     mode: z.enum(['task', 'steer', 'follow_up', 'stop']),
     text: z.string().max(2000),
-    state: z.enum(['pending', 'sending', 'accepted', 'delivery_unknown', 'rejected'])
+    state: z.enum(['pending', 'sending', 'accepted', 'delivery_unknown', 'rejected']),
+    reconciliation: z
+        .object({ evidence: z.string().min(20).max(2000), at: z.string().datetime() })
+        .optional()
 });
 export type WorkerCommand = z.infer<typeof Command>;
 export const Operation = z.discriminatedUnion('op', [
     z.object({ op: z.literal('register'), input: RegisterWorker }).strict(),
+    z
+        .object({
+            op: z.literal('import_legacy'),
+            input: RegisterWorker,
+            legacy: LegacyReference,
+            dryRun: z.boolean()
+        })
+        .strict(),
     z.object({ op: z.literal('list') }).strict(),
     z.object({ op: z.literal('get'), workerId: Id }).strict(),
     z.object({ op: z.literal('remove'), workerId: Id }).strict(),
+    z.object({ op: z.literal('process_stopped'), workerId: Id }).strict(),
     z
         .object({
             op: z.literal('send'),
@@ -88,6 +109,15 @@ export const Operation = z.discriminatedUnion('op', [
         })
         .strict(),
     z.object({ op: z.literal('messages'), workerId: Id }).strict(),
+    z.object({ op: z.literal('trace'), workerId: Id }).strict(),
+    z
+        .object({
+            op: z.literal('reconcile_command'),
+            id: Id,
+            state: z.enum(['accepted', 'rejected']),
+            evidence: z.string().min(20).max(2000)
+        })
+        .strict(),
     z.object({ op: z.literal('begin_run'), workerId: Id, runId: Id, taskId: Id }).strict(),
     z.object({ op: z.literal('publish'), event: WorkerEvent }).strict(),
     z.object({ op: z.literal('next') }).strict(),

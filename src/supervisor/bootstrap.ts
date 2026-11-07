@@ -777,7 +777,7 @@ export async function bootstrap(options: BootstrapOptions = {}): Promise<Bootstr
     const workers = new WorkerRuntime(config.homeDir, supervisor, channelManager, (message) =>
         logger.warn(message)
     );
-    tarsEngine.setWorkerClient(workers.client);
+    tarsEngine.setWorkerClient(workers.client, workers.lifecycle);
 
     // 5. Inject Interface into Engine
     tarsEngine.setChannelManager(channelManager);

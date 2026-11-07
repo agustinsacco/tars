@@ -44,6 +44,20 @@ async function setup() {
         onError = vi.fn();
     const journal = path.join(root, 'events.jsonl');
     const adapter = new PiRpcAdapter(client, input, output, identity, onError, journal);
+    input.on('data', (bytes: Buffer) => {
+        for (const line of bytes.toString('utf8').trim().split('\n')) {
+            const request = JSON.parse(line);
+            if (request.type === 'get_state')
+                output.write(
+                    JSON.stringify({
+                        type: 'response',
+                        id: request.id,
+                        success: true,
+                        data: { isStreaming: false, isCompacting: false, pendingMessageCount: 0 }
+                    }) + '\n'
+                );
+        }
+    });
     await adapter.start();
     cleanup.push(async () => {
         adapter.detach();
@@ -133,5 +147,129 @@ describe('Pi RPC adapter', () => {
             ).toBe('accepted')
         );
         expect(await client.request({ op: 'messages', workerId: worker.id })).toHaveLength(0);
+    });
+});
+
+describe('RPC completion deduplication', () => {
+    it('ignores duplicate and unsolicited agent_end frames', async () => {
+        const { output, client, worker } = await setup();
+        output.write('{"type":"agent_end"}\n');
+        output.write(final('done'));
+        output.write('{"type":"agent_end"}\n');
+        await vi.waitFor(async () =>
+            expect(await client.request({ op: 'messages', workerId: worker.id })).toHaveLength(1)
+        );
+        const events = (await client.request({ op: 'messages', workerId: worker.id })) as any[];
+        expect(events[0].summary).toBe('done');
+    });
+    it('does not send queued instructions until preflight enables commands', async () => {
+        const { adapter, input, output, client, worker, identity, onError, root } = await setup();
+        adapter.detach();
+        const guarded = new PiRpcAdapter(
+            client,
+            input,
+            output,
+            identity,
+            onError,
+            path.join(root, 'guarded.jsonl')
+        );
+        await guarded.start(false);
+        cleanup.push(async () => guarded.detach());
+        const requests: string[] = [];
+        input.on('data', (bytes: Buffer) => {
+            requests.push(JSON.parse(bytes.toString()).type);
+        });
+        await client.request({
+            op: 'send',
+            commandId: randomUUID(),
+            workerId: worker.id,
+            mode: 'task',
+            text: 'not yet'
+        });
+        await new Promise((resolve) => setImmediate(resolve));
+        expect(requests).toEqual([]);
+    });
+    it('does not publish later sequences past a failed event, and replays in order', async () => {
+        const { adapter, input, output, client, worker, identity, onError, journal } =
+            await setup();
+        const original = client.request.bind(client);
+        const request = vi.spyOn(client, 'request').mockImplementation(async (operation) => {
+            if (operation.op === 'publish') throw new Error('simulated unavailable inbox');
+            return original(operation);
+        });
+        output.write(final('first') + final('second'));
+        await vi.waitFor(() => expect(onError).toHaveBeenCalled());
+        await adapter.flush();
+        request.mockRestore();
+        adapter.detach();
+        expect(await client.request({ op: 'messages', workerId: worker.id })).toHaveLength(0);
+        const replay = new PiRpcAdapter(client, input, output, identity, onError, journal);
+        await replay.start(false);
+        cleanup.push(async () => replay.detach());
+        const events = (await client.request({ op: 'messages', workerId: worker.id })) as any[];
+        expect(events.map((e) => e.sequence)).toEqual([1, 0]);
+    });
+    it('a failed connection can be retried immediately without a stale close affecting the replacement', async () => {
+        const { root } = await setup();
+        const socket = path.join(root, 'later.sock');
+        const retry = new BrokerClient(socket);
+        await expect(retry.connect()).rejects.toThrow();
+        await expect(retry.connect()).rejects.not.toThrow('already connected');
+        const server = new BrokerServer(socket, new WorkerStore(path.join(root, 'later.db')));
+        await server.start();
+        cleanup.push(async () => server.stop());
+        cleanup.push(async () => retry.close());
+        await retry.connect();
+        expect(await retry.request({ op: 'list' })).toEqual([]);
+    });
+});
+
+describe('uncertain instruction cancellation', () => {
+    it('allows cancellation without retrying an instruction with an unknown receipt', async () => {
+        const { adapter, input, output, client, worker, identity, onError, root } = await setup();
+        adapter.detach();
+        const command = (await client.request({
+            op: 'send',
+            commandId: randomUUID(),
+            workerId: worker.id,
+            mode: 'task',
+            text: 'uncertain'
+        })) as any;
+        await client.request({ op: 'command_state', id: command.id, state: 'sending' });
+        await client.request({ op: 'command_state', id: command.id, state: 'delivery_unknown' });
+        const requests: string[] = [];
+        input.on('data', (bytes: Buffer) => {
+            const rpc = JSON.parse(bytes.toString());
+            requests.push(rpc.type);
+            if (rpc.type !== 'get_state')
+                output.write(
+                    JSON.stringify({ type: 'response', id: rpc.id, success: true, data: {} }) + '\n'
+                );
+        });
+        const active = new PiRpcAdapter(
+            client,
+            input,
+            output,
+            identity,
+            onError,
+            path.join(root, 'cancel.jsonl')
+        );
+        await active.start();
+        cleanup.push(async () => active.detach());
+        const stop = (await client.request({
+            op: 'send',
+            commandId: randomUUID(),
+            workerId: worker.id,
+            mode: 'stop',
+            text: ''
+        })) as any;
+        await vi.waitFor(async () =>
+            expect(
+                ((await client.request({ op: 'commands', workerId: worker.id })) as any[]).find(
+                    (c) => c.id === stop.id
+                )?.state
+            ).toBe('accepted')
+        );
+        expect(requests).toEqual(['clear_queue', 'abort', 'get_state']);
     });
 });

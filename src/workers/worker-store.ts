@@ -7,6 +7,7 @@ import {
     Command,
     Decision,
     RegisterWorker,
+    LegacyReference,
     Worker,
     WorkerEvent,
     type WorkerCommand,
@@ -83,6 +84,47 @@ export class WorkerStore {
             .run(worker.id, worker.name.toLowerCase(), worker.emoji, JSON.stringify(worker));
         return worker;
     }
+    importLegacy(
+        input: unknown,
+        reference: unknown,
+        dryRun: boolean
+    ): { worker: WorkerRecord | null; action: string } {
+        const parsed = RegisterWorker.parse(input),
+            legacy = LegacyReference.parse(reference);
+        const all = this.db
+            .prepare('SELECT body FROM workers')
+            .all()
+            .map((row) => Worker.parse(body(row)));
+        const prior = all.find((w) => w.legacy?.sourceId === legacy.sourceId);
+        if (prior) {
+            if (
+                JSON.stringify(prior.legacy) !== JSON.stringify(legacy) ||
+                prior.name !== parsed.name ||
+                prior.emoji !== parsed.emoji ||
+                prior.objective !== parsed.objective ||
+                prior.scope !== parsed.scope ||
+                prior.allowFollowUp !== parsed.allowFollowUp
+            )
+                throw new Error('Legacy source identity conflict');
+            return { worker: prior, action: 'already_imported' };
+        }
+        if (
+            this.list().some(
+                (w) =>
+                    w.name.toLowerCase() === parsed.name.toLowerCase() || w.emoji === parsed.emoji
+            )
+        )
+            throw new Error(
+                'Legacy label conflict: reconcile the existing identity rather than creating a duplicate'
+            );
+        if (dryRun) return { worker: null, action: 'would_import_reference_only' };
+        return this.transaction(() => {
+            const worker = this.register(parsed);
+            worker.legacy = legacy;
+            this.update(worker);
+            return { worker, action: 'imported_reference_only' };
+        });
+    }
     list(): WorkerRecord[] {
         return this.db
             .prepare(
@@ -123,6 +165,20 @@ export class WorkerStore {
             this.update(worker);
             // Tombstone identity/history; release display labels for explicit reuse.
             this.db.prepare('UPDATE workers SET name_key=NULL,emoji=NULL WHERE id=?').run(id);
+        });
+    }
+    processStopped(id: string): void {
+        this.transaction(() => {
+            const worker = this.active(id);
+            for (const command of this.commands(id)) {
+                if (command.state === 'pending') this.changeCommandState(command.id, 'rejected');
+                if (command.state === 'sending')
+                    this.changeCommandState(command.id, 'delivery_unknown');
+            }
+            worker.state = this.commands(id).some((c) => c.state === 'delivery_unknown')
+                ? 'awaiting_direction'
+                : 'stopped';
+            this.update(worker);
         });
     }
     beginRun(workerId: string, runId: string, taskId: string): void {
@@ -230,7 +286,7 @@ export class WorkerStore {
                 throw new Error('Command ID conflict');
             return previous;
         }
-        if (this.commands(workerId).some((c) => c.state === 'delivery_unknown'))
+        if (mode !== 'stop' && this.commands(workerId).some((c) => c.state === 'delivery_unknown'))
             throw new Error('Reconcile uncertain command delivery before adding instructions');
         if (mode !== 'stop' && !text.trim()) throw new Error('Instruction required');
         if (this.commands(workerId).filter((c) => c.state === 'pending').length >= 16)
@@ -242,10 +298,59 @@ export class WorkerStore {
     }
     commands(id: string): WorkerCommand[] {
         return this.db
-            .prepare('SELECT body FROM commands WHERE worker_id=? ORDER BY rowid DESC LIMIT 32')
-            .all(id)
+            .prepare(
+                "SELECT body FROM commands WHERE worker_id=? AND (json_extract(body, '$.state') IN ('pending','sending','delivery_unknown') OR rowid IN (SELECT rowid FROM commands WHERE worker_id=? ORDER BY rowid DESC LIMIT 32)) ORDER BY rowid DESC"
+            )
+            .all(id, id)
             .map((r) => Command.parse(body(r)))
             .reverse();
+    }
+    trace(id: string): unknown {
+        return {
+            worker: this.get(id),
+            runs: this.db
+                .prepare(
+                    'SELECT id,task_id FROM runs WHERE worker_id=? ORDER BY rowid DESC LIMIT 20'
+                )
+                .all(id),
+            events: this.db
+                .prepare(
+                    'SELECT body,decision,attempts FROM events WHERE worker_id=? ORDER BY rowid DESC LIMIT 20'
+                )
+                .all(id)
+                .map((row) => ({
+                    event: body(row),
+                    decision: row.decision ? (JSON.parse(String(row.decision)) as unknown) : null,
+                    attempts: row.attempts
+                })),
+            commands: this.db
+                .prepare('SELECT body FROM commands WHERE worker_id=? ORDER BY rowid DESC LIMIT 32')
+                .all(id)
+                .map(body),
+            deliveries: this.db
+                .prepare(
+                    'SELECT id,delivered FROM deliveries WHERE worker_id=? ORDER BY rowid DESC LIMIT 20'
+                )
+                .all(id)
+        };
+    }
+    reconcileCommand(id: string, state: 'accepted' | 'rejected', evidence: string): void {
+        this.transaction(() => {
+            const row = this.db.prepare('SELECT body FROM commands WHERE id=?').get(id);
+            if (!row) throw new Error('Unknown command');
+            const command = Command.parse(body(row));
+            if (command.state !== 'delivery_unknown')
+                throw new Error('Only uncertain commands can be reconciled');
+            command.reconciliation = {
+                evidence: z.string().min(20).max(2000).parse(evidence),
+                at: new Date().toISOString()
+            };
+            this.changeCommandState(id, state);
+            command.state = state;
+            this.db
+                .prepare('UPDATE commands SET body=? WHERE id=?')
+                .run(JSON.stringify(command), id);
+        });
     }
     setCommandState(id: string, state: Exclude<WorkerCommand['state'], 'pending'>): void {
         this.transaction(() => this.changeCommandState(id, state));

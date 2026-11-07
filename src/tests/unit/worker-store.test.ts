@@ -174,3 +174,76 @@ describe('WorkerStore', () => {
         expect(() => store.beginInference(event.id)).toThrow('budget');
     });
 });
+
+describe('worker lifecycle and migration receipts', () => {
+    it('retains unresolved commands even behind more than 32 accepted receipts', () => {
+        const { worker } = setup();
+        const uncertain = store.send(randomUUID(), worker.id, 'task', 'first');
+        store.setCommandState(uncertain.id, 'sending');
+        for (let i = 0; i < 40; i++) {
+            const command = store.send(randomUUID(), worker.id, 'follow_up', String(i));
+            store.setCommandState(command.id, 'sending');
+            store.setCommandState(command.id, 'accepted');
+        }
+        store.setCommandState(uncertain.id, 'delivery_unknown');
+        expect(store.commands(worker.id).find((c) => c.id === uncertain.id)?.state).toBe(
+            'delivery_unknown'
+        );
+        expect(() => store.send(randomUUID(), worker.id, 'task', 'duplicate')).toThrow('uncertain');
+        expect(() => store.remove(worker.id)).toThrow('Reconcile');
+    });
+    it('imports legacy references idempotently without copying sessions or launching', () => {
+        const input = { name: 'Relay', emoji: '📬', objective: 'Review', scope: 'Read only' };
+        const legacy = {
+            sourceId: 'legacy-job',
+            artifactDirectory: '/original/job',
+            sessionFile: '/original/job/sessions/a.jsonl',
+            modelId: 'unchanged'
+        };
+        expect(store.importLegacy(input, legacy, true).action).toBe('would_import_reference_only');
+        expect(store.list()).toEqual([]);
+        const imported = store.importLegacy(input, legacy, false);
+        expect(imported.worker?.legacy).toEqual(legacy);
+        expect(imported.worker?.state).toBe('registered');
+        expect(store.importLegacy(input, legacy, false).worker?.id).toBe(imported.worker?.id);
+        expect(store.list()).toHaveLength(1);
+        expect(() => store.importLegacy(input, { ...legacy, sourceId: 'other' }, false)).toThrow(
+            'conflict'
+        );
+        expect(() => store.importLegacy(input, { ...legacy, modelId: 'changed' }, false)).toThrow(
+            'conflict'
+        );
+    });
+    it('records physical stop without concealing sending uncertainty and rejects queued work', () => {
+        const { worker } = setup();
+        const first = store.send(randomUUID(), worker.id, 'task', 'first');
+        store.setCommandState(first.id, 'sending');
+        const queued = store.send(randomUUID(), worker.id, 'follow_up', 'second');
+        store.processStopped(worker.id);
+        expect(store.commands(worker.id).find((c) => c.id === first.id)?.state).toBe(
+            'delivery_unknown'
+        );
+        expect(store.commands(worker.id).find((c) => c.id === queued.id)?.state).toBe('rejected');
+        expect(store.get(worker.id).state).toBe('awaiting_direction');
+    });
+});
+
+describe('audited receipt reconciliation', () => {
+    it('reconciliation records evidence without resending or claiming completion', () => {
+        const { worker } = setup();
+        const command = store.send(randomUUID(), worker.id, 'task', 'test');
+        store.setCommandState(command.id, 'sending');
+        store.setCommandState(command.id, 'delivery_unknown');
+        expect(() => store.reconcileCommand(command.id, 'accepted', 'guess')).toThrow();
+        store.reconcileCommand(
+            command.id,
+            'accepted',
+            'Verified matching native RPC receipt in private trace.'
+        );
+        const trace = store.trace(worker.id) as any;
+        expect(trace.commands[0].state).toBe('accepted');
+        expect(trace.commands[0].reconciliation.evidence).toContain('Verified');
+        expect(store.messages(worker.id)).toEqual([]);
+        expect(trace.commands).toHaveLength(1);
+    });
+});

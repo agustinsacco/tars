@@ -17,8 +17,10 @@ export class BrokerClient extends EventEmitter {
         const socket = net.createConnection(this.socketPath);
         this.socket = socket;
         let buffer = Buffer.alloc(0);
+        let closed = false;
         socket.on('error', () => undefined);
         socket.on('close', () => {
+            closed = true;
             if (this.socket === socket) this.socket = undefined;
             for (const { reject, timer } of this.pending.values()) {
                 clearTimeout(timer);
@@ -62,13 +64,24 @@ export class BrokerClient extends EventEmitter {
             }
             if (buffer.length > 256 * 1024) socket.destroy();
         });
-        await new Promise<void>((resolve, reject) => {
-            socket.once('error', reject);
-            socket.once('connect', () => {
-                socket.off('error', reject);
-                resolve();
+        try {
+            await new Promise<void>((resolve, reject) => {
+                socket.once('error', reject);
+                socket.once('connect', () => {
+                    socket.off('error', reject);
+                    resolve();
+                });
             });
-        });
+        } catch (error) {
+            // Wait for this socket's close handler before a caller may reconnect.
+            // Otherwise the old close can reject requests on the replacement socket.
+            if (!closed)
+                await new Promise<void>((resolve) => {
+                    socket.once('close', () => resolve());
+                    socket.destroy();
+                });
+            throw error;
+        }
         if (subscribe) socket.write('{"type":"subscribe"}\n');
     }
     request(operation: WorkerOperation): Promise<unknown> {
@@ -85,7 +98,7 @@ export class BrokerClient extends EventEmitter {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
                 reject(new Error('Broker receipt timed out; reconcile before retry'));
-            }, 5000);
+            }, 15_000);
             this.pending.set(id, { resolve, reject, timer });
             socket.write(frame);
         });

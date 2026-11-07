@@ -22,6 +22,7 @@ import path from 'path';
 import { type AttachmentContext, type TarsEvent } from '../types/index.js';
 
 import { SendNotificationTool, type NotificationChannel } from '../tools/send-notification.js';
+import type { WorkerLifecycle } from '../workers/worker-lifecycle.js';
 import { ManageWorkersTool } from '../tools/manage-workers.js';
 import type { BrokerClient } from '../workers/broker-client.js';
 import { ManageTarsTool } from '../tools/manage-tars.js';
@@ -388,6 +389,7 @@ export class TarsEngine extends EventEmitter {
     private currentSessionId: string | null = null;
     private channelManager?: NotificationChannel;
     private workerClient?: BrokerClient;
+    private workerLifecycle?: WorkerLifecycle;
     private sessionManager?: SessionManager;
     private rateLimiter: LocalRateLimiter;
     private mcpBridge!: McpBridge;
@@ -409,11 +411,10 @@ export class TarsEngine extends EventEmitter {
         this.workspace = new WorkspaceStore(tarsConfig.homeDir);
     }
 
-    /**
-     * Provide the ChannelManager instance to the engine so it can build proactive notification tools
-     */
-    public setWorkerClient(client: BrokerClient): void {
+    /** Provide the passive broker and explicit owned-process lifecycle to native worker tools. */
+    public setWorkerClient(client: BrokerClient, lifecycle?: WorkerLifecycle): void {
         this.workerClient = client;
+        this.workerLifecycle = lifecycle;
     }
 
     public setChannelManager(channelManager: NotificationChannel): void {
@@ -462,7 +463,9 @@ export class TarsEngine extends EventEmitter {
             );
         }
         if (this.workerClient)
-            nativeTools.push(new ManageWorkersTool(this.workerClient) as RuntimeTool);
+            nativeTools.push(
+                new ManageWorkersTool(this.workerClient, this.workerLifecycle) as RuntimeTool
+            );
         if (this.channelManager) {
             nativeTools.push(new SendNotificationTool(this.channelManager) as RuntimeTool);
             logger.info('🔌 Registered native tool: send_notification');

@@ -1,10 +1,10 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Readable, Writable } from 'node:stream';
 import { z } from 'zod';
 import { type BrokerClient } from './broker-client.js';
-import { Command, WorkerEvent, type WorkerEventRecord } from './protocol.js';
+import { WorkerJournal } from './worker-journal.js';
+import { Command, type WorkerEventRecord } from './protocol.js';
 
 const RpcEvent = z
     .object({
@@ -29,8 +29,11 @@ const Message = z
 export class PiRpcAdapter {
     private buffer = Buffer.alloc(0);
     private sequence = 0;
+    private journal?: WorkerJournal;
     private last?: z.infer<typeof Message>;
     private completed = false;
+    private commandsEnabled = false;
+    private turnStarted = false;
     private active = false;
     private sending = false;
     private sendAgain = false;
@@ -39,6 +42,7 @@ export class PiRpcAdapter {
         { resolve: (data: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }
     >();
     private publications: Promise<unknown> = Promise.resolve();
+    private publicationFailed = false;
     private readonly wake = (): void => {
         void this.sendPending();
     };
@@ -56,56 +60,29 @@ export class PiRpcAdapter {
         private readonly onError: (error: Error) => void,
         private readonly journalPath: string
     ) {}
-    async start(): Promise<void> {
-        fs.mkdirSync(path.dirname(this.journalPath), { recursive: true, mode: 0o700 });
-        if (
-            fs.existsSync(this.journalPath) &&
-            (fs.lstatSync(this.journalPath).isSymbolicLink() ||
-                fs.statSync(this.journalPath).size > 1024 * 1024)
-        )
-            throw new Error('Unsafe or oversized worker journal');
-        const file = fs.openSync(this.journalPath, 'a', 0o600);
-        fs.closeSync(file);
-        const content = fs.readFileSync(this.journalPath, 'utf8');
-        if (content && !content.endsWith('\n'))
-            throw new Error('Incomplete worker journal requires reconciliation');
-        const entries = content
-            .split('\n')
-            .filter(Boolean)
-            .map((line) => JSON.parse(line) as unknown);
-        const acknowledged = new Set(
-            entries.flatMap((entry) => {
-                const ack = z.object({ ack: z.string().uuid() }).strict().safeParse(entry);
-                return ack.success ? [ack.data.ack] : [];
-            })
-        );
-        const events = entries.flatMap((entry) => {
-            const e = WorkerEvent.safeParse(entry);
-            return e.success ? [e.data] : [];
-        });
-        if (
-            events.some(
-                (e) =>
-                    e.workerId !== this.identity.workerId ||
-                    e.runId !== this.identity.runId ||
-                    e.taskId !== this.identity.taskId
-            )
-        )
-            throw new Error('Worker journal identity mismatch');
-        this.sequence = events.reduce((n, e) => Math.max(n, e.sequence + 1), 0);
+    async start(commandsEnabled = true): Promise<void> {
+        this.journal = new WorkerJournal(this.journalPath, this.identity);
+        this.sequence = this.journal.sequence;
         await this.client.request({ op: 'begin_run', ...this.identity });
-        for (const event of events)
-            if (!acknowledged.has(event.id)) {
-                await this.client.request({ op: 'publish', event });
-                this.appendJournal({ ack: event.id });
-            }
+        await this.journal.replay(this.client);
         this.active = true;
+        this.commandsEnabled = commandsEnabled;
         this.output.on('data', this.onData);
         this.output.on('end', this.onEnd);
         this.output.on('error', this.onEnd);
         this.client.on('changed', this.wake);
         this.output.resume();
         this.wake();
+    }
+    enableCommands(): void {
+        this.commandsEnabled = true;
+        this.wake();
+    }
+    inspectRpc(type: 'get_state' | 'get_available_models' | 'get_session_stats'): Promise<unknown> {
+        return this.rpc(type);
+    }
+    async flush(): Promise<void> {
+        await this.publications;
     }
     detach(): void {
         this.active = false;
@@ -137,11 +114,13 @@ export class PiRpcAdapter {
                 if (event.type === 'response' && event.id) {
                     const p = this.pending.get(event.id);
                     if (!p) continue;
+                    this.trace({ event: 'rpc_receipt', rpcId: event.id, success: !!event.success });
                     this.pending.delete(event.id);
                     clearTimeout(p.timer);
                     if (event.success) p.resolve(event.data);
                     else p.reject(new Error('Worker rejected RPC request'));
                 } else if (event.type === 'agent_start') {
+                    this.turnStarted = true;
                     this.last = undefined;
                     this.completed = false;
                 } else if (event.type === 'message_end') {
@@ -149,6 +128,7 @@ export class PiRpcAdapter {
                     if (message.success && message.data.role === 'assistant')
                         this.last = message.data;
                 } else if (event.type === 'agent_end') {
+                    if (!this.turnStarted || this.completed) continue;
                     this.completed = true;
                     if (!this.last || this.last.stopReason !== 'stop')
                         this.publish(
@@ -177,7 +157,7 @@ export class PiRpcAdapter {
                             } catch {
                                 /* Plain final text remains data, not an instruction. */
                             }
-                            this.publish(
+                            void this.validateCompletion(
                                 type,
                                 summary.length > 1950
                                     ? summary.slice(0, 1900) + ' [truncated; verification required]'
@@ -197,15 +177,36 @@ export class PiRpcAdapter {
             this.detach();
         }
     }
-    private appendJournal(value: unknown): void {
-        const file = fs.openSync(this.journalPath, 'a', 0o600);
+    private async validateCompletion(
+        type: WorkerEventRecord['type'],
+        summary: string
+    ): Promise<void> {
         try {
-            fs.writeSync(file, JSON.stringify(value) + '\n');
-            fs.fsyncSync(file);
-        } finally {
-            fs.closeSync(file);
+            const state = z
+                .object({
+                    isStreaming: z.boolean(),
+                    isCompacting: z.boolean(),
+                    pendingMessageCount: z.number()
+                })
+                .parse(await this.rpc('get_state'));
+            if (state.isStreaming || state.isCompacting || state.pendingMessageCount) {
+                this.publish(
+                    'blocked',
+                    'Worker final output observed, but idle/queue completion is not verified. Inspect state before continuing.'
+                );
+            } else this.publish(type, summary);
+        } catch {
+            this.publish(
+                'blocked',
+                'Worker final output observed, but completion state could not be verified. No successful completion claimed.'
+            );
         }
     }
+    private appendJournal(value: unknown): void {
+        if (!this.journal) throw new Error('Worker journal not initialized');
+        this.journal.append(value);
+    }
+
     private publish(type: WorkerEventRecord['type'], summary: string): void {
         const event = {
             version: 1 as const,
@@ -224,24 +225,62 @@ export class PiRpcAdapter {
         }
         this.publications = this.publications
             .then(async () => {
+                if (this.publicationFailed) return; // Preserve ordered replay; never overtake a failed event.
                 await this.client.request({ op: 'publish', event });
                 this.appendJournal({ ack: event.id });
             })
             .catch((error: unknown) => {
+                this.publicationFailed = true;
                 this.onError(
                     error instanceof Error ? error : new Error('Worker event persistence failed')
                 );
                 this.detach();
             });
     }
-    private rpc(type: string, extra: Record<string, unknown> = {}): Promise<unknown> {
+    private trace(value: Record<string, unknown>): void {
+        try {
+            const filename = this.journalPath + '.rpc.jsonl';
+            if (
+                fs.existsSync(filename) &&
+                (fs.lstatSync(filename).isSymbolicLink() ||
+                    fs.statSync(filename).size >= 1024 * 1024)
+            )
+                return;
+            fs.appendFileSync(
+                filename,
+                JSON.stringify({ at: new Date().toISOString(), ...this.identity, ...value }) + '\n',
+                { mode: 0o600 }
+            );
+        } catch {
+            this.onError(new Error('Worker RPC diagnostics unavailable'));
+        }
+    }
+    async reportTimeout(): Promise<void> {
+        this.publish(
+            'timed_out',
+            'Worker finite lifetime expired; no task was automatically retried.'
+        );
+        await this.flush();
+    }
+    private rpc(
+        type: string,
+        extra: Record<string, unknown> = {},
+        commandId?: string
+    ): Promise<unknown> {
         const id = randomUUID(),
             frame = JSON.stringify({ type, id, ...extra }) + '\n';
         if (Buffer.byteLength(frame) > 4096)
             return Promise.reject(new Error('Worker command exceeds atomic frame bound'));
+        this.trace({ event: 'rpc_sent', type, rpcId: id, ...(commandId ? { commandId } : {}) });
         return new Promise((resolve, reject) => {
             const timer = setTimeout(() => {
                 this.pending.delete(id);
+                this.trace({
+                    event: 'rpc_timeout',
+                    type,
+                    rpcId: id,
+                    ...(commandId ? { commandId } : {})
+                });
                 reject(new Error('Worker receipt unknown; do not resend'));
             }, 10_000);
             this.pending.set(id, { resolve, reject, timer });
@@ -255,7 +294,7 @@ export class PiRpcAdapter {
         });
     }
     private async sendPending(): Promise<void> {
-        if (!this.active) return;
+        if (!this.active || !this.commandsEnabled) return;
         if (this.sending) {
             this.sendAgain = true;
             return;
@@ -267,9 +306,15 @@ export class PiRpcAdapter {
                 .parse(
                     await this.client.request({ op: 'commands', workerId: this.identity.workerId })
                 );
-            if (commands.some((c) => c.state === 'sending' || c.state === 'delivery_unknown'))
-                return;
-            for (const command of commands.filter((c) => c.state === 'pending')) {
+            const uncertain = commands.some(
+                (c) => c.state === 'sending' || c.state === 'delivery_unknown'
+            );
+            // Cancellation is safe even when a task receipt is unknown; it never retries work.
+            const queued = commands.filter(
+                (c) => c.state === 'pending' && (!uncertain || c.mode === 'stop')
+            );
+            for (const command of queued) {
+                if (!this.active || !this.commandsEnabled) break;
                 await this.client.request({
                     op: 'command_state',
                     id: command.id,
@@ -288,10 +333,34 @@ export class PiRpcAdapter {
                             .parse(await this.rpc('get_state'));
                         if (state.isStreaming || state.isCompacting || state.pendingMessageCount)
                             throw new Error('Stop not reconciled');
-                    } else
-                        await this.rpc(command.mode === 'task' ? 'prompt' : command.mode, {
-                            message: command.text
-                        });
+                    } else {
+                        if (command.mode === 'task') {
+                            const state = z
+                                .object({
+                                    isStreaming: z.boolean(),
+                                    isCompacting: z.boolean(),
+                                    pendingMessageCount: z.number()
+                                })
+                                .parse(await this.rpc('get_state'));
+                            if (
+                                state.isStreaming ||
+                                state.isCompacting ||
+                                state.pendingMessageCount
+                            ) {
+                                await this.client.request({
+                                    op: 'command_state',
+                                    id: command.id,
+                                    state: 'rejected'
+                                });
+                                continue;
+                            }
+                        }
+                        await this.rpc(
+                            command.mode === 'task' ? 'prompt' : command.mode,
+                            { message: command.text },
+                            command.id
+                        );
+                    }
                     await this.client.request({
                         op: 'command_state',
                         id: command.id,

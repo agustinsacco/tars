@@ -25,7 +25,8 @@ export class WorkerEventDispatcher {
     constructor(
         private readonly client: BrokerClient,
         private readonly supervisor: WorkerSupervisor,
-        private readonly notifier: WorkerNotifier
+        private readonly notifier: WorkerNotifier,
+        private readonly warn: (message: string) => void = () => undefined
     ) {}
     start(): void {
         this.active = true;
@@ -119,6 +120,10 @@ export class WorkerEventDispatcher {
             this.failures = 0;
         } catch {
             if (this.active) {
+                if (!this.failures)
+                    this.warn(
+                        'Worker dispatch failed; durable inbox/outbox retained. Inspect worker trace and broker connectivity; retry uses bounded backoff.'
+                    );
                 const delay = Math.min(60_000, 1000 * 2 ** Math.min(this.failures++, 6));
                 this.retry = setTimeout(() => {
                     this.retry = undefined;

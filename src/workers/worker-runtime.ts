@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import net from 'node:net';
+import { WorkerLifecycle } from './worker-lifecycle.js';
 import { BrokerClient } from './broker-client.js';
 import {
     WorkerEventDispatcher,
@@ -13,6 +14,7 @@ import {
 /** Package-owned broker lifecycle. Starting this service never launches a worker. */
 export class WorkerRuntime {
     readonly client: BrokerClient;
+    readonly lifecycle: WorkerLifecycle;
     private readonly dispatcher: WorkerEventDispatcher;
     private child?: ChildProcess;
     private stopped = true;
@@ -25,7 +27,8 @@ export class WorkerRuntime {
         private readonly warn: (message: string) => void
     ) {
         this.client = new BrokerClient(path.join(home, 'run', 'workers', 'broker.sock'));
-        this.dispatcher = new WorkerEventDispatcher(this.client, supervisor, notifier);
+        this.lifecycle = new WorkerLifecycle(home, this.client, warn);
+        this.dispatcher = new WorkerEventDispatcher(this.client, supervisor, notifier, warn);
     }
     async start(): Promise<void> {
         if (!this.stopped) return;
@@ -34,8 +37,7 @@ export class WorkerRuntime {
             await this.spawn();
             this.dispatcher.start();
         } catch (error) {
-            this.stopped = true;
-            this.child?.kill();
+            await this.stop();
             throw error;
         }
     }
@@ -43,6 +45,7 @@ export class WorkerRuntime {
         this.stopped = true;
         if (this.retry) clearTimeout(this.retry);
         this.dispatcher.stop();
+        await this.lifecycle.stopAll();
         this.client.close();
         const child = this.child;
         this.child = undefined;
@@ -107,7 +110,7 @@ export class WorkerRuntime {
         const ready = new Promise<void>((resolve, reject) => {
             const timer = setTimeout(
                 () => reject(new Error('Worker broker startup deadline exceeded')),
-                5000
+                15_000
             );
             child.once('message', (message: unknown) => {
                 clearTimeout(timer);
@@ -148,5 +151,6 @@ export class WorkerRuntime {
         });
         await ready;
         await this.client.connect(true);
+        await this.lifecycle.recoverEvents();
     }
 }
