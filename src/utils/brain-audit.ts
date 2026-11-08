@@ -8,7 +8,7 @@ import { getTarsHome } from './paths.js';
 import { pkg } from './version.js';
 
 const currentPackageVersion = typeof pkg.version === 'string' ? pkg.version : '0.0.0';
-const metadataRecordSchema = z.record(z.unknown());
+const metadataRecordSchema = z.record(z.string(), z.unknown());
 
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);

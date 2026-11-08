@@ -72,7 +72,7 @@ export class SessionManager {
         try {
             const raw = await fs.promises.readFile(this.sessionFilePath, 'utf-8');
             const rawSession: unknown = JSON.parse(raw);
-            const parsed = z.record(z.unknown()).parse(rawSession);
+            const parsed = z.record(z.string(), z.unknown()).parse(rawSession);
             const result = SessionDataSchema.safeParse({
                 ...parsed,
                 totalNetTokens: parsed.totalNetTokens ?? parsed.totalInputTokens ?? 0

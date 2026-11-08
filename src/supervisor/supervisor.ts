@@ -1,3 +1,5 @@
+import { ExecutionBusyError } from './execution-busy-error.js';
+import { EventEmitter } from 'node:events';
 import { type TarsEngine, type StatusUpdateHandler } from './tars-engine.js';
 import { type SessionManager } from './session-manager.js';
 import { type TarsOutputHandler, type AttachmentContext, type TarsEvent } from '../types/index.js';
@@ -35,7 +37,7 @@ function scrubEvent(event: TarsEvent): TarsEvent {
  * Tars Supervisor - Core Orchestrator
  * Handles session management and Tars Engine execution.
  */
-export class Supervisor {
+export class Supervisor extends EventEmitter {
     private readonly config: Config;
     public readonly memory: MemoryManager;
     private processingSince: number | null = null;
@@ -44,6 +46,7 @@ export class Supervisor {
         private readonly tarsEngine: TarsEngine,
         private readonly sessionManager: SessionManager
     ) {
+        super();
         this.config = Config.getInstance();
         this.memory = new MemoryManager(this.config);
     }
@@ -221,6 +224,7 @@ export class Supervisor {
             await onEvent({ type: 'error', error: errorMessage });
         } finally {
             this.processingSince = null;
+            this.emit('idle');
         }
     }
 
@@ -262,6 +266,25 @@ export class Supervisor {
             throw error;
         } finally {
             this.processingSince = null;
+            this.emit('idle');
+        }
+    }
+
+    /** Worker messages are evidence, not owner instructions. Plan-only, no tools. */
+    public async executeWorkerEvent(prompt: string): Promise<string> {
+        if (this.isBusy()) throw new ExecutionBusyError();
+        this.processingSince = Date.now();
+        try {
+            return await this.tarsEngine.runSync(prompt, BACKGROUND_SESSION_ID, {
+                allowNotifications: false,
+                allowMemoryWrites: false,
+                allowedToolNames: [],
+                ephemeral: true,
+                modelRole: 'background'
+            });
+        } finally {
+            this.processingSince = null;
+            this.emit('idle');
         }
     }
 

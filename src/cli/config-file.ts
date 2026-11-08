@@ -19,7 +19,7 @@ export const ExistingSetupConfigSchema = z
         piModel: z.string().optional(),
         piProvider: z.string().optional(),
         piThinkingLevel: z.string().optional(),
-        channels: z.record(z.unknown()).optional()
+        channels: z.record(z.string(), z.unknown()).optional()
     })
     .passthrough();
 

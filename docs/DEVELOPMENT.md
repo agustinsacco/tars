@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Node.js 22.19 or newer
+- Node.js 22.19 or newer (22.23.4 or newer for documentation)
 - npm 10.9 or newer
 - Git
 
@@ -93,6 +93,22 @@ npm ci --prefix site
 npm run docs:check
 npm run docs:build
 ```
+
+## Pinned Pi dependency security
+
+Pi stays pinned to `0.85.1` for the worker RPC contract. Its published shrinkwrap
+can reinstall vulnerable nested dependencies even when the root lockfile and npm
+overrides select patched versions. Root `npm ci` runs a fail-closed postinstall
+that replaces those nested copies with the installed, integrity-checked root
+packages. Do not skip root lifecycle scripts when running Pi.
+
+After intentionally updating dependencies, run `npm run deps:repair-pi` to align
+Pi's nested lock entries with those same npm-resolved replacements, then repeat
+a clean `npm ci`, `npm audit --include=dev --audit-level=high`, and the complete
+validation suite. The repair does not download packages, change Pi's source or
+version, remove audit entries, or weaken the security checks. Older minimatch and
+Undici major versions are not globally replaced: overrides target only the
+vulnerable ranges; Discord retains patched Undici 6.
 
 ## Development conventions
 

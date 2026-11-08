@@ -25,7 +25,7 @@ import { printModelSelection, runModelSetup } from '../model-setup.js';
 
 function getDiscordConfig(config: ExistingSetupConfig): Record<string, unknown> {
     const discord = config.channels?.discord;
-    const parsed = z.record(z.unknown()).safeParse(discord);
+    const parsed = z.record(z.string(), z.unknown()).safeParse(discord);
     return parsed.success ? parsed.data : {};
 }
 

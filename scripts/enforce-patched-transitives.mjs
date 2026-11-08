@@ -4,42 +4,19 @@ import { fileURLToPath } from 'node:url';
 
 const packageRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-// pi-coding-agent publishes an npm-shrinkwrap that currently overrides root-level
-// resolutions. Keep its vulnerable nested copies from surviving installation while
-// upstream catches up, without downloading or executing any additional packages.
+// Pi 0.85.1's published shrinkwrap wins over npm overrides, even during npm ci.
+// Keep its source/version pinned while replacing vulnerable nested dependencies
+// with the registry-verified copies installed by this project's lockfile.
 const repairs = [
-    {
-        minimumVersion: [5, 0, 7],
-        name: 'brace-expansion',
-        nestedPath: path.join(
-            packageRoot,
-            'node_modules',
-            '@earendil-works',
-            'pi-coding-agent',
-            'node_modules',
-            'brace-expansion'
-        ),
-        patchedPath: path.join(packageRoot, 'node_modules', 'brace-expansion')
-    },
-    {
-        minimumVersion: [7, 6, 5],
-        name: 'protobufjs',
-        nestedPath: path.join(
-            packageRoot,
-            'node_modules',
-            '@earendil-works',
-            'pi-coding-agent',
-            'node_modules',
-            'protobufjs'
-        ),
-        patchedPath: path.join(packageRoot, 'node_modules', 'protobufjs')
-    }
+    { minimumVersion: [5, 0, 12], name: 'brace-expansion' },
+    { minimumVersion: [7, 6, 5], name: 'protobufjs' },
+    { minimumVersion: [8, 12, 4], name: 'undici' },
+    { minimumVersion: [11, 0, 2], name: 'minimatch' }
 ];
 
 function readVersion(directory) {
-    const manifestPath = path.join(directory, 'package.json');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    if (typeof manifest.version !== 'string') throw new Error(`Missing version in ${manifestPath}`);
+    const manifest = JSON.parse(fs.readFileSync(path.join(directory, 'package.json'), 'utf8'));
+    if (typeof manifest.version !== 'string') throw new Error(`Missing version in ${directory}`);
     return manifest.version;
 }
 
@@ -53,21 +30,54 @@ function isAtLeast(version, minimum) {
     return true;
 }
 
-for (const repair of repairs) {
-    const patchedVersion = readVersion(repair.patchedPath);
-    if (!isAtLeast(patchedVersion, repair.minimumVersion)) {
-        throw new Error(`${repair.name} ${patchedVersion} is below the required patched version.`);
+export function enforcePatchedTransitives(root, { repairLockfile = false } = {}) {
+    const lockPath = path.join(root, 'package-lock.json');
+    const lock = repairLockfile ? JSON.parse(fs.readFileSync(lockPath, 'utf8')) : undefined;
+    // Validate every replacement before changing the installation or lockfile.
+    const planned = repairs.map((repair) => {
+        const patchedPath = path.join(root, 'node_modules', repair.name);
+        const version = readVersion(patchedPath);
+        if (!isAtLeast(version, repair.minimumVersion)) {
+            throw new Error(`${repair.name} ${version} is below the required patched version.`);
+        }
+        const nestedKey = `node_modules/@earendil-works/pi-coding-agent/node_modules/${repair.name}`;
+        const replacement = lock?.packages?.[`node_modules/${repair.name}`];
+        if (
+            lock?.packages?.[nestedKey] &&
+            (replacement?.version !== version || !replacement?.resolved || !replacement?.integrity)
+        ) {
+            throw new Error(`Missing matching registry lock metadata for ${repair.name}.`);
+        }
+        return { ...repair, patchedPath, version, nestedKey, replacement };
+    });
+
+    for (const repair of planned) {
+        const nestedPath = path.join(root, repair.nestedKey);
+        if (
+            fs.existsSync(nestedPath) &&
+            !isAtLeast(readVersion(nestedPath), repair.minimumVersion)
+        ) {
+            // Removing a symlink never traverses or deletes its target.
+            fs.rmSync(nestedPath, { force: false, recursive: true });
+            const target =
+                process.platform === 'win32'
+                    ? repair.patchedPath
+                    : path.relative(path.dirname(nestedPath), repair.patchedPath);
+            fs.symlinkSync(target, nestedPath, process.platform === 'win32' ? 'junction' : 'dir');
+            console.log(`Enforced patched ${repair.name} ${repair.version} for pi-coding-agent.`);
+        }
+        if (lock?.packages?.[repair.nestedKey]) {
+            // Copy genuine npm-resolved metadata, including integrity, rather than
+            // inventing versions or deleting advisories. Normal postinstall above
+            // makes the installed packages match this audited final dependency tree.
+            lock.packages[repair.nestedKey] = { ...repair.replacement };
+        }
     }
-    if (!fs.existsSync(repair.nestedPath)) continue;
+    if (lock) fs.writeFileSync(lockPath, JSON.stringify(lock, null, 4) + '\n');
+}
 
-    const nestedVersion = readVersion(repair.nestedPath);
-    if (isAtLeast(nestedVersion, repair.minimumVersion)) continue;
-
-    fs.rmSync(repair.nestedPath, { force: false, recursive: true });
-    const target =
-        process.platform === 'win32'
-            ? repair.patchedPath
-            : path.relative(path.dirname(repair.nestedPath), repair.patchedPath);
-    fs.symlinkSync(target, repair.nestedPath, process.platform === 'win32' ? 'junction' : 'dir');
-    console.log(`Enforced patched ${repair.name} ${patchedVersion} for pi-coding-agent.`);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    enforcePatchedTransitives(packageRoot, {
+        repairLockfile: process.argv.includes('--repair-lockfile')
+    });
 }

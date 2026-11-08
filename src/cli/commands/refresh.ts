@@ -17,7 +17,7 @@ import { withTarsHomeMutationLease } from '../../utils/tars-home-lease.js';
 
 const packageSchema = z
     .object({
-        scripts: z.record(z.string()).optional()
+        scripts: z.record(z.string(), z.string()).optional()
     })
     .passthrough();
 const extensionEnablementEntrySchema = z.union([

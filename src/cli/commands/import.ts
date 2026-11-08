@@ -23,7 +23,7 @@ const metadataSchema = z
         version: z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/)
     })
     .passthrough();
-const coreJsonSchema = z.union([z.record(z.unknown()), z.array(z.unknown())]);
+const coreJsonSchema = z.union([z.record(z.string(), z.unknown()), z.array(z.unknown())]);
 
 export interface ArchiveManifest {
     members: string[];

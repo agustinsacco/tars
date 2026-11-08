@@ -43,7 +43,7 @@ export const ModelReferenceSchema = z
     .trim()
     .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*\/\S+$/, 'Model reference must be "provider/model-id"');
 
-export const ConfigFileSchema = z.record(z.unknown());
+export const ConfigFileSchema = z.record(z.string(), z.unknown());
 
 /**
  * Reasoning effort requested from the chat model. Mirrors pi's agent thinking
@@ -163,7 +163,7 @@ export const RuntimeConfigSchema = z.object({
     preflightCompressionThreshold: z.coerce.number().min(0.2).max(0.98).default(0.75),
     maxRPM: z.coerce.number().int().min(1).max(10_000).default(14),
     maxTPM: z.coerce.number().int().min(1).max(100_000_000).default(900_000),
-    channels: z.record(ChannelConfigSchema).default({}),
+    channels: z.record(z.string(), ChannelConfigSchema).default({}),
     primaryChannel: z.string().trim().min(1).default('discord'),
     discordToken: z.string().default(''),
     discordOwnerId: z.string().trim().min(1).nullable().default(null)
