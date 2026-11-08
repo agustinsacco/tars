@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.52.0](https://github.com/agustinsacco/tars/compare/v1.51.1...v1.52.0) (2026-11-08)
+
+
+### Features
+
+* durable event-driven workers and verified local lifecycle ([#195](https://github.com/agustinsacco/tars/issues/195)) ([c18c433](https://github.com/agustinsacco/tars/commit/c18c433404f49535f4998376b46ef0dbff93c7e3))
+
 ## [1.51.1](https://github.com/agustinsacco/tars/compare/v1.51.0...v1.51.1) (2026-11-03)
 
 
