@@ -13,7 +13,7 @@ import { ObjectiveStore, type Objective } from './objective-store.js';
 
 const InitiativeStateSchema = z.object({
     day: z.string(),
-    fingerprints: z.record(z.string().datetime()).default({}),
+    fingerprints: z.record(z.string(), z.string().datetime()).default({}),
     lastRunAt: z.string().datetime().optional(),
     notificationsToday: z.number().int().nonnegative().default(0)
 });

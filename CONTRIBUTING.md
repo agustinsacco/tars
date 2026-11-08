@@ -7,7 +7,7 @@ behavior and limitations plainly.
 
 Requirements:
 
-- Node.js 22.19 or newer
+- Node.js 22.19 or newer (22.23.4 or newer for documentation)
 - npm 10.9 or newer
 - Git
 

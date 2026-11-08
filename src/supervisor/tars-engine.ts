@@ -139,7 +139,7 @@ const ToolCallSchema = z
         type: z.literal('toolCall'),
         id: z.string(),
         name: z.string(),
-        arguments: z.record(z.unknown()),
+        arguments: z.record(z.string(), z.unknown()),
         thoughtSignature: z.string().optional()
     })
     .passthrough();
@@ -175,7 +175,7 @@ const AssistantDiagnosticSchema = z
             })
             .passthrough()
             .optional(),
-        details: z.record(z.unknown()).optional()
+        details: z.record(z.string(), z.unknown()).optional()
     })
     .passthrough();
 const UserMessageSchema = z

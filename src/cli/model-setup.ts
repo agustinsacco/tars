@@ -357,7 +357,7 @@ function readCredentialStore(storePath: string): Record<string, unknown> {
     if (!fsSync.existsSync(storePath)) return {};
     try {
         const parsed: unknown = JSON.parse(fsSync.readFileSync(storePath, 'utf-8'));
-        return z.record(z.unknown()).parse(parsed);
+        return z.record(z.string(), z.unknown()).parse(parsed);
     } catch {
         return {};
     }

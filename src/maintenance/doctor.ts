@@ -35,16 +35,17 @@ export interface DoctorReport {
 const ManifestSchema = z
     .object({
         mcpServers: z.record(
+            z.string(),
             z
                 .object({
-                    env: z.record(z.string()).optional()
+                    env: z.record(z.string(), z.string()).optional()
                 })
                 .passthrough()
         )
     })
     .passthrough();
 const FactsSchema = z.object({
-    facts: z.record(z.object({ key: z.string(), value: z.string() }).passthrough())
+    facts: z.record(z.string(), z.object({ key: z.string(), value: z.string() }).passthrough())
 });
 const IndexedPathSchema = z.object({ path: z.string() });
 const LARGE_LOG_BYTES = 100 * 1024 * 1024;
