@@ -31,10 +31,15 @@ const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
     for (const fn of cleanup.splice(0).reverse()) await fn();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
 });
-async function setup() {
+async function setup(apiKey?: string) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tars-lifecycle-'));
+    // Never read the host's real key file: point at a per-test file, absent unless a key is given.
+    const keyFile = path.join(root, 'api-key');
+    if (apiKey !== undefined) fs.writeFileSync(keyFile, apiKey + '\n', { mode: 0o600 });
+    vi.stubEnv('TARS_LOCAL_MODEL_KEY_FILE', keyFile);
     const store = new WorkerStore(path.join(root, 'data', 'workers', 'state.sqlite'));
     const server = new BrokerServer(path.join(root, 'broker.sock'), store);
     await server.start();
@@ -66,9 +71,41 @@ async function setup() {
         scope: 'Fixture only',
         allowFollowUp: false
     });
-    return { root, store, client, lifecycle, worker };
+    return { root, store, client, lifecycle, worker, keyFile };
 }
 describe('Packaged worker lifecycle (real child, fixture RPC)', () => {
+    it('sends the local model API key and lets pi read it from the key file', async () => {
+        const key = 'k'.repeat(48);
+        const { lifecycle, worker, keyFile } = await setup(key);
+        const receipt = await lifecycle.launch(worker.id);
+        const calls = vi.mocked(globalThis.fetch).mock.calls as unknown as [string, RequestInit][];
+        const models = calls.find(([url]) => url.endsWith('/v1/models'));
+        expect(models?.[1].headers).toEqual({ Authorization: `Bearer ${key}` });
+        const config = fs.readFileSync(
+            path.join(receipt.directory, 'config', 'models.json'),
+            'utf8'
+        );
+        const provider = JSON.parse(config).providers['local-worker'];
+        expect(provider.apiKey).toBe(`!cat '${keyFile}'`);
+        expect(provider.compat).toMatchObject({ supportsStore: false, supportsStrictMode: false });
+        expect(config).not.toContain(key);
+        await lifecycle.stop(worker.id);
+    });
+    it('keeps the placeholder for a keyless server and refuses an invalid key file', async () => {
+        const { lifecycle, worker, keyFile } = await setup();
+        const receipt = await lifecycle.launch(worker.id);
+        const calls = vi.mocked(globalThis.fetch).mock.calls as unknown as [string, RequestInit][];
+        expect(calls.find(([url]) => url.endsWith('/v1/models'))?.[1].headers).toEqual({});
+        const config = JSON.parse(
+            fs.readFileSync(path.join(receipt.directory, 'config', 'models.json'), 'utf8')
+        );
+        expect(config.providers['local-worker'].apiKey).toBe('local-placeholder');
+        await lifecycle.stop(worker.id);
+        fs.writeFileSync(keyFile, 'short\n', { mode: 0o600 });
+        vi.mocked(spawn).mockClear();
+        await expect(lifecycle.launch(worker.id, true)).rejects.toThrow('API key file is invalid');
+        expect(spawn).not.toHaveBeenCalled();
+    });
     it('registration is passive; launch verifies RPC before sending and resume retains identity/session', async () => {
         const { lifecycle, store, client, worker } = await setup();
         expect(spawn).not.toHaveBeenCalled();

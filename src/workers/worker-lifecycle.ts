@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
 import { z } from 'zod';
@@ -52,6 +53,32 @@ const State = z
     })
     .passthrough();
 
+/**
+ * API key of the local model server. Crucible requires one on every request except /health and
+ * reads it from this file; the key itself never leaves the file (pi reads it with `!cat`).
+ * A missing file means a keyless server.
+ */
+function localModelKeyFile(): string {
+    return (
+        process.env.TARS_LOCAL_MODEL_KEY_FILE ??
+        path.join(os.homedir(), '.config', 'crucible', 'api-key')
+    );
+}
+function readLocalModelKey(file: string): string | undefined {
+    let key: string;
+    try {
+        key = fs.readFileSync(file, 'utf8').trim();
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        throw error;
+    }
+    if (!/^[A-Za-z0-9._~+/=-]{32,256}$/.test(key))
+        throw new Error('Local model API key file is invalid');
+    return key;
+}
+function shellQuote(value: string): string {
+    return "'" + value.replace(/'/g, "'\\''") + "'";
+}
 function privateDirectory(directory: string): void {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     const stat = fs.lstatSync(directory);
@@ -233,7 +260,10 @@ export class WorkerLifecycle {
                     false
             )
                 throw new Error('Local model unhealthy');
+            const keyFile = localModelKeyFile();
+            const key = readLocalModelKey(keyFile);
             const models = await fetch('http://127.0.0.1:8086/v1/models', {
+                headers: key ? { Authorization: `Bearer ${key}` } : {},
                 signal: AbortSignal.timeout(5000)
             });
             if (
@@ -264,10 +294,12 @@ export class WorkerLifecycle {
                     'local-worker': {
                         baseUrl: 'http://127.0.0.1:8086/v1',
                         api: 'openai-completions',
-                        apiKey: 'local-placeholder',
+                        apiKey: key ? '!cat ' + shellQuote(keyFile) : 'local-placeholder',
                         compat: {
+                            supportsStore: false,
                             supportsDeveloperRole: false,
                             supportsReasoningEffort: false,
+                            supportsStrictMode: false,
                             thinkingFormat: 'qwen-chat-template'
                         },
                         models: [
